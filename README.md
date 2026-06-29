@@ -16,31 +16,35 @@ Add it to your MCP client's config. The only required credential is a TMDB v4
 
 **Via npx (no install):**
 
-```jsonc
+```json
 {
   "mcpServers": {
     "tmdb": {
       "command": "npx",
       "args": ["-y", "tmdb-mcp"],
       "env": {
-        "TMDB_API_TOKEN": "your-tmdb-v4-read-access-token", // required
-        "OMDB_API_KEY": "your-omdb-key", // optional — IMDb/RT/Metacritic ratings
-        "TMDB_LANGUAGE": "en-US", // optional — localize, e.g. "ru-RU"
-        "TMDB_REGION": "US", // optional — region for certifications, e.g. "RU"
-      },
-    },
-  },
+        "TMDB_API_TOKEN": "your-tmdb-v4-read-access-token (required)",
+        "OMDB_API_KEY": "your-omdb-key (optional — IMDb/RT/Metacritic ratings)",
+        "TMDB_LANGUAGE": "en-US (optional — localize, e.g. ru-RU)",
+        "TMDB_REGION": "US (optional — region for certifications, e.g. RU)"
+      }
+    }
+  }
 }
 ```
 
-> The comments mark required vs optional — real client config is strict JSON, so
-> drop the comments and any optional lines you don't need. Only `TMDB_API_TOKEN`
-> is required.
+> Replace each value with your own. Only `TMDB_API_TOKEN` is required — delete the
+> lines marked optional if you don't need them.
 
-**From source** (after `npm ci && npm run build`): use `"command": "node"` and
-`"args": ["/ABS/PATH/tmdb-mcp/dist/index.js"]` with the same `env`. **As a `.mcpb`
-bundle:** download it from the [latest release](https://github.com/Grinv/tmdb-mcp/releases/latest)
-and install — the credential fields appear in the client UI.
+**As a `.mcpb` bundle (easiest for Claude Desktop):** download `tmdb-mcp.mcpb`
+from the [latest release](https://github.com/Grinv/tmdb-mcp/releases/latest),
+then open it / drag it into Claude Desktop's Extensions. It's a self-contained
+bundle (no Node or npm needed); enter the token and the optional fields in the
+install dialog. Re-download and reinstall to update.
+
+**From source:** `git clone`, then `npm ci && npm run build`, and point the client
+at it with `"command": "node"`, `"args": ["/ABS/PATH/tmdb-mcp/dist/index.js"]` and
+the same `env` as above.
 
 See [docs/clients.md](docs/clients.md) for per-client details and all tunables.
 
