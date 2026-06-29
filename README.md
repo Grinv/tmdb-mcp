@@ -107,7 +107,7 @@ Runtime requires Node ≥ 18. Contributor/agent guidance lives in
 
 - **`.mcpb` bundle:** download the new bundle from the releases page and reinstall.
 - **From source:** `git pull && npm ci && npm run build`.
-- **npx (if published):** unpinned `npx -y tmdb-mcp` fetches the latest next run.
+- **npx:** unpinned `npx -y tmdb-mcp` fetches the latest on the next run.
 
 This product uses the TMDB API but is not endorsed or certified by TMDB.
 
