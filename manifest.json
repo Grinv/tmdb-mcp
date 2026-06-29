@@ -1,0 +1,67 @@
+{
+  "manifest_version": "0.3",
+  "name": "tmdb-mcp",
+  "display_name": "TMDB (Movies & TV)",
+  "version": "0.1.0",
+  "description": "Search and look up movies, TV shows and people from The Movie Database (TMDB), with IMDb/Rotten Tomatoes/Metacritic ratings via OMDb.",
+  "author": {
+    "name": "Grinv",
+    "email": "4070730+Grinv@users.noreply.github.com",
+    "url": "https://github.com/Grinv"
+  },
+  "homepage": "https://github.com/Grinv/tmdb-mcp",
+  "documentation": "https://github.com/Grinv/tmdb-mcp#readme",
+  "support": "https://github.com/Grinv/tmdb-mcp/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Grinv/tmdb-mcp"
+  },
+  "license": "MIT",
+  "keywords": ["mcp", "tmdb", "imdb", "omdb", "movies", "tv"],
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/dist/index.js"],
+      "env": {
+        "TMDB_API_TOKEN": "${user_config.tmdb_api_token}",
+        "OMDB_API_KEY": "${user_config.omdb_api_key}"
+      }
+    }
+  },
+  "tools_generated": false,
+  "tools": [
+    { "name": "search_movies", "description": "Search movies by title." },
+    { "name": "search_tv", "description": "Search TV shows by name." },
+    { "name": "search_multi", "description": "Search movies, TV and people at once." },
+    { "name": "search_people", "description": "Search people by name." },
+    { "name": "get_movie", "description": "Movie details (+ IMDb/RT/Metacritic ratings)." },
+    { "name": "get_tv", "description": "TV details (+ IMDb/RT/Metacritic ratings)." },
+    { "name": "get_person", "description": "Person details." },
+    { "name": "get_movie_credits", "description": "Movie cast & crew." },
+    { "name": "get_tv_credits", "description": "TV cast & crew." },
+    { "name": "get_movie_recommendations", "description": "Movies similar to one." },
+    { "name": "get_tv_recommendations", "description": "TV shows similar to one." },
+    { "name": "get_trending", "description": "Trending movies/TV/people." },
+    { "name": "get_movie_genres", "description": "List movie genres." },
+    { "name": "get_tv_genres", "description": "List TV genres." },
+    { "name": "get_ratings", "description": "IMDb/RT/Metacritic ratings by IMDb id or title." }
+  ],
+  "user_config": {
+    "tmdb_api_token": {
+      "type": "string",
+      "title": "TMDB API Read Access Token",
+      "description": "Required. TMDB v4 'Read Access Token' from https://www.themoviedb.org/settings/api (sent as a Bearer token).",
+      "required": true,
+      "sensitive": true
+    },
+    "omdb_api_key": {
+      "type": "string",
+      "title": "OMDb API Key",
+      "description": "Optional. Free key from https://www.omdbapi.com/apikey.aspx — enables IMDb/Rotten Tomatoes/Metacritic ratings.",
+      "required": false,
+      "sensitive": true
+    }
+  }
+}

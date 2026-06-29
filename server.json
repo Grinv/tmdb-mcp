@@ -1,0 +1,19 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
+  "name": "io.github.Grinv/tmdb-mcp",
+  "description": "MCP server for The Movie Database (TMDB) with IMDb/Rotten Tomatoes/Metacritic ratings via OMDb.",
+  "status": "active",
+  "version": "0.1.0",
+  "repository": {
+    "url": "https://github.com/Grinv/tmdb-mcp",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/Grinv/tmdb-mcp/releases/download/v0.1.0/tmdb-mcp.mcpb",
+      "version": "0.1.0",
+      "transport": { "type": "stdio" }
+    }
+  ]
+}
