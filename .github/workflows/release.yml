@@ -4,9 +4,11 @@ on:
   push:
     tags: ["v*"]
 
-# Needs write access to create the GitHub Release and upload the .mcpb asset.
+# contents: write → create the GitHub Release + upload the .mcpb asset.
+# id-token: write → npm provenance attestation via Trusted Publishing (OIDC).
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   release:
@@ -29,3 +31,9 @@ jobs:
         with:
           files: tmdb-mcp.mcpb
           generate_release_notes: true
+      # Trusted Publishing (OIDC): no token. Requires npm >= 11.5.1 and a
+      # trusted publisher configured for this package on npmjs.com.
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@latest
+      - name: Publish to npm (trusted publishing + provenance)
+        run: npm publish --provenance --access public
