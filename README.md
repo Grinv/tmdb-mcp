@@ -16,22 +16,26 @@ Add it to your MCP client's config. The only required credential is a TMDB v4
 
 **Via npx (no install):**
 
-```json
+```jsonc
 {
   "mcpServers": {
     "tmdb": {
       "command": "npx",
       "args": ["-y", "tmdb-mcp"],
       "env": {
-        "TMDB_API_TOKEN": "your-tmdb-v4-read-access-token",
-        "OMDB_API_KEY": "your-omdb-key",
-        "TMDB_LANGUAGE": "en-US",
-        "TMDB_REGION": "US"
-      }
-    }
-  }
+        "TMDB_API_TOKEN": "your-tmdb-v4-read-access-token", // required
+        "OMDB_API_KEY": "your-omdb-key", // optional — IMDb/RT/Metacritic ratings
+        "TMDB_LANGUAGE": "en-US", // optional — localize, e.g. "ru-RU"
+        "TMDB_REGION": "US", // optional — region for certifications, e.g. "RU"
+      },
+    },
+  },
 }
 ```
+
+> The comments mark required vs optional — real client config is strict JSON, so
+> drop the comments and any optional lines you don't need. Only `TMDB_API_TOKEN`
+> is required.
 
 **From source** (after `npm ci && npm run build`): use `"command": "node"` and
 `"args": ["/ABS/PATH/tmdb-mcp/dist/index.js"]` with the same `env`. **As a `.mcpb`
