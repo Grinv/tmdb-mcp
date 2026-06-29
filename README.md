@@ -1,5 +1,9 @@
 # tmdb-mcp
 
+[![npm version](https://img.shields.io/npm/v/tmdb-mcp.svg)](https://www.npmjs.com/package/tmdb-mcp)
+[![CI](https://github.com/Grinv/tmdb-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/Grinv/tmdb-mcp/actions/workflows/ci.yml)
+[![license: MIT](https://img.shields.io/npm/l/tmdb-mcp.svg)](LICENSE)
+
 An [MCP](https://modelcontextprotocol.io) server for **The Movie Database
 (TMDB)**: search and look up movies, TV shows and people, and read
 **IMDb / Rotten Tomatoes / Metacritic** ratings (via [OMDb](https://www.omdbapi.com/))
