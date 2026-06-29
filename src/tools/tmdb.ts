@@ -27,6 +27,42 @@ const includeRatings = z
   )
   .optional();
 
+const mediaType = z
+  .enum(["movie", "tv"])
+  .describe("Whether the id refers to a movie or a TV show.");
+const region = z
+  .string()
+  .regex(/^[A-Z]{2}$/, "Use a two-letter ISO-3166-1 country code, e.g. 'US'.")
+  .describe("ISO-3166-1 country code for region-specific results (default 'US').")
+  .optional();
+const sortBy = z
+  .string()
+  .describe("TMDB sort, e.g. 'popularity.desc', 'vote_average.desc', 'primary_release_date.desc'.")
+  .optional();
+const withGenres = z
+  .string()
+  .describe("Comma-separated TMDB genre ids (AND); get ids from get_movie_genres/get_tv_genres.")
+  .optional();
+const discoverShared = {
+  sort_by: sortBy,
+  with_genres: withGenres,
+  year: z.number().int().min(1870).max(2100).describe("Release / first-air year.").optional(),
+  min_rating: z.number().min(0).max(10).describe("Minimum vote average (0-10).").optional(),
+  max_rating: z.number().min(0).max(10).describe("Maximum vote average (0-10).").optional(),
+  min_votes: z
+    .number()
+    .int()
+    .min(0)
+    .describe("Minimum vote count (filters obscure titles).")
+    .optional(),
+  min_runtime: z.number().int().min(0).describe("Minimum runtime in minutes.").optional(),
+  with_original_language: z
+    .string()
+    .describe("ISO-639-1 language code, e.g. 'en', 'ja'.")
+    .optional(),
+  page: page.optional(),
+};
+
 /** Run a client call and wrap its result (or any failure) as a tool result. */
 const reply = (fn: () => Promise<Record<string, unknown>>): Promise<ToolResult> =>
   guard(async () => jsonResult(await fn()));
@@ -274,6 +310,147 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
       annotations: READ_ONLY,
     },
     () => requireTmdb(() => tmdb.getTvGenres()),
+  );
+
+  // ---- discover -------------------------------------------------------------
+
+  server.registerTool(
+    "discover_movies",
+    {
+      title: "Discover movies (filters)",
+      description:
+        "Find movies by structured filters instead of a title query: genres, year, rating range, " +
+        "minimum vote count, runtime, original language, and sort order. Use for requests like " +
+        "'popular sci-fi movies from the 1990s rated above 7'. Get genre ids from get_movie_genres.",
+      inputSchema: discoverShared,
+      annotations: READ_ONLY,
+    },
+    (args) => requireTmdb(() => tmdb.discoverMovies(args)),
+  );
+
+  server.registerTool(
+    "discover_tv",
+    {
+      title: "Discover TV shows (filters)",
+      description:
+        "Find TV shows by structured filters (genres, first-air year, rating range, vote count, " +
+        "runtime, language, sort). The TV counterpart of discover_movies.",
+      inputSchema: discoverShared,
+      annotations: READ_ONLY,
+    },
+    (args) => requireTmdb(() => tmdb.discoverTv(args)),
+  );
+
+  // ---- watch providers ------------------------------------------------------
+
+  server.registerTool(
+    "get_watch_providers",
+    {
+      title: "Where to watch",
+      description:
+        "Find where a movie or TV show can be streamed, rented or bought in a given country " +
+        "(JustWatch data via TMDB). Returns provider names per access type plus the regions that " +
+        "have data. Get the id from search_movies/search_tv.",
+      inputSchema: {
+        media_type: mediaType,
+        id: tmdbId,
+        region,
+      },
+      annotations: READ_ONLY,
+    },
+    ({ media_type, id, region: r }) =>
+      requireTmdb(() =>
+        media_type === "tv"
+          ? tmdb.getTvWatchProviders(id, r ?? "US")
+          : tmdb.getMovieWatchProviders(id, r ?? "US"),
+      ),
+  );
+
+  // ---- person filmography ---------------------------------------------------
+
+  server.registerTool(
+    "get_person_credits",
+    {
+      title: "Get person filmography",
+      description:
+        "List the movies and TV shows a person is known for (cast roles and crew jobs), most " +
+        "popular first. Use for 'what has this actor/director been in'. Get the id from search_people.",
+      inputSchema: { id: tmdbId },
+      annotations: READ_ONLY,
+    },
+    ({ id }) => requireTmdb(() => tmdb.getPersonCredits(id)),
+  );
+
+  // ---- videos / trailers ----------------------------------------------------
+
+  server.registerTool(
+    "get_videos",
+    {
+      title: "Get trailers & videos",
+      description:
+        "List trailers, teasers and clips for a movie or TV show; YouTube entries include a " +
+        "watch URL. Get the id from search_movies/search_tv.",
+      inputSchema: { media_type: mediaType, id: tmdbId },
+      annotations: READ_ONLY,
+    },
+    ({ media_type, id }) =>
+      requireTmdb(() => (media_type === "tv" ? tmdb.getTvVideos(id) : tmdb.getMovieVideos(id))),
+  );
+
+  // ---- reverse lookup -------------------------------------------------------
+
+  server.registerTool(
+    "find_by_imdb_id",
+    {
+      title: "Find by IMDb id",
+      description:
+        "Resolve an IMDb id (e.g. 'tt0133093') to TMDB entities — returns matching movie, TV and " +
+        "person results. Use when you only have an IMDb id and need the TMDB id for the other tools.",
+      inputSchema: {
+        imdb_id: z
+          .string()
+          .regex(/^(tt|nm)\d+$/, "IMDb ids look like 'tt0133093' or 'nm0000206'.")
+          .describe("IMDb title (tt…) or name (nm…) id."),
+      },
+      annotations: READ_ONLY,
+    },
+    ({ imdb_id }) => requireTmdb(() => tmdb.findByExternalId(imdb_id, "imdb_id")),
+  );
+
+  // ---- TV deep dive ---------------------------------------------------------
+
+  server.registerTool(
+    "get_tv_season",
+    {
+      title: "Get TV season",
+      description:
+        "Get one season of a TV show (by show id + season number): overview and the episode list " +
+        "with air dates, runtimes and ratings. Season 0 is usually specials. Get the show id from search_tv.",
+      inputSchema: {
+        id: tmdbId,
+        season_number: z.number().int().min(0).describe("Season number (0 = specials)."),
+      },
+      annotations: READ_ONLY,
+    },
+    ({ id, season_number }) => requireTmdb(() => tmdb.getTvSeason(id, season_number)),
+  );
+
+  server.registerTool(
+    "get_tv_episode",
+    {
+      title: "Get TV episode",
+      description:
+        "Get one episode of a TV show by show id + season number + episode number: overview, air " +
+        "date, runtime, rating, guest stars and director/writer. Get the show id from search_tv.",
+      inputSchema: {
+        id: tmdbId,
+        season_number: z.number().int().min(0).describe("Season number (0 = specials)."),
+        episode_number: z.number().int().min(1).describe("Episode number within the season."),
+      },
+      annotations: READ_ONLY,
+    },
+    ({ id, season_number, episode_number }) =>
+      requireTmdb(() => tmdb.getTvEpisode(id, season_number, episode_number)),
   );
 }
 

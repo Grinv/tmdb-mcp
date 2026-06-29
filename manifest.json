@@ -46,6 +46,17 @@
     { "name": "get_trending", "description": "Trending movies/TV/people." },
     { "name": "get_movie_genres", "description": "List movie genres." },
     { "name": "get_tv_genres", "description": "List TV genres." },
+    {
+      "name": "discover_movies",
+      "description": "Find movies by filters (genre, year, rating, …)."
+    },
+    { "name": "discover_tv", "description": "Find TV shows by filters." },
+    { "name": "get_watch_providers", "description": "Where to stream/rent/buy, by region." },
+    { "name": "get_person_credits", "description": "A person's filmography (cast & crew)." },
+    { "name": "get_videos", "description": "Trailers/teasers/clips (YouTube links)." },
+    { "name": "find_by_imdb_id", "description": "Resolve an IMDb id to TMDB entities." },
+    { "name": "get_tv_season", "description": "Season overview + episode list." },
+    { "name": "get_tv_episode", "description": "Single episode details." },
     { "name": "get_ratings", "description": "IMDb/RT/Metacritic ratings by IMDb id or title." }
   ],
   "user_config": {

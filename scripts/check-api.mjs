@@ -44,6 +44,19 @@ const checks = [
     },
   },
   {
+    name: "tmdb discover/movie",
+    skip: TMDB_TOKEN ? undefined : "TMDB_API_TOKEN not set",
+    run: async () => {
+      const res = await fetch(
+        `${TMDB_BASE}/discover/movie?sort_by=popularity.desc&vote_count.gte=100`,
+        { headers: { Accept: "application/json", Authorization: `Bearer ${TMDB_TOKEN}` } },
+      );
+      if (res.status !== 200) throw new Error(`expected 200, got ${res.status}`);
+      const body = await res.json();
+      if (!Array.isArray(body.results)) throw new Error("missing `results` array");
+    },
+  },
+  {
     name: "omdb ratings by imdb_id",
     skip: OMDB_KEY ? undefined : "OMDB_API_KEY not set",
     run: async () => {

@@ -311,6 +311,229 @@ export function summarizeGenres(genres: NamedRef[]): Record<string, unknown> {
   return { genres: genres.map((g) => ({ id: g.id, name: g.name })) };
 }
 
+// ---- watch providers --------------------------------------------------------
+
+interface ProviderEntry {
+  provider_id?: number;
+  provider_name?: string;
+  logo_path?: string | null;
+}
+interface RegionProviders {
+  link?: string;
+  flatrate?: ProviderEntry[];
+  rent?: ProviderEntry[];
+  buy?: ProviderEntry[];
+  free?: ProviderEntry[];
+  ads?: ProviderEntry[];
+}
+export interface WatchProvidersResponse {
+  id?: number;
+  // Keyed by ISO-3166-1 country code, e.g. "US", "GB", "RU".
+  results?: Record<string, RegionProviders>;
+}
+
+function providerNames(list: ProviderEntry[] | undefined): string[] {
+  return (list ?? []).map((p) => p.provider_name).filter((n): n is string => Boolean(n));
+}
+
+// Watch availability is region-specific (JustWatch data). We surface one region
+// (the caller's) plus the list of regions that have data, so the agent can retry.
+export function summarizeWatchProviders(
+  r: WatchProvidersResponse,
+  region: string,
+): Record<string, unknown> {
+  const all = r.results ?? {};
+  const regions = Object.keys(all).sort();
+  const here = all[region];
+  if (!here) {
+    return { region, available: false, available_regions: regions };
+  }
+  return {
+    region,
+    available: true,
+    link: here.link ?? null,
+    streaming: providerNames(here.flatrate),
+    free: providerNames(here.free),
+    ads: providerNames(here.ads),
+    rent: providerNames(here.rent),
+    buy: providerNames(here.buy),
+    available_regions: regions,
+  };
+}
+
+// ---- person combined credits ------------------------------------------------
+
+interface CombinedCreditEntry {
+  id?: number;
+  media_type?: "movie" | "tv";
+  title?: string; // movies
+  name?: string; // tv
+  character?: string;
+  job?: string;
+  department?: string;
+  release_date?: string; // movies
+  first_air_date?: string; // tv
+  vote_average?: number;
+  popularity?: number;
+}
+export interface CombinedCredits {
+  cast?: CombinedCreditEntry[];
+  crew?: CombinedCreditEntry[];
+}
+
+function creditTitle(e: CombinedCreditEntry): string | undefined {
+  return e.title ?? e.name;
+}
+function creditYear(e: CombinedCreditEntry): number | null {
+  return year(e.release_date ?? e.first_air_date);
+}
+
+// A prolific person can have hundreds of credits; cap to the most popular so the
+// result stays useful and token-bounded.
+export function summarizePersonCredits(c: CombinedCredits, limit = 25): Record<string, unknown> {
+  const byPopularity = (a: CombinedCreditEntry, b: CombinedCreditEntry): number =>
+    (b.popularity ?? 0) - (a.popularity ?? 0);
+  const cast = (c.cast ?? [])
+    .slice()
+    .sort(byPopularity)
+    .slice(0, limit)
+    .map((e) => ({
+      id: e.id,
+      media_type: e.media_type,
+      title: creditTitle(e),
+      year: creditYear(e),
+      character: e.character || null,
+      vote_average: e.vote_average ?? null,
+    }));
+  const crew = (c.crew ?? [])
+    .slice()
+    .sort(byPopularity)
+    .slice(0, limit)
+    .map((e) => ({
+      id: e.id,
+      media_type: e.media_type,
+      title: creditTitle(e),
+      year: creditYear(e),
+      job: e.job || null,
+      department: e.department || null,
+    }));
+  return { cast, crew };
+}
+
+// ---- videos -----------------------------------------------------------------
+
+interface VideoEntry {
+  name?: string;
+  key?: string;
+  site?: string;
+  type?: string;
+  official?: boolean;
+  published_at?: string;
+}
+export interface VideosResponse {
+  results?: VideoEntry[];
+}
+
+// Only YouTube videos get a usable watch URL; others are returned without one.
+export function summarizeVideos(r: VideosResponse): Record<string, unknown> {
+  const results = (r.results ?? []).map((v) => ({
+    name: v.name,
+    type: v.type ?? null,
+    site: v.site ?? null,
+    official: v.official ?? null,
+    url: v.site === "YouTube" && v.key ? `https://www.youtube.com/watch?v=${v.key}` : null,
+    published_at: v.published_at ?? null,
+  }));
+  return { results };
+}
+
+// ---- find by external id ----------------------------------------------------
+
+export interface FindResponse {
+  movie_results?: TmdbMovie[];
+  tv_results?: TmdbTv[];
+  person_results?: TmdbPerson[];
+  tv_episode_results?: unknown[];
+  tv_season_results?: unknown[];
+}
+
+export function summarizeFind(r: FindResponse): Record<string, unknown> {
+  return {
+    movie_results: (r.movie_results ?? []).map(summarizeMovie),
+    tv_results: (r.tv_results ?? []).map(summarizeTv),
+    person_results: (r.person_results ?? []).map((p) => ({
+      id: p.id,
+      media_type: "person",
+      name: p.name,
+      known_for_department: p.known_for_department ?? null,
+      profile_url: imageUrl(p.profile_path),
+    })),
+  };
+}
+
+// ---- TV season & episode ----------------------------------------------------
+
+interface RawEpisode {
+  episode_number?: number;
+  name?: string;
+  overview?: string;
+  air_date?: string | null;
+  runtime?: number | null;
+  vote_average?: number;
+  still_path?: string | null;
+  guest_stars?: { id?: number; name?: string; character?: string }[];
+  crew?: { id?: number; name?: string; job?: string }[];
+}
+export interface TmdbSeason {
+  id?: number;
+  name?: string;
+  season_number?: number;
+  air_date?: string | null;
+  overview?: string;
+  poster_path?: string | null;
+  episodes?: RawEpisode[];
+}
+
+export function summarizeSeason(s: TmdbSeason): Record<string, unknown> {
+  return {
+    season_number: s.season_number ?? null,
+    name: s.name ?? null,
+    air_date: s.air_date ?? null,
+    overview: s.overview || null,
+    poster_url: imageUrl(s.poster_path),
+    episode_count: s.episodes?.length ?? 0,
+    episodes: (s.episodes ?? []).map((e) => ({
+      episode_number: e.episode_number ?? null,
+      name: e.name ?? null,
+      air_date: e.air_date ?? null,
+      runtime_minutes: e.runtime ?? null,
+      vote_average: e.vote_average ?? null,
+      overview: e.overview || null,
+    })),
+  };
+}
+
+export function summarizeEpisode(
+  e: RawEpisode & { season_number?: number },
+): Record<string, unknown> {
+  return {
+    season_number: e.season_number ?? null,
+    episode_number: e.episode_number ?? null,
+    name: e.name ?? null,
+    air_date: e.air_date ?? null,
+    runtime_minutes: e.runtime ?? null,
+    vote_average: e.vote_average ?? null,
+    overview: e.overview || null,
+    still_url: imageUrl(e.still_path),
+    guest_stars: (e.guest_stars ?? [])
+      .slice(0, 15)
+      .map((g) => ({ id: g.id, name: g.name, character: g.character || null })),
+    crew: (e.crew ?? [])
+      .filter((x) => x.job === "Director" || x.job === "Writer")
+      .map((x) => ({ id: x.id, name: x.name, job: x.job })),
+  };
+}
+
 // ---- OMDb -------------------------------------------------------------------
 
 // OMDb returns 200 even for "not found" with { Response: "False", Error }.

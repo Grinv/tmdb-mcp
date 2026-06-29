@@ -6,6 +6,19 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `discover_movies` / `discover_tv` — structured filtering (genres, year, rating
+  range, vote count, runtime, language, sort) instead of a title query.
+- `get_watch_providers` — where to stream/rent/buy a movie or show, by region
+  (JustWatch data via TMDB).
+- `get_person_credits` — a person's filmography (cast roles and crew jobs),
+  most popular first.
+- `get_videos` — trailers/teasers/clips for a movie or show (YouTube watch URLs).
+- `find_by_imdb_id` — resolve an IMDb id to TMDB movie/TV/person entities.
+- `get_tv_season` / `get_tv_episode` — season overview + episode list, and
+  single-episode details (guest stars, director/writer).
+
 ## [0.1.0]
 
 ### Added
