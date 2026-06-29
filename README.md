@@ -8,6 +8,38 @@ in the same call.
 The server speaks standard MCP over stdio, so it works with any MCP client
 (Claude Desktop/Code, Cursor, VS Code, Cline, …).
 
+## Install
+
+Add it to your MCP client's config. The only required credential is a TMDB v4
+**Read Access Token**; `OMDB_API_KEY` (ratings) and `TMDB_LANGUAGE` / `TMDB_REGION`
+(localization) are optional.
+
+**Via npx (no install):**
+
+```json
+{
+  "mcpServers": {
+    "tmdb": {
+      "command": "npx",
+      "args": ["-y", "tmdb-mcp"],
+      "env": {
+        "TMDB_API_TOKEN": "your-tmdb-v4-read-access-token",
+        "OMDB_API_KEY": "your-omdb-key",
+        "TMDB_LANGUAGE": "en-US",
+        "TMDB_REGION": "US"
+      }
+    }
+  }
+}
+```
+
+**From source** (after `npm ci && npm run build`): use `"command": "node"` and
+`"args": ["/ABS/PATH/tmdb-mcp/dist/index.js"]` with the same `env`. **As a `.mcpb`
+bundle:** download it from the [latest release](https://github.com/Grinv/tmdb-mcp/releases/latest)
+and install — the credential fields appear in the client UI.
+
+See [docs/clients.md](docs/clients.md) for per-client details and all tunables.
+
 ## What it does
 
 | Tool                                                   | Purpose                                                                                    |
