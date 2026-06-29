@@ -18,6 +18,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `find_by_imdb_id` — resolve an IMDb id to TMDB movie/TV/person entities.
 - `get_tv_season` / `get_tv_episode` — season overview + episode list, and
   single-episode details (guest stars, director/writer).
+- Age/content certifications in `get_movie` / `get_tv`: a region-specific
+  `certification` (e.g. "PG-13", "TV-MA") plus a `certifications` map of all
+  countries, sourced from TMDB `release_dates` / `content_ratings` (appended in
+  the same request). New `region` parameter (default "US") selects the headline
+  certification.
 
 ## [0.1.0]
 

@@ -22,6 +22,12 @@ const MOVIE_DETAIL = {
   genres: [{ id: 28, name: "Action" }],
   vote_average: 8.2,
   vote_count: 25000,
+  release_dates: {
+    results: [
+      { iso_3166_1: "US", release_dates: [{ certification: "R", type: 3 }] },
+      { iso_3166_1: "GB", release_dates: [{ certification: "15", type: 3 }] },
+    ],
+  },
 };
 
 const TV_DETAIL = {
@@ -33,6 +39,12 @@ const TV_DETAIL = {
   genres: [{ id: 18, name: "Drama" }],
   vote_average: 8.9,
   external_ids: { imdb_id: "tt0903747" },
+  content_ratings: {
+    results: [
+      { iso_3166_1: "US", rating: "TV-MA" },
+      { iso_3166_1: "DE", rating: "16" },
+    ],
+  },
 };
 
 const OMDB_OK = {
@@ -284,6 +296,54 @@ test("get_movie degrades gracefully when OMDb is not configured", async () => {
     const s = res.structuredContent as { ratings: { found: boolean; reason: string } };
     assert.equal(s.ratings.found, false);
     assert.match(s.ratings.reason, /OMDB_API_KEY/);
+  } finally {
+    restore();
+    await close();
+  }
+});
+
+test("get_movie returns the age certification for the requested region", async () => {
+  const mock = mockFetch(router);
+  const restore = installFetch(mock);
+  const { client, close } = await connectServer(ENV);
+  try {
+    const res = await client.callTool({
+      name: "get_movie",
+      arguments: { id: 603, region: "GB", include_ratings: false },
+    });
+    const s = res.structuredContent as {
+      certification: string;
+      certification_region: string;
+      certifications: Record<string, string>;
+    };
+    assert.equal(s.certification, "15");
+    assert.equal(s.certification_region, "GB");
+    assert.equal(s.certifications.US, "R");
+    const call = mock.calls.find((c) => /\/movie\/603/.test(c.url))!;
+    assert.match(call.url, /append_to_response=release_dates/);
+  } finally {
+    restore();
+    await close();
+  }
+});
+
+test("get_tv returns the content rating (default US region)", async () => {
+  const mock = mockFetch(router);
+  const restore = installFetch(mock);
+  const { client, close } = await connectServer(ENV);
+  try {
+    const res = await client.callTool({
+      name: "get_tv",
+      arguments: { id: 1396, include_ratings: false },
+    });
+    const s = res.structuredContent as {
+      certification: string;
+      certifications: Record<string, string>;
+    };
+    assert.equal(s.certification, "TV-MA");
+    assert.equal(s.certifications.DE, "16");
+    const call = mock.calls.find((c) => /\/tv\/1396/.test(c.url))!;
+    assert.match(call.url, /content_ratings/);
   } finally {
     restore();
     await close();

@@ -122,36 +122,44 @@ export class TmdbClient {
 
   // ---- details (cached: stable, frequently re-requested) --------------------
 
-  async getMovie(id: number): Promise<Record<string, unknown>> {
-    return this.#cache.wrapStaleOnError(`movie:${id}`, async () => {
-      const res = await this.#http.getJson<TmdbMovie>(`movie/${id}`);
-      return detailMovie(res);
+  async getMovie(id: number, region = "US"): Promise<Record<string, unknown>> {
+    // Cache key includes region because the headline `certification` field is
+    // region-specific (the full certifications map is fetched either way).
+    return this.#cache.wrapStaleOnError(`movie:${id}:${region}`, async () => {
+      // release_dates appended so the detail carries age/content certifications.
+      const res = await this.#http.getJson<TmdbMovie>(`movie/${id}`, {
+        query: { append_to_response: "release_dates" },
+      });
+      return detailMovie(res, region);
     });
   }
 
   /** Like getMovie but also returns the raw imdb_id for OMDb enrichment. */
   async getMovieWithImdb(
     id: number,
+    region = "US",
   ): Promise<{ shaped: Record<string, unknown>; imdbId: string | null }> {
-    const shaped = await this.getMovie(id);
+    const shaped = await this.getMovie(id, region);
     return { shaped, imdbId: (shaped.imdb_id as string | null) ?? null };
   }
 
-  async getTv(id: number): Promise<Record<string, unknown>> {
-    return this.#cache.wrapStaleOnError(`tv:${id}`, async () => {
+  async getTv(id: number, region = "US"): Promise<Record<string, unknown>> {
+    return this.#cache.wrapStaleOnError(`tv:${id}:${region}`, async () => {
       // external_ids appended so the TV detail carries an imdb_id (the base
-      // /tv/{id} response, unlike /movie/{id}, does not include one).
+      // /tv/{id} response, unlike /movie/{id}, does not include one);
+      // content_ratings appended for age/content certifications.
       const res = await this.#http.getJson<TmdbTv>(`tv/${id}`, {
-        query: { append_to_response: "external_ids" },
+        query: { append_to_response: "external_ids,content_ratings" },
       });
-      return detailTv(res);
+      return detailTv(res, region);
     });
   }
 
   async getTvWithImdb(
     id: number,
+    region = "US",
   ): Promise<{ shaped: Record<string, unknown>; imdbId: string | null }> {
-    const shaped = await this.getTv(id);
+    const shaped = await this.getTv(id, region);
     return { shaped, imdbId: (shaped.imdb_id as string | null) ?? null };
   }
 

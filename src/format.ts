@@ -36,6 +36,29 @@ function names(list: { name?: string }[] | undefined): string[] {
   return (list ?? []).map((x) => x.name).filter((n): n is string => Boolean(n));
 }
 
+// Build a { country → certification } map from a movie's release_dates. A country
+// can list several release types (theatrical, digital, …), each with its own
+// (often blank) certification; we keep the first non-empty one per country.
+function movieCertifications(m: TmdbMovie): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const r of m.release_dates?.results ?? []) {
+    const country = r.iso_3166_1;
+    if (!country) continue;
+    const cert = (r.release_dates ?? []).map((d) => d.certification).find((c) => c && c.trim());
+    if (cert) out[country] = cert;
+  }
+  return out;
+}
+
+// { country → rating } from a TV show's content_ratings.
+function tvCertifications(t: TmdbTv): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const r of t.content_ratings?.results ?? []) {
+    if (r.iso_3166_1 && r.rating && r.rating.trim()) out[r.iso_3166_1] = r.rating;
+  }
+  return out;
+}
+
 // ---- raw TMDB shapes (only the fields we read) ------------------------------
 
 interface NamedRef {
@@ -66,6 +89,13 @@ export interface TmdbMovie {
   homepage?: string | null;
   poster_path?: string | null;
   adult?: boolean;
+  // Appended via append_to_response=release_dates; carries certifications.
+  release_dates?: {
+    results?: {
+      iso_3166_1?: string;
+      release_dates?: { certification?: string; type?: number }[];
+    }[];
+  };
 }
 
 export interface TmdbTv {
@@ -91,6 +121,8 @@ export interface TmdbTv {
   created_by?: NamedRef[];
   poster_path?: string | null;
   external_ids?: { imdb_id?: string | null };
+  // Appended via append_to_response=content_ratings.
+  content_ratings?: { results?: { iso_3166_1?: string; rating?: string }[] };
 }
 
 export interface TmdbPerson {
@@ -151,11 +183,16 @@ export function summarizeMovie(m: TmdbMovie): Record<string, unknown> {
   };
 }
 
-export function detailMovie(m: TmdbMovie): Record<string, unknown> {
+export function detailMovie(m: TmdbMovie, region = "US"): Record<string, unknown> {
+  const certifications = movieCertifications(m);
   return {
     id: m.id,
     imdb_id: m.imdb_id ?? null,
     media_type: "movie",
+    // Age/content rating for `region` (e.g. MPAA "PG-13"); full map below.
+    certification: certifications[region] ?? null,
+    certification_region: region,
+    certifications,
     title: m.title,
     original_title: m.original_title,
     tagline: m.tagline || null,
@@ -198,11 +235,16 @@ export function summarizeTv(t: TmdbTv): Record<string, unknown> {
   };
 }
 
-export function detailTv(t: TmdbTv): Record<string, unknown> {
+export function detailTv(t: TmdbTv, region = "US"): Record<string, unknown> {
+  const certifications = tvCertifications(t);
   return {
     id: t.id,
     imdb_id: t.external_ids?.imdb_id ?? null,
     media_type: "tv",
+    // Age/content rating for `region` (e.g. "TV-MA"); full map below.
+    certification: certifications[region] ?? null,
+    certification_region: region,
+    certifications,
     name: t.name,
     original_name: t.original_name,
     tagline: t.tagline || null,

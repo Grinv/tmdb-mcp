@@ -169,14 +169,15 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
       title: "Get movie details",
       description:
         "Get full details for one movie by TMDB id: overview, genres, runtime, budget/revenue, " +
-        "vote average, and links (TMDB + IMDb). By default also includes IMDb/Rotten Tomatoes/" +
-        "Metacritic ratings from OMDb (set include_ratings=false to skip). Get the id from search_movies.",
-      inputSchema: { id: tmdbId, include_ratings: includeRatings },
+        "vote average, the age/content rating (certification) for `region`, and links (TMDB + IMDb). " +
+        "By default also includes IMDb/Rotten Tomatoes/Metacritic ratings from OMDb " +
+        "(set include_ratings=false to skip). Get the id from search_movies.",
+      inputSchema: { id: tmdbId, region, include_ratings: includeRatings },
       annotations: READ_ONLY,
     },
-    ({ id, include_ratings }) =>
+    ({ id, region: r, include_ratings }) =>
       requireTmdb(async () => {
-        const { shaped, imdbId } = await tmdb.getMovieWithImdb(id);
+        const { shaped, imdbId } = await tmdb.getMovieWithImdb(id, r ?? "US");
         return maybeEnrich(shaped, imdbId, include_ratings ?? true, omdb);
       }),
   );
@@ -187,14 +188,15 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
       title: "Get TV show details",
       description:
         "Get full details for one TV show by TMDB id: overview, genres, seasons/episodes counts, " +
-        "networks, status, and links. By default also includes IMDb/Rotten Tomatoes/Metacritic " +
-        "ratings from OMDb (set include_ratings=false to skip). Get the id from search_tv.",
-      inputSchema: { id: tmdbId, include_ratings: includeRatings },
+        "networks, status, the age/content rating (certification) for `region`, and links. " +
+        "By default also includes IMDb/Rotten Tomatoes/Metacritic ratings from OMDb " +
+        "(set include_ratings=false to skip). Get the id from search_tv.",
+      inputSchema: { id: tmdbId, region, include_ratings: includeRatings },
       annotations: READ_ONLY,
     },
-    ({ id, include_ratings }) =>
+    ({ id, region: r, include_ratings }) =>
       requireTmdb(async () => {
-        const { shaped, imdbId } = await tmdb.getTvWithImdb(id);
+        const { shaped, imdbId } = await tmdb.getTvWithImdb(id, r ?? "US");
         return maybeEnrich(shaped, imdbId, include_ratings ?? true, omdb);
       }),
   );
