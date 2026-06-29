@@ -43,10 +43,29 @@ const withGenres = z
   .string()
   .describe("Comma-separated TMDB genre ids (AND); get ids from get_movie_genres/get_tv_genres.")
   .optional();
+const language = z
+  .string()
+  .min(2)
+  .describe(
+    "Override the response language (ISO-639-1, optionally with a region), e.g. 'ru-RU' or 'en-US'. " +
+      "Localizes titles/overviews/genre names. Defaults to the server's TMDB_LANGUAGE.",
+  )
+  .optional();
+const idList = (what: string) =>
+  z.string().describe(`Comma-separated TMDB ${what} ids.`).optional();
+const dateStr = (what: string) =>
+  z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Use an ISO date YYYY-MM-DD.")
+    .describe(what)
+    .optional();
 const discoverShared = {
   sort_by: sortBy,
   with_genres: withGenres,
+  without_genres: z.string().describe("Comma-separated TMDB genre ids to exclude.").optional(),
   year: z.number().int().min(1870).max(2100).describe("Release / first-air year.").optional(),
+  release_date_gte: dateStr("Only entries released on/after this date (YYYY-MM-DD)."),
+  release_date_lte: dateStr("Only entries released on/before this date (YYYY-MM-DD)."),
   min_rating: z.number().min(0).max(10).describe("Minimum vote average (0-10).").optional(),
   max_rating: z.number().min(0).max(10).describe("Maximum vote average (0-10).").optional(),
   min_votes: z
@@ -56,11 +75,45 @@ const discoverShared = {
     .describe("Minimum vote count (filters obscure titles).")
     .optional(),
   min_runtime: z.number().int().min(0).describe("Minimum runtime in minutes.").optional(),
+  max_runtime: z.number().int().min(0).describe("Maximum runtime in minutes.").optional(),
   with_original_language: z
     .string()
-    .describe("ISO-639-1 language code, e.g. 'en', 'ja'.")
+    .describe("ISO-639-1 original-language code, e.g. 'en', 'ja'.")
     .optional(),
+  with_companies: idList("production company"),
+  with_keywords: idList("keyword (use search_keywords to resolve names → ids)"),
+  without_keywords: idList("keyword to exclude"),
+  with_watch_providers: idList("watch-provider (e.g. Netflix); requires watch_region"),
+  watch_region: z
+    .string()
+    .regex(/^[A-Z]{2}$/, "Two-letter ISO-3166-1 country code.")
+    .describe("Country for with_watch_providers, e.g. 'US'.")
+    .optional(),
+  language,
   page: page.optional(),
+};
+
+// Movie discover adds cast/crew/people and certification filters.
+const discoverMovieSchema = {
+  ...discoverShared,
+  with_cast: idList("cast (actor)"),
+  with_crew: idList("crew, e.g. a director"),
+  with_people: idList("person (cast or crew)"),
+  certification: z
+    .string()
+    .describe("Filter by exact age certification, e.g. 'PG-13'. Requires certification_country.")
+    .optional(),
+  certification_country: z
+    .string()
+    .regex(/^[A-Z]{2}$/, "Two-letter ISO-3166-1 country code.")
+    .describe("Country whose certification system the `certification` filter uses, e.g. 'US'.")
+    .optional(),
+};
+
+// TV discover adds network filtering.
+const discoverTvSchema = {
+  ...discoverShared,
+  with_networks: idList("TV network, e.g. HBO or Netflix"),
 };
 
 /** Run a client call and wrap its result (or any failure) as a tool result. */
@@ -95,6 +148,8 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
         query: z.string().min(1).describe("Movie title to search for."),
         year: z.number().int().min(1870).max(2100).describe("Filter by release year.").optional(),
         include_adult: includeAdult,
+        language,
+        region,
         page: page.optional(),
       },
       annotations: READ_ONLY,
@@ -119,6 +174,7 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
           .describe("Filter by first-air-date year.")
           .optional(),
         include_adult: includeAdult,
+        language,
         page: page.optional(),
       },
       annotations: READ_ONLY,
@@ -137,6 +193,7 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
       inputSchema: {
         query: z.string().min(1).describe("Free-text query."),
         include_adult: includeAdult,
+        language,
         page: page.optional(),
       },
       annotations: READ_ONLY,
@@ -154,11 +211,28 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
       inputSchema: {
         query: z.string().min(1).describe("Person name to search for."),
         include_adult: includeAdult,
+        language,
         page: page.optional(),
       },
       annotations: READ_ONLY,
     },
     (args) => requireTmdb(() => tmdb.searchPeople(args)),
+  );
+
+  server.registerTool(
+    "search_keywords",
+    {
+      title: "Search keywords",
+      description:
+        "Resolve keyword names to TMDB keyword ids (e.g. 'time travel', 'based on true story'). " +
+        "Feed the ids into discover_movies/discover_tv via with_keywords / without_keywords.",
+      inputSchema: {
+        query: z.string().min(1).describe("Keyword text to look up."),
+        page: page.optional(),
+      },
+      annotations: READ_ONLY,
+    },
+    ({ query, page: pg }) => requireTmdb(() => tmdb.searchKeywords(query, pg)),
   );
 
   // ---- details --------------------------------------------------------------
@@ -172,12 +246,12 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
         "vote average, the age/content rating (certification) for `region`, and links (TMDB + IMDb). " +
         "By default also includes IMDb/Rotten Tomatoes/Metacritic ratings from OMDb " +
         "(set include_ratings=false to skip). Get the id from search_movies.",
-      inputSchema: { id: tmdbId, region, include_ratings: includeRatings },
+      inputSchema: { id: tmdbId, region, language, include_ratings: includeRatings },
       annotations: READ_ONLY,
     },
-    ({ id, region: r, include_ratings }) =>
+    ({ id, region: r, language: lang, include_ratings }) =>
       requireTmdb(async () => {
-        const { shaped, imdbId } = await tmdb.getMovieWithImdb(id, r ?? "US");
+        const { shaped, imdbId } = await tmdb.getMovieWithImdb(id, r, lang);
         return maybeEnrich(shaped, imdbId, include_ratings ?? true, omdb);
       }),
   );
@@ -191,12 +265,12 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
         "networks, status, the age/content rating (certification) for `region`, and links. " +
         "By default also includes IMDb/Rotten Tomatoes/Metacritic ratings from OMDb " +
         "(set include_ratings=false to skip). Get the id from search_tv.",
-      inputSchema: { id: tmdbId, region, include_ratings: includeRatings },
+      inputSchema: { id: tmdbId, region, language, include_ratings: includeRatings },
       annotations: READ_ONLY,
     },
-    ({ id, region: r, include_ratings }) =>
+    ({ id, region: r, language: lang, include_ratings }) =>
       requireTmdb(async () => {
-        const { shaped, imdbId } = await tmdb.getTvWithImdb(id, r ?? "US");
+        const { shaped, imdbId } = await tmdb.getTvWithImdb(id, r, lang);
         return maybeEnrich(shaped, imdbId, include_ratings ?? true, omdb);
       }),
   );
@@ -208,10 +282,10 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
       description:
         "Get full details for one person by TMDB id: biography, birthday/deathday, department, and " +
         "links (TMDB + IMDb). Get the id from search_people or a credits list.",
-      inputSchema: { id: tmdbId },
+      inputSchema: { id: tmdbId, language },
       annotations: READ_ONLY,
     },
-    ({ id }) => requireTmdb(() => tmdb.getPerson(id)),
+    ({ id, language: lang }) => requireTmdb(() => tmdb.getPerson(id, lang)),
   );
 
   server.registerTool(
@@ -321,10 +395,12 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
     {
       title: "Discover movies (filters)",
       description:
-        "Find movies by structured filters instead of a title query: genres, year, rating range, " +
-        "minimum vote count, runtime, original language, and sort order. Use for requests like " +
-        "'popular sci-fi movies from the 1990s rated above 7'. Get genre ids from get_movie_genres.",
-      inputSchema: discoverShared,
+        "Find movies by structured filters instead of a title query: genres (include/exclude), " +
+        "year or release-date range, rating range, vote count, runtime range, original language, " +
+        "cast/crew/people, companies, keywords, watch providers, certification, and sort order. " +
+        "Use for 'popular sci-fi from the 1990s rated above 7 available on Netflix'. Resolve ids " +
+        "with get_movie_genres, search_people, search_keywords.",
+      inputSchema: discoverMovieSchema,
       annotations: READ_ONLY,
     },
     (args) => requireTmdb(() => tmdb.discoverMovies(args)),
@@ -335,9 +411,10 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
     {
       title: "Discover TV shows (filters)",
       description:
-        "Find TV shows by structured filters (genres, first-air year, rating range, vote count, " +
-        "runtime, language, sort). The TV counterpart of discover_movies.",
-      inputSchema: discoverShared,
+        "Find TV shows by structured filters (genres, first-air year or date range, rating range, " +
+        "vote count, runtime, language, companies, networks, keywords, watch providers, sort). " +
+        "The TV counterpart of discover_movies; use with_networks for 'HBO shows', etc.",
+      inputSchema: discoverTvSchema,
       annotations: READ_ONLY,
     },
     (args) => requireTmdb(() => tmdb.discoverTv(args)),

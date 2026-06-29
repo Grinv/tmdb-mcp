@@ -353,6 +353,23 @@ export function summarizeGenres(genres: NamedRef[]): Record<string, unknown> {
   return { genres: genres.map((g) => ({ id: g.id, name: g.name })) };
 }
 
+export interface KeywordsResponse {
+  results?: { id?: number; name?: string }[];
+  page?: number;
+  total_pages?: number;
+  total_results?: number;
+}
+
+// Keyword ids feed discover_*'s `with_keywords`/`without_keywords` filters.
+export function summarizeKeywords(r: KeywordsResponse): Record<string, unknown> {
+  return {
+    results: (r.results ?? []).map((k) => ({ id: k.id, name: k.name })),
+    page: r.page ?? 1,
+    total_pages: r.total_pages ?? 1,
+    total_results: r.total_results ?? r.results?.length ?? 0,
+  };
+}
+
 // ---- watch providers --------------------------------------------------------
 
 interface ProviderEntry {

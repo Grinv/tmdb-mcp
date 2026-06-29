@@ -23,7 +23,9 @@ Credentials:
       "args": ["/ABS/PATH/tmdb-mcp/dist/index.js"],
       "env": {
         "TMDB_API_TOKEN": "your-tmdb-v4-read-access-token",
-        "OMDB_API_KEY": "your-omdb-key"
+        "OMDB_API_KEY": "your-omdb-key",
+        "TMDB_LANGUAGE": "en-US",
+        "TMDB_REGION": "US"
       }
     }
   }
@@ -40,13 +42,15 @@ Use the same stdio pattern:
 
 ## Tunables (optional env)
 
-| Var                    | Default                        | Meaning                                            |
-| ---------------------- | ------------------------------ | -------------------------------------------------- |
-| `TMDB_BASE_URL`        | `https://api.themoviedb.org/3` | TMDB API base URL                                  |
-| `OMDB_BASE_URL`        | `https://www.omdbapi.com`      | OMDb API base URL                                  |
-| `TMDB_MIN_INTERVAL_MS` | `60`                           | Min spacing between TMDB calls (0 disables)        |
-| `OMDB_MIN_INTERVAL_MS` | `0`                            | Min spacing between OMDb calls                     |
-| `CACHE_TTL_MS`         | `300000`                       | TTL for cached detail/reference responses          |
-| `HTTP_TIMEOUT_MS`      | `15000`                        | Per-request timeout                                |
-| `HTTP_RETRIES`         | `2`                            | Retries for transient failures                     |
-| `LOG_LEVEL`            | `info`                         | `debug` \| `info` \| `warn` \| `error` \| `silent` |
+| Var                    | Default                        | Meaning                                                                     |
+| ---------------------- | ------------------------------ | --------------------------------------------------------------------------- |
+| `TMDB_LANGUAGE`        | `en-US`                        | Default response language, e.g. `ru-RU` (localizes titles/overviews/genres) |
+| `TMDB_REGION`          | `US`                           | Default ISO-3166-1 country for region-specific results (certifications)     |
+| `TMDB_BASE_URL`        | `https://api.themoviedb.org/3` | TMDB API base URL                                                           |
+| `OMDB_BASE_URL`        | `https://www.omdbapi.com`      | OMDb API base URL                                                           |
+| `TMDB_MIN_INTERVAL_MS` | `60`                           | Min spacing between TMDB calls (0 disables)                                 |
+| `OMDB_MIN_INTERVAL_MS` | `0`                            | Min spacing between OMDb calls                                              |
+| `CACHE_TTL_MS`         | `300000`                       | TTL for cached detail/reference responses                                   |
+| `HTTP_TIMEOUT_MS`      | `15000`                        | Per-request timeout                                                         |
+| `HTTP_RETRIES`         | `2`                            | Retries for transient failures                                              |
+| `LOG_LEVEL`            | `info`                         | `debug` \| `info` \| `warn` \| `error` \| `silent`                          |

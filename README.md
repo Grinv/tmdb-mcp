@@ -10,23 +10,34 @@ The server speaks standard MCP over stdio, so it works with any MCP client
 
 ## What it does
 
-| Tool                                                   | Purpose                                                                       |
-| ------------------------------------------------------ | ----------------------------------------------------------------------------- |
-| `search_movies` / `search_tv` / `search_people`        | Find titles/people by name → TMDB id                                          |
-| `search_multi`                                         | Search movies, TV and people at once (each row has a `media_type`)            |
-| `get_movie` / `get_tv`                                 | Full details **+ IMDb/RT/Metacritic ratings** (toggle with `include_ratings`) |
-| `get_person`                                           | Biography, department, links                                                  |
-| `get_movie_credits` / `get_tv_credits`                 | Top-billed cast and headline crew                                             |
-| `get_movie_recommendations` / `get_tv_recommendations` | Similar titles                                                                |
-| `get_trending`                                         | What's popular now (movies / TV / people, day or week)                        |
-| `get_movie_genres` / `get_tv_genres`                   | Genre id ↔ name reference                                                     |
-| `get_ratings`                                          | IMDb/RT/Metacritic ratings by IMDb id or title (standalone)                   |
+| Tool                                                   | Purpose                                                                                    |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| `search_movies` / `search_tv` / `search_people`        | Find titles/people by name → TMDB id                                                       |
+| `search_multi`                                         | Search movies, TV and people at once (each row has a `media_type`)                         |
+| `get_movie` / `get_tv`                                 | Full details **+ IMDb/RT/Metacritic ratings** (toggle with `include_ratings`)              |
+| `get_person`                                           | Biography, department, links                                                               |
+| `get_movie_credits` / `get_tv_credits`                 | Top-billed cast and headline crew                                                          |
+| `get_movie_recommendations` / `get_tv_recommendations` | Similar titles                                                                             |
+| `get_trending`                                         | What's popular now (movies / TV / people, day or week)                                     |
+| `get_movie_genres` / `get_tv_genres`                   | Genre id ↔ name reference                                                                  |
+| `discover_movies` / `discover_tv`                      | Filter by genre, year/date range, rating, cast/crew, keywords, providers, certification, … |
+| `get_watch_providers`                                  | Where to stream/rent/buy, by region (JustWatch via TMDB)                                   |
+| `get_person_credits`                                   | A person's filmography (cast & crew)                                                       |
+| `get_videos`                                           | Trailers/teasers/clips (YouTube links)                                                     |
+| `find_by_imdb_id`                                      | Resolve an IMDb id → TMDB movie/TV/person                                                  |
+| `get_tv_season` / `get_tv_episode`                     | Season episode list / single-episode details                                               |
+| `search_keywords`                                      | Resolve keyword names → ids for `discover_*`                                               |
+| `get_ratings`                                          | IMDb/RT/Metacritic ratings by IMDb id or title (standalone)                                |
 
 **Backbone vs. enrichment.** TMDB is the primary source (search, metadata,
 people, trending). OMDb is optional enrichment: `get_movie`/`get_tv` chain the
 `imdb_id` TMDB returns into an OMDb lookup so ratings come back in one call.
 Without an OMDb key the TMDB data still works; the `ratings` field just reports
 that it is unconfigured.
+
+**Localization.** Set `TMDB_LANGUAGE` (e.g. `ru-RU`) and `TMDB_REGION` (e.g.
+`RU`) to get localized titles/overviews/genre names and region-specific
+certifications. Most tools also accept a per-call `language` override.
 
 ## Credentials
 

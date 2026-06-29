@@ -135,9 +135,17 @@ const EPISODE = {
   crew: [{ id: 7, name: "Director Person", job: "Director" }],
 };
 
+const KEYWORDS = {
+  page: 1,
+  total_pages: 1,
+  total_results: 1,
+  results: [{ id: 4379, name: "time travel" }],
+};
+
 /** Route a request to the right canned response based on its URL. Specific
  *  sub-resource routes must precede the /movie/{id} and /tv/{id} catch-alls. */
 function router(url: string) {
+  if (url.includes("/search/keyword")) return jsonResponse(KEYWORDS);
   if (url.includes("/search/movie")) {
     return jsonResponse({ page: 1, total_pages: 1, total_results: 1, results: [MOVIE_DETAIL] });
   }
@@ -366,6 +374,103 @@ test("discover_movies maps friendly filters to TMDB dotted query keys", async ()
     assert.match(call.url, /vote_count\.gte=100/);
     assert.match(call.url, /primary_release_year=1999/);
     assert.match(call.url, /with_genres=878/);
+  } finally {
+    restore();
+    await close();
+  }
+});
+
+test("discover_movies maps the new filters (dates, cast, keywords, providers, certification)", async () => {
+  const mock = mockFetch(router);
+  const restore = installFetch(mock);
+  const { client, close } = await connectServer(ENV);
+  try {
+    await client.callTool({
+      name: "discover_movies",
+      arguments: {
+        release_date_gte: "1990-01-01",
+        release_date_lte: "1999-12-31",
+        max_runtime: 180,
+        with_cast: "6384",
+        with_keywords: "4379",
+        without_genres: "27",
+        with_watch_providers: "8",
+        watch_region: "US",
+        certification: "PG-13",
+        certification_country: "US",
+      },
+    });
+    const u = mock.calls.find((c) => c.url.includes("/discover/movie"))!.url;
+    assert.match(u, /primary_release_date\.gte=1990-01-01/);
+    assert.match(u, /primary_release_date\.lte=1999-12-31/);
+    assert.match(u, /with_runtime\.lte=180/);
+    assert.match(u, /with_cast=6384/);
+    assert.match(u, /with_keywords=4379/);
+    assert.match(u, /without_genres=27/);
+    assert.match(u, /with_watch_providers=8/);
+    assert.match(u, /watch_region=US/);
+    assert.match(u, /certification=PG-13/);
+    assert.match(u, /certification_country=US/);
+  } finally {
+    restore();
+    await close();
+  }
+});
+
+test("discover_tv maps tv-specific filters (networks, first_air_date)", async () => {
+  const mock = mockFetch(router);
+  const restore = installFetch(mock);
+  const { client, close } = await connectServer(ENV);
+  try {
+    await client.callTool({
+      name: "discover_tv",
+      arguments: { with_networks: "49", release_date_gte: "2010-01-01", year: 2012 },
+    });
+    const u = mock.calls.find((c) => c.url.includes("/discover/tv"))!.url;
+    assert.match(u, /with_networks=49/);
+    assert.match(u, /first_air_date\.gte=2010-01-01/);
+    assert.match(u, /first_air_date_year=2012/);
+  } finally {
+    restore();
+    await close();
+  }
+});
+
+test("search_keywords resolves names to ids", async () => {
+  const restore = installFetch(mockFetch(router));
+  const { client, close } = await connectServer(ENV);
+  try {
+    const res = await client.callTool({
+      name: "search_keywords",
+      arguments: { query: "time travel" },
+    });
+    const s = res.structuredContent as { results: { id: number; name: string }[] };
+    assert.equal(s.results[0]!.id, 4379);
+    assert.equal(s.results[0]!.name, "time travel");
+  } finally {
+    restore();
+    await close();
+  }
+});
+
+test("language: TMDB_LANGUAGE default is applied, and a per-call override wins", async () => {
+  const mock = mockFetch(router);
+  const restore = installFetch(mock);
+  const { client, close } = await connectServer({
+    TMDB_API_TOKEN: "t",
+    TMDB_LANGUAGE: "ru-RU",
+    TMDB_MIN_INTERVAL_MS: "0",
+  });
+  try {
+    await client.callTool({ name: "search_movies", arguments: { query: "matrix" } });
+    await client.callTool({
+      name: "search_tv",
+      arguments: { query: "show", language: "de-DE" },
+    });
+    const movieCall = mock.calls.find((c) => c.url.includes("/search/movie"))!;
+    const tvCall = mock.calls.find((c) => c.url.includes("/search/tv"))!;
+    assert.match(movieCall.url, /language=ru-RU/);
+    assert.match(tvCall.url, /language=de-DE/);
   } finally {
     restore();
     await close();

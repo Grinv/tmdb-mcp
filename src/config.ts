@@ -15,6 +15,16 @@ const EnvSchema = z.object({
   //     https://www.themoviedb.org/settings/api ---
   TMDB_API_TOKEN: z.string().min(1).optional(),
   TMDB_BASE_URL: z.string().url().default("https://api.themoviedb.org/3"),
+  // Default response language (ISO-639-1, optionally with a region: "ru-RU",
+  // "en-US", "ja"). Applied to every TMDB request so titles/overviews/genre
+  // names come back localized; tools can override it per call.
+  TMDB_LANGUAGE: z.string().min(2).default("en-US"),
+  // Default ISO-3166-1 country for region-specific results (release dates,
+  // watch providers). Optional; tools that need a region also accept one.
+  TMDB_REGION: z
+    .string()
+    .regex(/^[A-Z]{2}$/, "TMDB_REGION must be a two-letter ISO-3166-1 code, e.g. US")
+    .default("US"),
 
   // --- OMDb: optional enrichment for IMDb/RT/Metacritic ratings, keyed by the
   //     imdb_id TMDB returns. Free key at https://www.omdbapi.com/apikey.aspx ---
@@ -37,6 +47,8 @@ const EnvSchema = z.object({
 export interface Config {
   tmdbBaseUrl: string;
   tmdbApiToken: string | undefined;
+  tmdbLanguage: string;
+  tmdbRegion: string;
   omdbBaseUrl: string;
   omdbApiKey: string | undefined;
   httpTimeoutMs: number;
@@ -57,6 +69,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   return {
     tmdbBaseUrl: parsed.TMDB_BASE_URL,
     tmdbApiToken: parsed.TMDB_API_TOKEN,
+    tmdbLanguage: parsed.TMDB_LANGUAGE,
+    tmdbRegion: parsed.TMDB_REGION,
     omdbBaseUrl: parsed.OMDB_BASE_URL,
     omdbApiKey: parsed.OMDB_API_KEY,
     httpTimeoutMs: parsed.HTTP_TIMEOUT_MS,

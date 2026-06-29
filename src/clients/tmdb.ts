@@ -3,6 +3,9 @@
 // HttpClient with a polite rate limiter and a TTL cache; all raw→agent-facing
 // shaping lives in ../format.js. This is the backbone source (search, metadata,
 // people, trending); OMDb (see ./omdb.js) only enriches it with ratings.
+//
+// Localization: a default `language` (e.g. "ru-RU") and `region` come from
+// config and are applied to every request; callers may override per call.
 import { HttpClient } from "../lib/http.js";
 import { RateLimiter } from "../lib/rateLimit.js";
 import { TtlCache } from "../lib/cache.js";
@@ -15,6 +18,7 @@ import {
   summarizeEpisode,
   summarizeFind,
   summarizeGenres,
+  summarizeKeywords,
   summarizeMovie,
   summarizeMultiItem,
   summarizePersonCredits,
@@ -24,6 +28,7 @@ import {
   summarizeWatchProviders,
   type CombinedCredits,
   type FindResponse,
+  type KeywordsResponse,
   type TmdbCredits,
   type TmdbMovie,
   type TmdbMultiItem,
@@ -44,22 +49,42 @@ export interface SearchParams {
   year?: number;
   page?: number;
   include_adult?: boolean;
+  language?: string;
+  /** search/movie only: bias release-date relevance to a country. */
+  region?: string;
 }
 
 export type TrendingMediaType = "all" | "movie" | "tv" | "person";
 export type TrendingWindow = "day" | "week";
 
-// Friendly discover params; mapped to TMDB's dotted query keys in the client so
-// callers (and the tool schema) avoid awkward names like "vote_average.gte".
+// Friendly discover params; mapped to TMDB's query keys in the client so callers
+// (and the tool schema) avoid awkward names like "vote_average.gte". `year` and
+// the date range map to the movie- or tv-specific keys per endpoint.
 export interface DiscoverParams {
   sort_by?: string;
   with_genres?: string;
+  without_genres?: string;
   year?: number;
+  release_date_gte?: string;
+  release_date_lte?: string;
   min_rating?: number;
   max_rating?: number;
   min_votes?: number;
   min_runtime?: number;
+  max_runtime?: number;
   with_original_language?: string;
+  with_cast?: string;
+  with_crew?: string;
+  with_people?: string;
+  with_companies?: string;
+  with_keywords?: string;
+  without_keywords?: string;
+  with_watch_providers?: string;
+  watch_region?: string;
+  with_networks?: string; // tv only
+  certification?: string; // movie only
+  certification_country?: string; // movie only
+  language?: string;
   page?: number;
 }
 
@@ -68,11 +93,15 @@ export type ExternalSource = "imdb_id" | "tvdb_id" | "wikidata_id";
 export class TmdbClient {
   readonly #http: HttpClient;
   readonly #cache: TtlCache<Record<string, unknown>>;
+  readonly #language: string;
+  readonly #region: string;
   /** True when a TMDB token is configured; tools short-circuit otherwise. */
   readonly configured: boolean;
 
   constructor(config: Config, logger: Logger) {
     this.configured = Boolean(config.tmdbApiToken);
+    this.#language = config.tmdbLanguage;
+    this.#region = config.tmdbRegion;
     const limiter = new RateLimiter(config.tmdbMinIntervalMs);
     this.#http = new HttpClient({
       baseUrl: config.tmdbBaseUrl,
@@ -85,114 +114,181 @@ export class TmdbClient {
     this.#cache = new TtlCache(config.cacheTtlMs);
   }
 
+  /** Resolve the effective language for a call (override → config default). */
+  #lang(language?: string): string {
+    return language ?? this.#language;
+  }
+
+  /** GET with the effective `language` injected (an explicit query.language wins). */
+  #get<T>(path: string, query: Query = {}, language?: string): Promise<T> {
+    return this.#http.getJson<T>(path, { query: { language: this.#lang(language), ...query } });
+  }
+
   // ---- search ---------------------------------------------------------------
 
   async searchMovies(p: SearchParams): Promise<Record<string, unknown>> {
-    const res = await this.#http.getJson<TmdbPage<TmdbMovie>>("search/movie", {
-      query: { query: p.query, year: p.year, page: p.page, include_adult: p.include_adult },
-    });
+    const res = await this.#get<TmdbPage<TmdbMovie>>(
+      "search/movie",
+      {
+        query: p.query,
+        year: p.year,
+        page: p.page,
+        include_adult: p.include_adult,
+        region: p.region ?? this.#region,
+      },
+      p.language,
+    );
     return page(res, summarizeMovie);
   }
 
   async searchTv(p: SearchParams): Promise<Record<string, unknown>> {
-    const res = await this.#http.getJson<TmdbPage<TmdbTv>>("search/tv", {
-      query: {
+    const res = await this.#get<TmdbPage<TmdbTv>>(
+      "search/tv",
+      {
         query: p.query,
         first_air_date_year: p.year,
         page: p.page,
         include_adult: p.include_adult,
       },
-    });
+      p.language,
+    );
     return page(res, summarizeTv);
   }
 
   async searchMulti(p: SearchParams): Promise<Record<string, unknown>> {
-    const res = await this.#http.getJson<TmdbPage<TmdbMultiItem>>("search/multi", {
-      query: { query: p.query, page: p.page, include_adult: p.include_adult },
-    });
+    const res = await this.#get<TmdbPage<TmdbMultiItem>>(
+      "search/multi",
+      { query: p.query, page: p.page, include_adult: p.include_adult },
+      p.language,
+    );
     return page(res, summarizeMultiItem);
   }
 
   async searchPeople(p: SearchParams): Promise<Record<string, unknown>> {
-    const res = await this.#http.getJson<TmdbPage<TmdbMultiItem>>("search/person", {
-      query: { query: p.query, page: p.page, include_adult: p.include_adult },
-    });
+    const res = await this.#get<TmdbPage<TmdbMultiItem>>(
+      "search/person",
+      { query: p.query, page: p.page, include_adult: p.include_adult },
+      p.language,
+    );
     return page(res, summarizeMultiItem);
+  }
+
+  // Keyword ids feed discover_*'s with_keywords; this resolves names → ids.
+  async searchKeywords(query: string, pg?: number): Promise<Record<string, unknown>> {
+    const res = await this.#get<KeywordsResponse>("search/keyword", { query, page: pg });
+    return summarizeKeywords(res);
   }
 
   // ---- details (cached: stable, frequently re-requested) --------------------
 
-  async getMovie(id: number, region = "US"): Promise<Record<string, unknown>> {
-    // Cache key includes region because the headline `certification` field is
-    // region-specific (the full certifications map is fetched either way).
-    return this.#cache.wrapStaleOnError(`movie:${id}:${region}`, async () => {
-      // release_dates appended so the detail carries age/content certifications.
-      const res = await this.#http.getJson<TmdbMovie>(`movie/${id}`, {
-        query: { append_to_response: "release_dates" },
-      });
-      return detailMovie(res, region);
-    });
+  async getMovie(
+    id: number,
+    region = this.#region,
+    language?: string,
+  ): Promise<Record<string, unknown>> {
+    // Cache key includes region + language because the headline `certification`
+    // and the localized text fields vary by them.
+    return this.#cache.wrapStaleOnError(
+      `movie:${id}:${region}:${this.#lang(language)}`,
+      async () => {
+        // release_dates appended so the detail carries age/content certifications.
+        const res = await this.#get<TmdbMovie>(
+          `movie/${id}`,
+          { append_to_response: "release_dates" },
+          language,
+        );
+        return detailMovie(res, region);
+      },
+    );
   }
 
   /** Like getMovie but also returns the raw imdb_id for OMDb enrichment. */
   async getMovieWithImdb(
     id: number,
-    region = "US",
+    region = this.#region,
+    language?: string,
   ): Promise<{ shaped: Record<string, unknown>; imdbId: string | null }> {
-    const shaped = await this.getMovie(id, region);
+    const shaped = await this.getMovie(id, region, language);
     return { shaped, imdbId: (shaped.imdb_id as string | null) ?? null };
   }
 
-  async getTv(id: number, region = "US"): Promise<Record<string, unknown>> {
-    return this.#cache.wrapStaleOnError(`tv:${id}:${region}`, async () => {
+  async getTv(
+    id: number,
+    region = this.#region,
+    language?: string,
+  ): Promise<Record<string, unknown>> {
+    return this.#cache.wrapStaleOnError(`tv:${id}:${region}:${this.#lang(language)}`, async () => {
       // external_ids appended so the TV detail carries an imdb_id (the base
       // /tv/{id} response, unlike /movie/{id}, does not include one);
       // content_ratings appended for age/content certifications.
-      const res = await this.#http.getJson<TmdbTv>(`tv/${id}`, {
-        query: { append_to_response: "external_ids,content_ratings" },
-      });
+      const res = await this.#get<TmdbTv>(
+        `tv/${id}`,
+        { append_to_response: "external_ids,content_ratings" },
+        language,
+      );
       return detailTv(res, region);
     });
   }
 
   async getTvWithImdb(
     id: number,
-    region = "US",
+    region = this.#region,
+    language?: string,
   ): Promise<{ shaped: Record<string, unknown>; imdbId: string | null }> {
-    const shaped = await this.getTv(id, region);
+    const shaped = await this.getTv(id, region, language);
     return { shaped, imdbId: (shaped.imdb_id as string | null) ?? null };
   }
 
-  async getPerson(id: number): Promise<Record<string, unknown>> {
-    return this.#cache.wrapStaleOnError(`person:${id}`, async () => {
-      const res = await this.#http.getJson<TmdbPerson>(`person/${id}`);
+  async getPerson(id: number, language?: string): Promise<Record<string, unknown>> {
+    return this.#cache.wrapStaleOnError(`person:${id}:${this.#lang(language)}`, async () => {
+      const res = await this.#get<TmdbPerson>(`person/${id}`, {}, language);
       return detailPerson(res);
     });
   }
 
-  async getMovieCredits(id: number): Promise<Record<string, unknown>> {
-    return this.#cached(`movie-credits:${id}`, `movie/${id}/credits`, (c: TmdbCredits) =>
-      summarizeCredits(c),
+  async getMovieCredits(id: number, language?: string): Promise<Record<string, unknown>> {
+    return this.#cached(
+      `movie-credits:${id}:${this.#lang(language)}`,
+      `movie/${id}/credits`,
+      (c: TmdbCredits) => summarizeCredits(c),
+      {},
+      language,
     );
   }
 
-  async getTvCredits(id: number): Promise<Record<string, unknown>> {
-    return this.#cached(`tv-credits:${id}`, `tv/${id}/credits`, (c: TmdbCredits) =>
-      summarizeCredits(c),
+  async getTvCredits(id: number, language?: string): Promise<Record<string, unknown>> {
+    return this.#cached(
+      `tv-credits:${id}:${this.#lang(language)}`,
+      `tv/${id}/credits`,
+      (c: TmdbCredits) => summarizeCredits(c),
+      {},
+      language,
     );
   }
 
-  async getMovieRecommendations(id: number, pg?: number): Promise<Record<string, unknown>> {
-    const res = await this.#http.getJson<TmdbPage<TmdbMovie>>(`movie/${id}/recommendations`, {
-      query: { page: pg },
-    });
+  async getMovieRecommendations(
+    id: number,
+    pg?: number,
+    language?: string,
+  ): Promise<Record<string, unknown>> {
+    const res = await this.#get<TmdbPage<TmdbMovie>>(
+      `movie/${id}/recommendations`,
+      { page: pg },
+      language,
+    );
     return page(res, summarizeMovie);
   }
 
-  async getTvRecommendations(id: number, pg?: number): Promise<Record<string, unknown>> {
-    const res = await this.#http.getJson<TmdbPage<TmdbTv>>(`tv/${id}/recommendations`, {
-      query: { page: pg },
-    });
+  async getTvRecommendations(
+    id: number,
+    pg?: number,
+    language?: string,
+  ): Promise<Record<string, unknown>> {
+    const res = await this.#get<TmdbPage<TmdbTv>>(
+      `tv/${id}/recommendations`,
+      { page: pg },
+      language,
+    );
     return page(res, summarizeTv);
   }
 
@@ -202,28 +298,35 @@ export class TmdbClient {
     mediaType: TrendingMediaType,
     window: TrendingWindow,
     pg?: number,
+    language?: string,
   ): Promise<Record<string, unknown>> {
-    const res = await this.#http.getJson<TmdbPage<TmdbMultiItem>>(
+    const res = await this.#get<TmdbPage<TmdbMultiItem>>(
       `trending/${mediaType}/${window}`,
-      { query: { page: pg } },
+      { page: pg },
+      language,
     );
     return page(res, summarizeMultiItem);
   }
 
   // Genre lists drive the readable names in search results; very static → cache.
-  async getMovieGenres(): Promise<Record<string, unknown>> {
-    return this.#cache.wrapStaleOnError("genres:movie", async () => {
-      const res = await this.#http.getJson<{ genres: { id?: number; name?: string }[] }>(
+  // Cached per language so localized names are not mixed.
+  async getMovieGenres(language?: string): Promise<Record<string, unknown>> {
+    return this.#cache.wrapStaleOnError(`genres:movie:${this.#lang(language)}`, async () => {
+      const res = await this.#get<{ genres: { id?: number; name?: string }[] }>(
         "genre/movie/list",
+        {},
+        language,
       );
       return summarizeGenres(res.genres ?? []);
     });
   }
 
-  async getTvGenres(): Promise<Record<string, unknown>> {
-    return this.#cache.wrapStaleOnError("genres:tv", async () => {
-      const res = await this.#http.getJson<{ genres: { id?: number; name?: string }[] }>(
+  async getTvGenres(language?: string): Promise<Record<string, unknown>> {
+    return this.#cache.wrapStaleOnError(`genres:tv:${this.#lang(language)}`, async () => {
+      const res = await this.#get<{ genres: { id?: number; name?: string }[] }>(
         "genre/tv/list",
+        {},
+        language,
       );
       return summarizeGenres(res.genres ?? []);
     });
@@ -232,16 +335,20 @@ export class TmdbClient {
   // ---- discover -------------------------------------------------------------
 
   async discoverMovies(p: DiscoverParams): Promise<Record<string, unknown>> {
-    const res = await this.#http.getJson<TmdbPage<TmdbMovie>>("discover/movie", {
-      query: { ...discoverQuery(p), primary_release_year: p.year },
-    });
+    const res = await this.#get<TmdbPage<TmdbMovie>>(
+      "discover/movie",
+      discoverQuery(p, "movie"),
+      p.language,
+    );
     return page(res, summarizeMovie);
   }
 
   async discoverTv(p: DiscoverParams): Promise<Record<string, unknown>> {
-    const res = await this.#http.getJson<TmdbPage<TmdbTv>>("discover/tv", {
-      query: { ...discoverQuery(p), first_air_date_year: p.year },
-    });
+    const res = await this.#get<TmdbPage<TmdbTv>>(
+      "discover/tv",
+      discoverQuery(p, "tv"),
+      p.language,
+    );
     return page(res, summarizeTv);
   }
 
@@ -263,26 +370,36 @@ export class TmdbClient {
 
   // ---- person filmography ---------------------------------------------------
 
-  async getPersonCredits(id: number): Promise<Record<string, unknown>> {
+  async getPersonCredits(id: number, language?: string): Promise<Record<string, unknown>> {
     return this.#cached<CombinedCredits>(
-      `person-credits:${id}`,
+      `person-credits:${id}:${this.#lang(language)}`,
       `person/${id}/combined_credits`,
       (c) => summarizePersonCredits(c),
+      {},
+      language,
     );
   }
 
   // ---- videos / trailers ----------------------------------------------------
 
-  async getMovieVideos(id: number): Promise<Record<string, unknown>> {
+  async getMovieVideos(id: number, language?: string): Promise<Record<string, unknown>> {
     return this.#cached<VideosResponse>(
-      `movie-videos:${id}`,
+      `movie-videos:${id}:${this.#lang(language)}`,
       `movie/${id}/videos`,
       summarizeVideos,
+      {},
+      language,
     );
   }
 
-  async getTvVideos(id: number): Promise<Record<string, unknown>> {
-    return this.#cached<VideosResponse>(`tv-videos:${id}`, `tv/${id}/videos`, summarizeVideos);
+  async getTvVideos(id: number, language?: string): Promise<Record<string, unknown>> {
+    return this.#cached<VideosResponse>(
+      `tv-videos:${id}:${this.#lang(language)}`,
+      `tv/${id}/videos`,
+      summarizeVideos,
+      {},
+      language,
+    );
   }
 
   // ---- reverse lookup -------------------------------------------------------
@@ -301,11 +418,17 @@ export class TmdbClient {
 
   // ---- TV deep dive ---------------------------------------------------------
 
-  async getTvSeason(id: number, season: number): Promise<Record<string, unknown>> {
+  async getTvSeason(
+    id: number,
+    season: number,
+    language?: string,
+  ): Promise<Record<string, unknown>> {
     return this.#cached<TmdbSeason>(
-      `tv-season:${id}:${season}`,
+      `tv-season:${id}:${season}:${this.#lang(language)}`,
       `tv/${id}/season/${season}`,
       summarizeSeason,
+      {},
+      language,
     );
   }
 
@@ -313,41 +436,76 @@ export class TmdbClient {
     id: number,
     season: number,
     episode: number,
+    language?: string,
   ): Promise<Record<string, unknown>> {
-    return this.#cache.wrapStaleOnError(`tv-episode:${id}:${season}:${episode}`, async () => {
-      const res = await this.#http.getJson<Parameters<typeof summarizeEpisode>[0]>(
-        `tv/${id}/season/${season}/episode/${episode}`,
-      );
-      // Inject season_number in case the episode payload omits it.
-      return summarizeEpisode({ ...res, season_number: res.season_number ?? season });
-    });
+    return this.#cache.wrapStaleOnError(
+      `tv-episode:${id}:${season}:${episode}:${this.#lang(language)}`,
+      async () => {
+        const res = await this.#get<Parameters<typeof summarizeEpisode>[0]>(
+          `tv/${id}/season/${season}/episode/${episode}`,
+          {},
+          language,
+        );
+        // Inject season_number in case the episode payload omits it.
+        return summarizeEpisode({ ...res, season_number: res.season_number ?? season });
+      },
+    );
   }
 
-  // Cache by `key`, GET `path`, then shape the raw body.
+  // Cache by `key`, GET `path` (with language injected), then shape the body.
   async #cached<T>(
     key: string,
     path: string,
     shape: (data: T) => Record<string, unknown>,
-    query?: Query,
+    query: Query = {},
+    language?: string,
   ): Promise<Record<string, unknown>> {
     return this.#cache.wrapStaleOnError(key, async () => {
-      const res = await this.#http.getJson<T>(path, query ? { query } : undefined);
+      const res = await this.#get<T>(path, query, language);
       return shape(res);
     });
   }
 }
 
 // Map friendly DiscoverParams to TMDB's query keys (some use a dotted, range
-// syntax like `vote_average.gte`). `year` is mapped per-endpoint by the caller.
-function discoverQuery(p: DiscoverParams): Query {
-  return {
+// syntax like `vote_average.gte`). Movie and TV differ on the date/year keys
+// and a few exclusive filters (certification = movie, networks = tv).
+function discoverQuery(p: DiscoverParams, kind: "movie" | "tv"): Query {
+  const common: Query = {
     sort_by: p.sort_by,
     with_genres: p.with_genres,
+    without_genres: p.without_genres,
     with_original_language: p.with_original_language,
+    with_companies: p.with_companies,
+    with_keywords: p.with_keywords,
+    without_keywords: p.without_keywords,
+    with_watch_providers: p.with_watch_providers,
+    watch_region: p.watch_region,
     page: p.page,
     "vote_average.gte": p.min_rating,
     "vote_average.lte": p.max_rating,
     "vote_count.gte": p.min_votes,
     "with_runtime.gte": p.min_runtime,
+    "with_runtime.lte": p.max_runtime,
+  };
+  if (kind === "movie") {
+    return {
+      ...common,
+      primary_release_year: p.year,
+      "primary_release_date.gte": p.release_date_gte,
+      "primary_release_date.lte": p.release_date_lte,
+      with_cast: p.with_cast,
+      with_crew: p.with_crew,
+      with_people: p.with_people,
+      certification: p.certification,
+      certification_country: p.certification_country,
+    };
+  }
+  return {
+    ...common,
+    first_air_date_year: p.year,
+    "first_air_date.gte": p.release_date_gte,
+    "first_air_date.lte": p.release_date_lte,
+    with_networks: p.with_networks,
   };
 }

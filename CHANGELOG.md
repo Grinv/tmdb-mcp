@@ -8,6 +8,18 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Localization: `TMDB_LANGUAGE` (default `en-US`) and `TMDB_REGION` (default
+  `US`) env defaults applied to every TMDB request, plus an optional `language`
+  override on the search/discover/detail tools and a `region` on `search_movies`.
+  Titles, overviews and genre names come back localized (e.g. set `ru-RU`).
+- Many more `discover_movies` / `discover_tv` filters: release-date ranges,
+  `max_runtime`, `without_genres`, `with_cast` / `with_crew` / `with_people`,
+  `with_companies`, `with_keywords` / `without_keywords`, `with_watch_providers`
+  with `watch_region`, `with_networks` (TV), and `certification` (+ country, movies).
+- `search_keywords` — resolve keyword names to ids for the `with_keywords` filter.
+
+### Added (earlier in this Unreleased cycle)
+
 - `discover_movies` / `discover_tv` — structured filtering (genres, year, rating
   range, vote count, runtime, language, sort) instead of a title query.
 - `get_watch_providers` — where to stream/rent/buy a movie or show, by region

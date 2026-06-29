@@ -26,7 +26,9 @@
       "args": ["${__dirname}/dist/index.js"],
       "env": {
         "TMDB_API_TOKEN": "${user_config.tmdb_api_token}",
-        "OMDB_API_KEY": "${user_config.omdb_api_key}"
+        "OMDB_API_KEY": "${user_config.omdb_api_key}",
+        "TMDB_LANGUAGE": "${user_config.tmdb_language}",
+        "TMDB_REGION": "${user_config.tmdb_region}"
       }
     }
   },
@@ -51,6 +53,7 @@
       "description": "Find movies by filters (genre, year, rating, …)."
     },
     { "name": "discover_tv", "description": "Find TV shows by filters." },
+    { "name": "search_keywords", "description": "Resolve keyword names to ids for discover." },
     { "name": "get_watch_providers", "description": "Where to stream/rent/buy, by region." },
     { "name": "get_person_credits", "description": "A person's filmography (cast & crew)." },
     { "name": "get_videos", "description": "Trailers/teasers/clips (YouTube links)." },
@@ -73,6 +76,20 @@
       "description": "Optional. Free key from https://www.omdbapi.com/apikey.aspx — enables IMDb/Rotten Tomatoes/Metacritic ratings.",
       "required": false,
       "sensitive": true
+    },
+    "tmdb_language": {
+      "type": "string",
+      "title": "Language",
+      "description": "Optional. Default response language as ISO-639-1, optionally with a region — e.g. 'ru-RU', 'en-US', 'ja'. Localizes titles, overviews and genre names. Defaults to en-US.",
+      "required": false,
+      "default": "en-US"
+    },
+    "tmdb_region": {
+      "type": "string",
+      "title": "Region",
+      "description": "Optional. Default ISO-3166-1 country code (e.g. 'US', 'RU', 'GB') for region-specific results like certifications. Defaults to US.",
+      "required": false,
+      "default": "US"
     }
   }
 }
