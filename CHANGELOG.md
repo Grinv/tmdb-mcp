@@ -19,6 +19,20 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `last_episode_to_air` (when the next / most-recent episode airs), a per-season
   `seasons` summary, `homepage` and `type` — all from the payload already fetched.
 
+### Fixed
+
+- **`get_watch_providers` could return another region's providers.** The result
+  is region-specific but was cached under an id-only key, so a second call for
+  the same title with a different `region` served the first region's data. The
+  region is now part of the cache key.
+
+### Internal
+
+- DRY: collapsed the movie/tv client method pairs (recommendations, similar,
+  genres, discover, watch providers, videos) into media-typed methods, and
+  extracted a `tmdbCheck()` helper in `check:api`. Raised test coverage
+  (`clients/tmdb` 76% → 87%, overall ~90%).
+
 ## [0.2.0] - 2026-07-09
 
 ### Added
