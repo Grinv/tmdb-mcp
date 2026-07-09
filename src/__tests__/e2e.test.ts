@@ -47,7 +47,7 @@ test("e2e: built bundle runs standalone, handshakes, lists all tools, gates TMDB
     await client.connect(transport); // real initialize handshake over a spawned process
 
     const { tools } = await client.listTools();
-    assert.equal(tools.length, 24, "every tool should register in the built bundle");
+    assert.equal(tools.length, 27, "every tool should register in the built bundle");
 
     // A TMDB tool without a token must short-circuit with the actionable message
     // (no network) — proving the config gate works through the real binary.

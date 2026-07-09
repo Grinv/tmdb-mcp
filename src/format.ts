@@ -36,6 +36,24 @@ function names(list: { name?: string }[] | undefined): string[] {
   return (list ?? []).map((x) => x.name).filter((n): n is string => Boolean(n));
 }
 
+// Truncate free text (e.g. a review body) to `max` chars with an ellipsis.
+function clip(text: string | null | undefined, max: number): string | null {
+  if (!text) return null;
+  return text.length <= max ? text : text.slice(0, max).trimEnd() + "…";
+}
+
+// Compact form of a TV show's next_/last_episode_to_air — the handful of fields
+// worth surfacing ("when does the next episode air", which one was last).
+function episodeBrief(e: TmdbEpisodeBrief | null | undefined): Record<string, unknown> | null {
+  if (!e) return null;
+  return {
+    season_number: e.season_number ?? null,
+    episode_number: e.episode_number ?? null,
+    name: e.name || null,
+    air_date: e.air_date || null,
+  };
+}
+
 // Build a { country → certification } map from a movie's release_dates. A country
 // can list several release types (theatrical, digital, …), each with its own
 // (often blank) certification; we keep the first non-empty one per country.
@@ -89,6 +107,8 @@ export interface TmdbMovie {
   homepage?: string | null;
   poster_path?: string | null;
   adult?: boolean;
+  origin_country?: string[];
+  belongs_to_collection?: { id?: number; name?: string; poster_path?: string | null } | null;
   // Appended via append_to_response=release_dates; carries certifications.
   release_dates?: {
     results?: {
@@ -120,9 +140,28 @@ export interface TmdbTv {
   networks?: NamedRef[];
   created_by?: NamedRef[];
   poster_path?: string | null;
+  homepage?: string | null;
+  type?: string;
+  next_episode_to_air?: TmdbEpisodeBrief | null;
+  last_episode_to_air?: TmdbEpisodeBrief | null;
+  seasons?: TvSeasonBrief[];
   external_ids?: { imdb_id?: string | null };
   // Appended via append_to_response=content_ratings.
   content_ratings?: { results?: { iso_3166_1?: string; rating?: string }[] };
+}
+
+export interface TmdbEpisodeBrief {
+  air_date?: string | null;
+  episode_number?: number;
+  season_number?: number;
+  name?: string;
+}
+
+interface TvSeasonBrief {
+  season_number?: number;
+  name?: string;
+  episode_count?: number;
+  air_date?: string | null;
 }
 
 export interface TmdbPerson {
@@ -210,6 +249,16 @@ export function detailMovie(m: TmdbMovie, region = "US"): Record<string, unknown
       .map((l) => l.english_name || l.name)
       .filter(Boolean),
     production_companies: names(m.production_companies),
+    origin_country: m.origin_country ?? [],
+    // Franchise/collection this movie belongs to (e.g. "The Dark Knight
+    // Collection"); fetch the full set of parts with get_collection.
+    collection: m.belongs_to_collection
+      ? {
+          id: m.belongs_to_collection.id,
+          name: m.belongs_to_collection.name,
+          poster_url: imageUrl(m.belongs_to_collection.poster_path),
+        }
+      : null,
     budget_usd: m.budget || null,
     revenue_usd: m.revenue || null,
     homepage: m.homepage || null,
@@ -249,13 +298,25 @@ export function detailTv(t: TmdbTv, region = "US"): Record<string, unknown> {
     original_name: t.original_name,
     tagline: t.tagline || null,
     overview: t.overview || null,
+    type: t.type ?? null,
     first_air_date: t.first_air_date || null,
     last_air_date: t.last_air_date || null,
     status: t.status ?? null,
     in_production: t.in_production ?? null,
+    // For airing shows, when the next episode drops (null once ended); plus the
+    // most recently aired one.
+    next_episode_to_air: episodeBrief(t.next_episode_to_air),
+    last_episode_to_air: episodeBrief(t.last_episode_to_air),
     number_of_seasons: t.number_of_seasons ?? null,
     number_of_episodes: t.number_of_episodes ?? null,
     episode_run_time: t.episode_run_time ?? [],
+    // Per-season summary (number, name, episode count, air date).
+    seasons: (t.seasons ?? []).map((s) => ({
+      season_number: s.season_number ?? null,
+      name: s.name || null,
+      episode_count: s.episode_count ?? null,
+      air_date: s.air_date || null,
+    })),
     genres: names(t.genres),
     vote_average: t.vote_average ?? null,
     vote_count: t.vote_count ?? null,
@@ -263,6 +324,7 @@ export function detailTv(t: TmdbTv, region = "US"): Record<string, unknown> {
     original_language: t.original_language ?? null,
     networks: names(t.networks),
     created_by: names(t.created_by),
+    homepage: t.homepage || null,
     poster_url: imageUrl(t.poster_path),
     tmdb_url: `https://www.themoviedb.org/tv/${t.id}`,
     imdb_url: t.external_ids?.imdb_id
@@ -351,6 +413,48 @@ export function page<T, S>(res: TmdbPage<T>, summarize: (item: T) => S): Record<
 
 export function summarizeGenres(genres: NamedRef[]): Record<string, unknown> {
   return { genres: genres.map((g) => ({ id: g.id, name: g.name })) };
+}
+
+export interface TmdbReview {
+  author?: string;
+  author_details?: { rating?: number | null; username?: string };
+  content?: string;
+  created_at?: string;
+  url?: string;
+}
+
+// A user review — author, their 0–10 rating (if any), date, and the body
+// (clipped; full reviews can run very long).
+export function summarizeReview(r: TmdbReview): Record<string, unknown> {
+  return {
+    author: r.author || r.author_details?.username || null,
+    rating: r.author_details?.rating ?? null,
+    created_at: r.created_at || null,
+    content: clip(r.content, 1500),
+    url: r.url || null,
+  };
+}
+
+export interface TmdbCollection {
+  id?: number;
+  name?: string;
+  overview?: string;
+  poster_path?: string | null;
+  parts?: TmdbMovie[];
+}
+
+// A movie collection/franchise and its parts, ordered chronologically.
+export function summarizeCollection(c: TmdbCollection): Record<string, unknown> {
+  const parts = (c.parts ?? [])
+    .slice()
+    .sort((a, b) => (a.release_date || "").localeCompare(b.release_date || ""));
+  return {
+    id: c.id,
+    name: c.name,
+    overview: c.overview || null,
+    poster_url: imageUrl(c.poster_path),
+    parts: parts.map(summarizeMovie),
+  };
 }
 
 export interface KeywordsResponse {

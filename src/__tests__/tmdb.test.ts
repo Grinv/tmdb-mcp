@@ -22,6 +22,8 @@ const MOVIE_DETAIL = {
   genres: [{ id: 28, name: "Action" }],
   vote_average: 8.2,
   vote_count: 25000,
+  origin_country: ["US"],
+  belongs_to_collection: { id: 2344, name: "The Matrix Collection", poster_path: "/matrix.jpg" },
   release_dates: {
     results: [
       { iso_3166_1: "US", release_dates: [{ certification: "R", type: 3 }] },
@@ -38,6 +40,16 @@ const TV_DETAIL = {
   number_of_seasons: 5,
   genres: [{ id: 18, name: "Drama" }],
   vote_average: 8.9,
+  homepage: "https://www.amc.com/shows/breaking-bad",
+  type: "Scripted",
+  last_episode_to_air: {
+    season_number: 5,
+    episode_number: 16,
+    name: "Felina",
+    air_date: "2013-09-29",
+  },
+  next_episode_to_air: null,
+  seasons: [{ season_number: 1, name: "Season 1", episode_count: 7, air_date: "2008-01-20" }],
   external_ids: { imdb_id: "tt0903747" },
   content_ratings: {
     results: [
@@ -142,6 +154,32 @@ const KEYWORDS = {
   results: [{ id: 4379, name: "time travel" }],
 };
 
+const REVIEWS = {
+  page: 1,
+  total_pages: 1,
+  total_results: 1,
+  results: [
+    {
+      author: "Reviewer",
+      author_details: { username: "rev", rating: 9 },
+      content: "A great film.",
+      created_at: "2020-01-01T00:00:00.000Z",
+      url: "https://www.themoviedb.org/review/1",
+    },
+  ],
+};
+
+const COLLECTION = {
+  id: 2344,
+  name: "The Matrix Collection",
+  overview: "The Matrix films.",
+  poster_path: "/coll.jpg",
+  parts: [
+    { id: 604, title: "The Matrix Reloaded", release_date: "2003-05-15" },
+    { id: 603, title: "The Matrix", release_date: "1999-03-30" },
+  ],
+};
+
 /** Route a request to the right canned response based on its URL. Specific
  *  sub-resource routes must precede the /movie/{id} and /tv/{id} catch-alls. */
 function router(url: string) {
@@ -160,6 +198,12 @@ function router(url: string) {
   }
   if (url.includes("/watch/providers")) return jsonResponse(WATCH_PROVIDERS);
   if (url.includes("/combined_credits")) return jsonResponse(COMBINED_CREDITS);
+  if (url.includes("/similar")) {
+    const results = url.includes("/tv/") ? [TV_DETAIL] : [MOVIE_DETAIL];
+    return jsonResponse({ page: 1, total_pages: 1, total_results: 1, results });
+  }
+  if (url.includes("/reviews")) return jsonResponse(REVIEWS);
+  if (url.includes("/collection/")) return jsonResponse(COLLECTION);
   if (url.includes("/videos")) return jsonResponse(VIDEOS);
   if (url.includes("/find/")) return jsonResponse(FIND);
   if (/\/season\/\d+\/episode\/\d+/.test(url)) return jsonResponse(EPISODE);
@@ -613,6 +657,108 @@ test("get_tv_episode returns episode details with guest stars and crew", async (
     assert.equal(s.season_number, 1);
     assert.equal(s.guest_stars[0]!.name, "Guest");
     assert.equal(s.crew[0]!.job, "Director");
+  } finally {
+    restore();
+    await close();
+  }
+});
+
+test("get_movie surfaces collection and origin_country", async () => {
+  const restore = installFetch(mockFetch(router));
+  const { client, close } = await connectServer(ENV);
+  try {
+    const res = await client.callTool({
+      name: "get_movie",
+      arguments: { id: 603, include_ratings: false },
+    });
+    const s = res.structuredContent as {
+      collection: { id: number; name: string; poster_url: string } | null;
+      origin_country: string[];
+    };
+    assert.equal(s.collection?.id, 2344);
+    assert.equal(s.collection?.name, "The Matrix Collection");
+    assert.match(s.collection!.poster_url, /matrix\.jpg$/);
+    assert.deepEqual(s.origin_country, ["US"]);
+  } finally {
+    restore();
+    await close();
+  }
+});
+
+test("get_tv surfaces episode air info, seasons, homepage and type", async () => {
+  const restore = installFetch(mockFetch(router));
+  const { client, close } = await connectServer(ENV);
+  try {
+    const res = await client.callTool({ name: "get_tv", arguments: { id: 1396 } });
+    const s = res.structuredContent as {
+      type: string;
+      homepage: string;
+      last_episode_to_air: { name: string; air_date: string } | null;
+      next_episode_to_air: unknown;
+      seasons: { season_number: number; episode_count: number }[];
+    };
+    assert.equal(s.type, "Scripted");
+    assert.match(s.homepage, /amc\.com/);
+    assert.equal(s.last_episode_to_air?.name, "Felina");
+    assert.equal(s.next_episode_to_air, null);
+    assert.equal(s.seasons[0]!.season_number, 1);
+    assert.equal(s.seasons[0]!.episode_count, 7);
+  } finally {
+    restore();
+    await close();
+  }
+});
+
+test("get_similar returns similar titles for a movie", async () => {
+  const restore = installFetch(mockFetch(router));
+  const { client, close } = await connectServer(ENV);
+  try {
+    const res = await client.callTool({
+      name: "get_similar",
+      arguments: { media_type: "movie", id: 603 },
+    });
+    const s = res.structuredContent as { results: { id: number; title: string }[] };
+    assert.equal(s.results[0]!.id, 603);
+    assert.equal(s.results[0]!.title, "The Matrix");
+  } finally {
+    restore();
+    await close();
+  }
+});
+
+test("get_reviews returns author, rating and clipped content", async () => {
+  const restore = installFetch(mockFetch(router));
+  const { client, close } = await connectServer(ENV);
+  try {
+    const res = await client.callTool({
+      name: "get_reviews",
+      arguments: { media_type: "movie", id: 603 },
+    });
+    const s = res.structuredContent as {
+      results: { author: string; rating: number; content: string }[];
+    };
+    assert.equal(s.results[0]!.author, "Reviewer");
+    assert.equal(s.results[0]!.rating, 9);
+    assert.equal(s.results[0]!.content, "A great film.");
+  } finally {
+    restore();
+    await close();
+  }
+});
+
+test("get_collection returns parts ordered chronologically", async () => {
+  const restore = installFetch(mockFetch(router));
+  const { client, close } = await connectServer(ENV);
+  try {
+    const res = await client.callTool({ name: "get_collection", arguments: { id: 2344 } });
+    const s = res.structuredContent as {
+      name: string;
+      parts: { id: number; year: number }[];
+    };
+    assert.equal(s.name, "The Matrix Collection");
+    // Sorted by release date: The Matrix (1999) before Reloaded (2003).
+    assert.equal(s.parts[0]!.id, 603);
+    assert.equal(s.parts[1]!.id, 604);
   } finally {
     restore();
     await close();

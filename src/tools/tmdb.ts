@@ -15,6 +15,7 @@ const READ_ONLY = { readOnlyHint: true, openWorldHint: true } as const;
 
 const page = z.number().int().min(1).describe("1-based page number for pagination.");
 const tmdbId = z.number().int().positive().describe("TMDB numeric id.");
+const mediaKind = z.enum(["movie", "tv"]).describe("Media type: 'movie' or 'tv'.");
 const includeAdult = z
   .boolean()
   .describe("Include adult (NSFW) results. Defaults to false.")
@@ -336,6 +337,45 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
       annotations: READ_ONLY,
     },
     ({ id, page: pg }) => requireTmdb(() => tmdb.getTvRecommendations(id, pg)),
+  );
+
+  server.registerTool(
+    "get_similar",
+    {
+      title: "Get similar titles",
+      description:
+        "Get titles TMDB considers similar to a given movie or TV show (its algorithmic " +
+        "'similar' list, distinct from get_movie_recommendations). Get the id from search_movies/search_tv.",
+      inputSchema: { media_type: mediaKind, id: tmdbId, page: page.optional() },
+      annotations: READ_ONLY,
+    },
+    ({ media_type, id, page: pg }) => requireTmdb(() => tmdb.getSimilar(media_type, id, pg)),
+  );
+
+  server.registerTool(
+    "get_reviews",
+    {
+      title: "Get user reviews",
+      description:
+        "Get user reviews for a movie or TV show (author, their rating, and the review text). " +
+        "Get the id from search_movies/search_tv.",
+      inputSchema: { media_type: mediaKind, id: tmdbId, page: page.optional() },
+      annotations: READ_ONLY,
+    },
+    ({ media_type, id, page: pg }) => requireTmdb(() => tmdb.getReviews(media_type, id, pg)),
+  );
+
+  server.registerTool(
+    "get_collection",
+    {
+      title: "Get a movie collection",
+      description:
+        "Get a movie collection/franchise and all its parts in release order (e.g. the whole " +
+        "'The Dark Knight Collection'). Get the collection id from a movie's `collection` field in get_movie.",
+      inputSchema: { id: tmdbId, language: language.optional() },
+      annotations: READ_ONLY,
+    },
+    ({ id, language: lang }) => requireTmdb(() => tmdb.getCollection(id, lang)),
   );
 
   // ---- discovery ------------------------------------------------------------

@@ -60,7 +60,10 @@
     { "name": "find_by_imdb_id", "description": "Resolve an IMDb id to TMDB entities." },
     { "name": "get_tv_season", "description": "Season overview + episode list." },
     { "name": "get_tv_episode", "description": "Single episode details." },
-    { "name": "get_ratings", "description": "IMDb/RT/Metacritic ratings by IMDb id or title." }
+    { "name": "get_ratings", "description": "IMDb/RT/Metacritic ratings by IMDb id or title." },
+    { "name": "get_similar", "description": "Titles similar to a movie or TV show." },
+    { "name": "get_reviews", "description": "User reviews for a movie or TV show." },
+    { "name": "get_collection", "description": "A movie collection/franchise and its parts." }
   ],
   "user_config": {
     "tmdb_api_token": {

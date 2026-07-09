@@ -57,6 +57,43 @@ const checks = [
     },
   },
   {
+    name: "tmdb movie/{id}/similar",
+    skip: TMDB_TOKEN ? undefined : "TMDB_API_TOKEN not set",
+    run: async () => {
+      const res = await fetch(`${TMDB_BASE}/movie/603/similar`, {
+        headers: { Accept: "application/json", Authorization: `Bearer ${TMDB_TOKEN}` },
+      });
+      if (res.status !== 200) throw new Error(`expected 200, got ${res.status}`);
+      const body = await res.json();
+      if (!Array.isArray(body.results)) throw new Error("missing `results` array");
+    },
+  },
+  {
+    name: "tmdb movie/{id}/reviews",
+    skip: TMDB_TOKEN ? undefined : "TMDB_API_TOKEN not set",
+    run: async () => {
+      const res = await fetch(`${TMDB_BASE}/movie/155/reviews`, {
+        headers: { Accept: "application/json", Authorization: `Bearer ${TMDB_TOKEN}` },
+      });
+      if (res.status !== 200) throw new Error(`expected 200, got ${res.status}`);
+      const body = await res.json();
+      if (!Array.isArray(body.results)) throw new Error("missing `results` array");
+    },
+  },
+  {
+    name: "tmdb collection/{id} has parts",
+    skip: TMDB_TOKEN ? undefined : "TMDB_API_TOKEN not set",
+    run: async () => {
+      // 263 = The Dark Knight Collection; get_collection depends on `parts`.
+      const res = await fetch(`${TMDB_BASE}/collection/263`, {
+        headers: { Accept: "application/json", Authorization: `Bearer ${TMDB_TOKEN}` },
+      });
+      if (res.status !== 200) throw new Error(`expected 200, got ${res.status}`);
+      const body = await res.json();
+      if (!Array.isArray(body.parts)) throw new Error("missing `parts` array");
+    },
+  },
+  {
     name: "omdb ratings by imdb_id",
     skip: OMDB_KEY ? undefined : "OMDB_API_KEY not set",
     run: async () => {

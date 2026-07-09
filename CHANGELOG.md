@@ -8,6 +8,21 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Three new tools: `get_similar`, `get_reviews`, `get_collection`.** `get_similar`
+  returns TMDB's algorithmic "similar titles" for a movie or TV show (distinct from
+  the editorial `get_movie_recommendations`); `get_reviews` returns user reviews
+  (author, their rating, the review text) for a movie or TV show; `get_collection`
+  returns a movie franchise/collection and all its parts in release order.
+- **Richer detail lookups (no extra requests).** `get_movie` now surfaces
+  `collection` (the franchise a film belongs to — feed its id to `get_collection`)
+  and `origin_country`. `get_tv` now surfaces `next_episode_to_air` /
+  `last_episode_to_air` (when the next / most-recent episode airs), a per-season
+  `seasons` summary, `homepage` and `type` — all from the payload already fetched.
+
+## [0.2.0] - 2026-07-09
+
+### Added
+
 - **MCP logging capability.** The server declares the `logging` capability and
   mirrors its stderr log lines to the connected client as `notifications/message`
   (best-effort, credential-redacted, gated by `LOG_LEVEL`, and only after the

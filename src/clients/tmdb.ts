@@ -14,6 +14,7 @@ import {
   detailPerson,
   detailTv,
   page,
+  summarizeCollection,
   summarizeCredits,
   summarizeEpisode,
   summarizeFind,
@@ -22,6 +23,7 @@ import {
   summarizeMovie,
   summarizeMultiItem,
   summarizePersonCredits,
+  summarizeReview,
   summarizeSeason,
   summarizeTv,
   summarizeVideos,
@@ -29,7 +31,9 @@ import {
   type CombinedCredits,
   type FindResponse,
   type KeywordsResponse,
+  type TmdbCollection,
   type TmdbCredits,
+  type TmdbReview,
   type TmdbMovie,
   type TmdbMultiItem,
   type TmdbPage,
@@ -290,6 +294,50 @@ export class TmdbClient {
       language,
     );
     return page(res, summarizeTv);
+  }
+
+  // TMDB's algorithmic "similar" list (distinct from the editorial
+  // recommendations above). Shared movie/tv method — the endpoint segment and
+  // the summarizer differ by media type.
+  async getSimilar(
+    mediaType: "movie" | "tv",
+    id: number,
+    pg?: number,
+    language?: string,
+  ): Promise<Record<string, unknown>> {
+    if (mediaType === "tv") {
+      const res = await this.#get<TmdbPage<TmdbTv>>(`tv/${id}/similar`, { page: pg }, language);
+      return page(res, summarizeTv);
+    }
+    const res = await this.#get<TmdbPage<TmdbMovie>>(`movie/${id}/similar`, { page: pg }, language);
+    return page(res, summarizeMovie);
+  }
+
+  // User reviews for a movie or TV show (same response shape for both).
+  async getReviews(
+    mediaType: "movie" | "tv",
+    id: number,
+    pg?: number,
+    language?: string,
+  ): Promise<Record<string, unknown>> {
+    const res = await this.#get<TmdbPage<TmdbReview>>(
+      `${mediaType}/${id}/reviews`,
+      { page: pg },
+      language,
+    );
+    return page(res, summarizeReview);
+  }
+
+  // A movie collection/franchise (e.g. "The Dark Knight Collection") + its parts.
+  // Cached: collections are stable and small.
+  async getCollection(id: number, language?: string): Promise<Record<string, unknown>> {
+    return this.#cached<TmdbCollection>(
+      `collection:${id}:${this.#lang(language)}`,
+      `collection/${id}`,
+      summarizeCollection,
+      {},
+      language,
+    );
   }
 
   // ---- discovery ------------------------------------------------------------
