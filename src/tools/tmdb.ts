@@ -324,7 +324,7 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
       inputSchema: { id: tmdbId, page: page.optional() },
       annotations: READ_ONLY,
     },
-    ({ id, page: pg }) => requireTmdb(() => tmdb.getMovieRecommendations(id, pg)),
+    ({ id, page: pg }) => requireTmdb(() => tmdb.getRecommendations("movie", id, pg)),
   );
 
   server.registerTool(
@@ -336,7 +336,7 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
       inputSchema: { id: tmdbId, page: page.optional() },
       annotations: READ_ONLY,
     },
-    ({ id, page: pg }) => requireTmdb(() => tmdb.getTvRecommendations(id, pg)),
+    ({ id, page: pg }) => requireTmdb(() => tmdb.getRecommendations("tv", id, pg)),
   );
 
   server.registerTool(
@@ -413,7 +413,7 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
       inputSchema: {},
       annotations: READ_ONLY,
     },
-    () => requireTmdb(() => tmdb.getMovieGenres()),
+    () => requireTmdb(() => tmdb.getGenres("movie")),
   );
 
   server.registerTool(
@@ -425,7 +425,7 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
       inputSchema: {},
       annotations: READ_ONLY,
     },
-    () => requireTmdb(() => tmdb.getTvGenres()),
+    () => requireTmdb(() => tmdb.getGenres("tv")),
   );
 
   // ---- discover -------------------------------------------------------------
@@ -443,7 +443,7 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
       inputSchema: discoverMovieSchema,
       annotations: READ_ONLY,
     },
-    (args) => requireTmdb(() => tmdb.discoverMovies(args)),
+    (args) => requireTmdb(() => tmdb.discover("movie", args)),
   );
 
   server.registerTool(
@@ -457,7 +457,7 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
       inputSchema: discoverTvSchema,
       annotations: READ_ONLY,
     },
-    (args) => requireTmdb(() => tmdb.discoverTv(args)),
+    (args) => requireTmdb(() => tmdb.discover("tv", args)),
   );
 
   // ---- watch providers ------------------------------------------------------
@@ -478,11 +478,7 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
       annotations: READ_ONLY,
     },
     ({ media_type, id, region: r }) =>
-      requireTmdb(() =>
-        media_type === "tv"
-          ? tmdb.getTvWatchProviders(id, r ?? "US")
-          : tmdb.getMovieWatchProviders(id, r ?? "US"),
-      ),
+      requireTmdb(() => tmdb.getWatchProviders(media_type, id, r ?? "US")),
   );
 
   // ---- person filmography ---------------------------------------------------
@@ -512,8 +508,7 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
       inputSchema: { media_type: mediaType, id: tmdbId },
       annotations: READ_ONLY,
     },
-    ({ media_type, id }) =>
-      requireTmdb(() => (media_type === "tv" ? tmdb.getTvVideos(id) : tmdb.getMovieVideos(id))),
+    ({ media_type, id }) => requireTmdb(() => tmdb.getVideos(media_type, id)),
   );
 
   // ---- reverse lookup -------------------------------------------------------

@@ -270,47 +270,44 @@ export class TmdbClient {
     );
   }
 
-  async getMovieRecommendations(
+  // Paged movie/tv title list under a per-title sub-resource. `recommendations`
+  // (editorial) and `similar` (algorithmic) share this shape; the endpoint
+  // segment differs and the summarizer follows the media type.
+  #pagedTitles(
+    mediaType: "movie" | "tv",
     id: number,
+    kind: "recommendations" | "similar",
     pg?: number,
     language?: string,
   ): Promise<Record<string, unknown>> {
-    const res = await this.#get<TmdbPage<TmdbMovie>>(
-      `movie/${id}/recommendations`,
-      { page: pg },
-      language,
+    if (mediaType === "tv") {
+      return this.#get<TmdbPage<TmdbTv>>(`tv/${id}/${kind}`, { page: pg }, language).then((res) =>
+        page(res, summarizeTv),
+      );
+    }
+    return this.#get<TmdbPage<TmdbMovie>>(`movie/${id}/${kind}`, { page: pg }, language).then(
+      (res) => page(res, summarizeMovie),
     );
-    return page(res, summarizeMovie);
   }
 
-  async getTvRecommendations(
-    id: number,
-    pg?: number,
-    language?: string,
-  ): Promise<Record<string, unknown>> {
-    const res = await this.#get<TmdbPage<TmdbTv>>(
-      `tv/${id}/recommendations`,
-      { page: pg },
-      language,
-    );
-    return page(res, summarizeTv);
-  }
-
-  // TMDB's algorithmic "similar" list (distinct from the editorial
-  // recommendations above). Shared movie/tv method — the endpoint segment and
-  // the summarizer differ by media type.
-  async getSimilar(
+  /** TMDB's editorial recommendations for a movie or TV show. */
+  getRecommendations(
     mediaType: "movie" | "tv",
     id: number,
     pg?: number,
     language?: string,
   ): Promise<Record<string, unknown>> {
-    if (mediaType === "tv") {
-      const res = await this.#get<TmdbPage<TmdbTv>>(`tv/${id}/similar`, { page: pg }, language);
-      return page(res, summarizeTv);
-    }
-    const res = await this.#get<TmdbPage<TmdbMovie>>(`movie/${id}/similar`, { page: pg }, language);
-    return page(res, summarizeMovie);
+    return this.#pagedTitles(mediaType, id, "recommendations", pg, language);
+  }
+
+  /** TMDB's algorithmic "similar" list (distinct from getRecommendations). */
+  getSimilar(
+    mediaType: "movie" | "tv",
+    id: number,
+    pg?: number,
+    language?: string,
+  ): Promise<Record<string, unknown>> {
+    return this.#pagedTitles(mediaType, id, "similar", pg, language);
   }
 
   // User reviews for a movie or TV show (same response shape for both).
@@ -358,21 +355,10 @@ export class TmdbClient {
 
   // Genre lists drive the readable names in search results; very static → cache.
   // Cached per language so localized names are not mixed.
-  async getMovieGenres(language?: string): Promise<Record<string, unknown>> {
-    return this.#cache.wrapStaleOnError(`genres:movie:${this.#lang(language)}`, async () => {
+  async getGenres(mediaType: "movie" | "tv", language?: string): Promise<Record<string, unknown>> {
+    return this.#cache.wrapStaleOnError(`genres:${mediaType}:${this.#lang(language)}`, async () => {
       const res = await this.#get<{ genres: { id?: number; name?: string }[] }>(
-        "genre/movie/list",
-        {},
-        language,
-      );
-      return summarizeGenres(res.genres ?? []);
-    });
-  }
-
-  async getTvGenres(language?: string): Promise<Record<string, unknown>> {
-    return this.#cache.wrapStaleOnError(`genres:tv:${this.#lang(language)}`, async () => {
-      const res = await this.#get<{ genres: { id?: number; name?: string }[] }>(
-        "genre/tv/list",
+        `genre/${mediaType}/list`,
         {},
         language,
       );
@@ -382,7 +368,15 @@ export class TmdbClient {
 
   // ---- discover -------------------------------------------------------------
 
-  async discoverMovies(p: DiscoverParams): Promise<Record<string, unknown>> {
+  async discover(kind: "movie" | "tv", p: DiscoverParams): Promise<Record<string, unknown>> {
+    if (kind === "tv") {
+      const res = await this.#get<TmdbPage<TmdbTv>>(
+        "discover/tv",
+        discoverQuery(p, "tv"),
+        p.language,
+      );
+      return page(res, summarizeTv);
+    }
     const res = await this.#get<TmdbPage<TmdbMovie>>(
       "discover/movie",
       discoverQuery(p, "movie"),
@@ -391,27 +385,20 @@ export class TmdbClient {
     return page(res, summarizeMovie);
   }
 
-  async discoverTv(p: DiscoverParams): Promise<Record<string, unknown>> {
-    const res = await this.#get<TmdbPage<TmdbTv>>(
-      "discover/tv",
-      discoverQuery(p, "tv"),
-      p.language,
-    );
-    return page(res, summarizeTv);
-  }
-
   // ---- watch providers ------------------------------------------------------
 
-  async getMovieWatchProviders(id: number, region: string): Promise<Record<string, unknown>> {
-    return this.#cache.wrapStaleOnError(`movie-watch:${id}`, async () => {
-      const res = await this.#http.getJson<WatchProvidersResponse>(`movie/${id}/watch/providers`);
-      return summarizeWatchProviders(res, region);
-    });
-  }
-
-  async getTvWatchProviders(id: number, region: string): Promise<Record<string, unknown>> {
-    return this.#cache.wrapStaleOnError(`tv-watch:${id}`, async () => {
-      const res = await this.#http.getJson<WatchProvidersResponse>(`tv/${id}/watch/providers`);
+  async getWatchProviders(
+    mediaType: "movie" | "tv",
+    id: number,
+    region: string,
+  ): Promise<Record<string, unknown>> {
+    // region is part of the cache key: summarizeWatchProviders returns a
+    // region-specific slice, so caching it under an id-only key would serve one
+    // region's providers for another.
+    return this.#cache.wrapStaleOnError(`watch:${mediaType}:${id}:${region}`, async () => {
+      const res = await this.#http.getJson<WatchProvidersResponse>(
+        `${mediaType}/${id}/watch/providers`,
+      );
       return summarizeWatchProviders(res, region);
     });
   }
@@ -430,20 +417,14 @@ export class TmdbClient {
 
   // ---- videos / trailers ----------------------------------------------------
 
-  async getMovieVideos(id: number, language?: string): Promise<Record<string, unknown>> {
+  async getVideos(
+    mediaType: "movie" | "tv",
+    id: number,
+    language?: string,
+  ): Promise<Record<string, unknown>> {
     return this.#cached<VideosResponse>(
-      `movie-videos:${id}:${this.#lang(language)}`,
-      `movie/${id}/videos`,
-      summarizeVideos,
-      {},
-      language,
-    );
-  }
-
-  async getTvVideos(id: number, language?: string): Promise<Record<string, unknown>> {
-    return this.#cached<VideosResponse>(
-      `tv-videos:${id}:${this.#lang(language)}`,
-      `tv/${id}/videos`,
+      `${mediaType}-videos:${id}:${this.#lang(language)}`,
+      `${mediaType}/${id}/videos`,
       summarizeVideos,
       {},
       language,

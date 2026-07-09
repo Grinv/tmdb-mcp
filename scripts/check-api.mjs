@@ -15,84 +15,41 @@ const OMDB_KEY = process.env.OMDB_API_KEY;
 const SPACING_MS = 300;
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Assert a 200 + minimal shape from a TMDB endpoint, with auth + the skip guard.
+const tmdbCheck = (name, path, assert) => ({
+  name,
+  skip: TMDB_TOKEN ? undefined : "TMDB_API_TOKEN not set",
+  run: async () => {
+    const res = await fetch(`${TMDB_BASE}${path}`, {
+      headers: { Accept: "application/json", Authorization: `Bearer ${TMDB_TOKEN}` },
+    });
+    if (res.status !== 200) throw new Error(`expected 200, got ${res.status}`);
+    assert(await res.json());
+  },
+});
+
+const hasResults = (b) => {
+  if (!Array.isArray(b.results)) throw new Error("missing `results` array");
+};
+
 /** @type {{name:string, skip?:string, run:() => Promise<void>}[]} */
 const checks = [
-  {
-    name: "tmdb search/movie",
-    skip: TMDB_TOKEN ? undefined : "TMDB_API_TOKEN not set",
-    run: async () => {
-      const res = await fetch(`${TMDB_BASE}/search/movie?query=matrix`, {
-        headers: { Accept: "application/json", Authorization: `Bearer ${TMDB_TOKEN}` },
-      });
-      if (res.status !== 200) throw new Error(`expected 200, got ${res.status}`);
-      const body = await res.json();
-      if (!Array.isArray(body.results)) throw new Error("missing `results` array");
-    },
-  },
-  {
-    name: "tmdb movie/{id} has imdb_id",
-    skip: TMDB_TOKEN ? undefined : "TMDB_API_TOKEN not set",
-    run: async () => {
-      // 603 = The Matrix (1999); its detail response must carry imdb_id, which
-      // the OMDb enrichment path depends on.
-      const res = await fetch(`${TMDB_BASE}/movie/603`, {
-        headers: { Accept: "application/json", Authorization: `Bearer ${TMDB_TOKEN}` },
-      });
-      if (res.status !== 200) throw new Error(`expected 200, got ${res.status}`);
-      const body = await res.json();
-      if (typeof body.imdb_id !== "string") throw new Error("missing `imdb_id`");
-    },
-  },
-  {
-    name: "tmdb discover/movie",
-    skip: TMDB_TOKEN ? undefined : "TMDB_API_TOKEN not set",
-    run: async () => {
-      const res = await fetch(
-        `${TMDB_BASE}/discover/movie?sort_by=popularity.desc&vote_count.gte=100`,
-        { headers: { Accept: "application/json", Authorization: `Bearer ${TMDB_TOKEN}` } },
-      );
-      if (res.status !== 200) throw new Error(`expected 200, got ${res.status}`);
-      const body = await res.json();
-      if (!Array.isArray(body.results)) throw new Error("missing `results` array");
-    },
-  },
-  {
-    name: "tmdb movie/{id}/similar",
-    skip: TMDB_TOKEN ? undefined : "TMDB_API_TOKEN not set",
-    run: async () => {
-      const res = await fetch(`${TMDB_BASE}/movie/603/similar`, {
-        headers: { Accept: "application/json", Authorization: `Bearer ${TMDB_TOKEN}` },
-      });
-      if (res.status !== 200) throw new Error(`expected 200, got ${res.status}`);
-      const body = await res.json();
-      if (!Array.isArray(body.results)) throw new Error("missing `results` array");
-    },
-  },
-  {
-    name: "tmdb movie/{id}/reviews",
-    skip: TMDB_TOKEN ? undefined : "TMDB_API_TOKEN not set",
-    run: async () => {
-      const res = await fetch(`${TMDB_BASE}/movie/155/reviews`, {
-        headers: { Accept: "application/json", Authorization: `Bearer ${TMDB_TOKEN}` },
-      });
-      if (res.status !== 200) throw new Error(`expected 200, got ${res.status}`);
-      const body = await res.json();
-      if (!Array.isArray(body.results)) throw new Error("missing `results` array");
-    },
-  },
-  {
-    name: "tmdb collection/{id} has parts",
-    skip: TMDB_TOKEN ? undefined : "TMDB_API_TOKEN not set",
-    run: async () => {
-      // 263 = The Dark Knight Collection; get_collection depends on `parts`.
-      const res = await fetch(`${TMDB_BASE}/collection/263`, {
-        headers: { Accept: "application/json", Authorization: `Bearer ${TMDB_TOKEN}` },
-      });
-      if (res.status !== 200) throw new Error(`expected 200, got ${res.status}`);
-      const body = await res.json();
-      if (!Array.isArray(body.parts)) throw new Error("missing `parts` array");
-    },
-  },
+  tmdbCheck("tmdb search/movie", "/search/movie?query=matrix", hasResults),
+  // 603 = The Matrix; its detail must carry imdb_id (the OMDb enrichment depends on it).
+  tmdbCheck("tmdb movie/{id} has imdb_id", "/movie/603", (b) => {
+    if (typeof b.imdb_id !== "string") throw new Error("missing `imdb_id`");
+  }),
+  tmdbCheck(
+    "tmdb discover/movie",
+    "/discover/movie?sort_by=popularity.desc&vote_count.gte=100",
+    hasResults,
+  ),
+  tmdbCheck("tmdb movie/{id}/similar", "/movie/603/similar", hasResults),
+  tmdbCheck("tmdb movie/{id}/reviews", "/movie/155/reviews", hasResults),
+  // 263 = The Dark Knight Collection; get_collection depends on `parts`.
+  tmdbCheck("tmdb collection/{id} has parts", "/collection/263", (b) => {
+    if (!Array.isArray(b.parts)) throw new Error("missing `parts` array");
+  }),
   {
     name: "omdb ratings by imdb_id",
     skip: OMDB_KEY ? undefined : "OMDB_API_KEY not set",

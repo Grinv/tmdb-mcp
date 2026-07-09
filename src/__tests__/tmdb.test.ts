@@ -169,6 +169,13 @@ const REVIEWS = {
   ],
 };
 
+const GENRES = {
+  genres: [
+    { id: 18, name: "Drama" },
+    { id: 35, name: "Comedy" },
+  ],
+};
+
 const COLLECTION = {
   id: 2344,
   name: "The Matrix Collection",
@@ -204,6 +211,7 @@ function router(url: string) {
   }
   if (url.includes("/reviews")) return jsonResponse(REVIEWS);
   if (url.includes("/collection/")) return jsonResponse(COLLECTION);
+  if (url.includes("/genre/")) return jsonResponse(GENRES);
   if (url.includes("/videos")) return jsonResponse(VIDEOS);
   if (url.includes("/find/")) return jsonResponse(FIND);
   if (/\/season\/\d+\/episode\/\d+/.test(url)) return jsonResponse(EPISODE);
@@ -759,6 +767,96 @@ test("get_collection returns parts ordered chronologically", async () => {
     // Sorted by release date: The Matrix (1999) before Reloaded (2003).
     assert.equal(s.parts[0]!.id, 603);
     assert.equal(s.parts[1]!.id, 604);
+  } finally {
+    restore();
+    await close();
+  }
+});
+
+test("get_watch_providers is cached per region (not region-agnostic)", async () => {
+  const restore = installFetch(mockFetch(router));
+  const { client, close } = await connectServer(ENV);
+  try {
+    const us = (
+      await client.callTool({
+        name: "get_watch_providers",
+        arguments: { media_type: "movie", id: 603, region: "US" },
+      })
+    ).structuredContent as { region: string; streaming: string[] };
+    const gb = (
+      await client.callTool({
+        name: "get_watch_providers",
+        arguments: { media_type: "movie", id: 603, region: "GB" },
+      })
+    ).structuredContent as { region: string; streaming: string[] };
+    assert.equal(us.region, "US");
+    assert.deepEqual(us.streaming, ["Netflix"]);
+    // Under the old id-only cache key this returned the US slice.
+    assert.equal(gb.region, "GB");
+    assert.deepEqual(gb.streaming, ["Prime Video"]);
+  } finally {
+    restore();
+    await close();
+  }
+});
+
+test("get_similar returns TV results for media_type tv", async () => {
+  const restore = installFetch(mockFetch(router));
+  const { client, close } = await connectServer(ENV);
+  try {
+    const res = await client.callTool({
+      name: "get_similar",
+      arguments: { media_type: "tv", id: 1396 },
+    });
+    const s = res.structuredContent as { results: { media_type: string; name: string }[] };
+    assert.equal(s.results[0]!.media_type, "tv");
+    assert.equal(s.results[0]!.name, "Breaking Bad");
+  } finally {
+    restore();
+    await close();
+  }
+});
+
+test("discover_tv returns TV results", async () => {
+  const restore = installFetch(mockFetch(router));
+  const { client, close } = await connectServer(ENV);
+  try {
+    const res = await client.callTool({
+      name: "discover_tv",
+      arguments: { with_genres: "18" },
+    });
+    const s = res.structuredContent as { results: { name: string }[] };
+    assert.equal(s.results[0]!.name, "Breaking Bad");
+  } finally {
+    restore();
+    await close();
+  }
+});
+
+test("get_tv_genres returns id/name pairs", async () => {
+  const restore = installFetch(mockFetch(router));
+  const { client, close } = await connectServer(ENV);
+  try {
+    const res = await client.callTool({ name: "get_tv_genres", arguments: {} });
+    const s = res.structuredContent as { genres: { id: number; name: string }[] };
+    assert.ok(s.genres.some((g) => g.name === "Drama"));
+  } finally {
+    restore();
+    await close();
+  }
+});
+
+test("get_videos works for media_type tv", async () => {
+  const restore = installFetch(mockFetch(router));
+  const { client, close } = await connectServer(ENV);
+  try {
+    const res = await client.callTool({
+      name: "get_videos",
+      arguments: { media_type: "tv", id: 1396 },
+    });
+    assert.notEqual(res.isError, true);
+    const s = res.structuredContent as { results: unknown[] };
+    assert.ok(Array.isArray(s.results));
   } finally {
     restore();
     await close();
