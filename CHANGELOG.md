@@ -6,6 +6,36 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **MCP logging capability.** The server declares the `logging` capability and
+  mirrors its stderr log lines to the connected client as `notifications/message`
+  (best-effort, credential-redacted, gated by `LOG_LEVEL`, and only after the
+  client's `initialized`).
+- **MCP Registry publishing.** `package.json` gains an `mcpName` marker and
+  `server.json` now lists the npm package plus a self-describing
+  `environmentVariables` block on both packages; the release workflow publishes
+  to the official MCP Registry via `mcp-publisher` (GitHub OIDC), injecting the
+  packed `.mcpb`'s `fileSha256`.
+
+### Fixed
+
+- **The built bundle was not self-contained.** tsup left `@modelcontextprotocol/sdk`
+  and `zod` external, so `dist/index.js` could crash standalone with
+  `ERR_MODULE_NOT_FOUND` (`.mcpb`/npx). Added `noExternal` to inline runtime deps,
+  now minified with no sourcemap; a new `bundle.test.ts` guards it.
+- **Unfilled `.mcpb` optional fields leaked as literal `${user_config.x}`.**
+  `loadConfig` now treats unsubstituted `${...}` placeholders as unset.
+
+### Internal
+
+- **e2e smoke test** driving the real built bundle over stdio (no `node_modules`),
+  asserting handshake + all tools register. `TtlCache` shares one in-flight fetch
+  across concurrent callers. Version-sync tooling (`scripts/sync-version.mjs` + npm
+  `version` hook + `version.test.ts` guards). Local coverage gate in
+  `test:coverage`. Release workflow pins `npm@11.18.0` (npm 12 breaks
+  `--provenance`) and sources release notes from this CHANGELOG.
+
 ## [0.1.1]
 
 ### Added
