@@ -26,14 +26,46 @@ jobs:
       - run: npm test
       - name: Pack .mcpb bundle
         run: npx mcpb pack . tmdb-mcp.mcpb
+      # Use CHANGELOG.md as the single source of truth for release notes: extract
+      # this version's section and feed it as the GitHub Release body.
+      - name: Extract release notes from CHANGELOG
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          awk -v ver="$VERSION" '
+            $0 ~ "^## \\[" ver "\\]" {flag=1; next}
+            flag && /^## \[/ {exit}
+            flag {print}
+          ' CHANGELOG.md > RELEASE_NOTES.md
+          echo "----- release notes for $VERSION -----"; cat RELEASE_NOTES.md
       - name: Create GitHub Release
         uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
         with:
           files: tmdb-mcp.mcpb
-          generate_release_notes: true
+          body_path: RELEASE_NOTES.md
       # Trusted Publishing (OIDC): no token. Requires npm >= 11.5.1 and a
       # trusted publisher configured for this package on npmjs.com.
-      - name: Upgrade npm for trusted publishing
-        run: npm install -g npm@latest
+      # Pin npm: 12.0.0 ships a broken provenance path ("Cannot find module
+      # 'sigstore'") that fails --provenance. 11.18.0 is known-good and >= 11.5.1.
+      - name: Install npm for trusted publishing
+        run: npm install -g npm@11.18.0
       - name: Publish to npm (trusted publishing + provenance)
         run: npm publish --provenance --access public
+
+      # Publish to the official MCP Registry (registry.modelcontextprotocol.io).
+      # Runs after npm publish so the npm package (with its mcpName marker) is
+      # live for the registry's ownership check. The mcpb entry's fileSha256 is
+      # injected from the just-packed bundle so it always matches the release
+      # asset (zip mtimes make .mcpb non-reproducible, so a committed hash drifts).
+      - name: Inject .mcpb SHA-256 into server.json
+        run: |
+          SHA=$(sha256sum tmdb-mcp.mcpb | cut -d' ' -f1)
+          jq --arg sha "$SHA" \
+            '(.packages[] | select(.registryType=="mcpb")).fileSha256 = $sha' \
+            server.json > server.json.tmp && mv server.json.tmp server.json
+      - name: Install mcp-publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+      - name: Authenticate to MCP Registry (GitHub OIDC)
+        run: ./mcp-publisher login github-oidc
+      - name: Publish to MCP Registry
+        run: ./mcp-publisher publish

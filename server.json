@@ -1,5 +1,5 @@
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.Grinv/tmdb-mcp",
   "description": "MCP server for The Movie Database (TMDB) with IMDb/Rotten Tomatoes/Metacritic ratings via OMDb.",
   "status": "active",
@@ -10,10 +10,69 @@
   },
   "packages": [
     {
+      "registryType": "npm",
+      "identifier": "tmdb-mcp",
+      "version": "0.1.1",
+      "runtimeHint": "npx",
+      "transport": { "type": "stdio" },
+      "environmentVariables": [
+        {
+          "name": "TMDB_API_TOKEN",
+          "description": "Required. TMDB v4 'Read Access Token' from themoviedb.org/settings/api (sent as a Bearer token).",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "OMDB_API_KEY",
+          "description": "Optional. Free key from omdbapi.com — enables IMDb/Rotten Tomatoes/Metacritic ratings.",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "TMDB_LANGUAGE",
+          "description": "Optional. Default response language as ISO-639-1, optionally with a region (e.g. ru-RU, en-US, ja).",
+          "isRequired": false,
+          "default": "en-US"
+        },
+        {
+          "name": "TMDB_REGION",
+          "description": "Optional. Default ISO-3166-1 country code (e.g. US, RU, GB) for region-specific results.",
+          "isRequired": false,
+          "default": "US"
+        }
+      ]
+    },
+    {
       "registryType": "mcpb",
       "identifier": "https://github.com/Grinv/tmdb-mcp/releases/download/v0.1.1/tmdb-mcp.mcpb",
       "version": "0.1.1",
-      "transport": { "type": "stdio" }
+      "transport": { "type": "stdio" },
+      "environmentVariables": [
+        {
+          "name": "TMDB_API_TOKEN",
+          "description": "Required. TMDB v4 'Read Access Token' from themoviedb.org/settings/api (sent as a Bearer token).",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "OMDB_API_KEY",
+          "description": "Optional. Free key from omdbapi.com — enables IMDb/Rotten Tomatoes/Metacritic ratings.",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "TMDB_LANGUAGE",
+          "description": "Optional. Default response language as ISO-639-1, optionally with a region (e.g. ru-RU, en-US, ja).",
+          "isRequired": false,
+          "default": "en-US"
+        },
+        {
+          "name": "TMDB_REGION",
+          "description": "Optional. Default ISO-3166-1 country code (e.g. US, RU, GB) for region-specific results.",
+          "isRequired": false,
+          "default": "US"
+        }
+      ]
     }
   ]
 }

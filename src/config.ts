@@ -3,9 +3,10 @@
 // Access Token; OMDb (optional enrichment — IMDb/Rotten Tomatoes/Metacritic
 // ratings) needs a free API key. Both credentials are optional so the server
 // always starts and can list tools; each tool reports a clear error at call
-// time when its credential is missing. Empty strings are treated as unset so
-// .mcpb (which passes "" for unconfigured user_config fields) does not crash
-// startup.
+// time when its credential is missing. Empty strings AND unsubstituted .mcpb
+// placeholders (e.g. "${user_config.tmdb_api_token}") are treated as unset, so
+// .mcpb passing a blank/unfilled user_config field does not crash startup or
+// send garbage upstream.
 import { z } from "zod";
 import type { LogLevel } from "./lib/logger.js";
 
@@ -59,10 +60,19 @@ export interface Config {
   logLevel: LogLevel;
 }
 
+// .mcpb leaves an UNFILLED optional user_config field as the literal,
+// unsubstituted placeholder (e.g. "${user_config.tmdb_api_token}") rather than
+// "". Such a value is non-empty, so without this it would be taken as a real
+// token/key — making a client "configured" and sending garbage upstream (→ 401).
+const UNSUBSTITUTED_PLACEHOLDER = /^\$\{[^}]*\}$/;
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
-  // Drop empty-string values so defaults apply and optional secrets stay unset.
+  // Drop empty strings and unsubstituted ${...} placeholders so defaults apply
+  // and optional secrets (TMDB_API_TOKEN, OMDB_API_KEY) stay genuinely unset.
   const cleaned = Object.fromEntries(
-    Object.entries(env).filter(([, v]) => v !== undefined && v !== ""),
+    Object.entries(env).filter(
+      ([, v]) => v !== undefined && v !== "" && !UNSUBSTITUTED_PLACEHOLDER.test(v),
+    ),
   );
   const parsed = EnvSchema.parse(cleaned);
 
