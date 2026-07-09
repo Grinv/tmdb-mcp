@@ -12,6 +12,30 @@ in the same call.
 The server speaks standard MCP over stdio, so it works with any MCP client
 (Claude Desktop/Code, Cursor, VS Code, Cline, …).
 
+Once it's connected, just ask your agent in natural language (needs a free TMDB
+token — see [Getting your credentials](#getting-your-credentials)):
+
+```
+"Search for the movie Dune: Part Two and show its overview, genres and runtime."
+"What movies are trending this week?"
+"Find TV shows similar to Breaking Bad."
+"Who directed Oppenheimer? Show the main cast."
+"What's Greta Gerwig's filmography?"
+"Discover highly-rated sci-fi movies from the 2010s, sorted by rating."
+"Where can I stream The Bear in the US?"
+"Show me the trailer for Deadpool & Wolverine."
+"List the episodes of Severance season 1."
+"Which movie has IMDb id tt0111161?"
+"Search for people named Zendaya."
+```
+
+With an optional (free) **OMDb** key, ratings are added too:
+
+```
+"What are the IMDb, Rotten Tomatoes and Metacritic scores for The Godfather?"
+"Compare the critics' scores for Barbie and Oppenheimer."
+```
+
 ## Install
 
 Add it to your MCP client's config. The only required credential is a TMDB v4
@@ -83,14 +107,24 @@ that it is unconfigured.
 `RU`) to get localized titles/overviews/genre names and region-specific
 certifications. Most tools also accept a per-call `language` override.
 
-## Credentials
+## Getting your credentials
 
-- **`TMDB_API_TOKEN`** (required): a TMDB v4 **"Read Access Token"** from
-  <https://www.themoviedb.org/settings/api>. Sent as `Authorization: Bearer …`.
-- **`OMDB_API_KEY`** (optional): a free key from
-  <https://www.omdbapi.com/apikey.aspx> — enables ratings enrichment.
+One token is required (TMDB); the OMDb key is optional. Both are free.
 
-See [docs/clients.md](docs/clients.md) for per-client config snippets.
+1. **TMDB token (required).** Create a free account at
+   [themoviedb.org](https://www.themoviedb.org/signup), then open
+   **[Settings → API](https://www.themoviedb.org/settings/api)** and request an API
+   key (personal use). Copy the **"API Read Access Token"** (the long v4 token, _not_
+   the short v3 key) into **`TMDB_API_TOKEN`**. It's sent as `Authorization: Bearer …`.
+2. **OMDb key (optional).** Grab a free key at
+   **[omdbapi.com/apikey.aspx](https://www.omdbapi.com/apikey.aspx)** (the free tier
+   is fine), click the activation link in the email, and set **`OMDB_API_KEY`**. This
+   unlocks `get_ratings` and the IMDb / Rotten Tomatoes / Metacritic scores in movie
+   and TV details. Without it, everything else still works.
+
+Put these in your MCP client config's `env` block (see
+[docs/clients.md](docs/clients.md) for per-client snippets) — never commit them.
+`TMDB_LANGUAGE` / `TMDB_REGION` optionally set default locale/region (e.g. `ru-RU`, `RU`).
 
 ## Develop
 
