@@ -85,13 +85,16 @@ See [docs/clients.md](docs/clients.md) for per-client details and all tunables.
 | `get_movie` / `get_tv`                                 | Full details **+ IMDb/RT/Metacritic ratings** (toggle with `include_ratings`)              |
 | `get_person`                                           | Biography, department, links                                                               |
 | `get_movie_credits` / `get_tv_credits`                 | Top-billed cast and headline crew                                                          |
-| `get_movie_recommendations` / `get_tv_recommendations` | Similar titles                                                                             |
+| `get_movie_recommendations` / `get_tv_recommendations` | TMDB's editorial recommendations                                                           |
+| `get_similar`                                          | Algorithmically similar titles (`media_type` + id)                                         |
 | `get_trending`                                         | What's popular now (movies / TV / people, day or week)                                     |
 | `get_movie_genres` / `get_tv_genres`                   | Genre id ↔ name reference                                                                  |
 | `discover_movies` / `discover_tv`                      | Filter by genre, year/date range, rating, cast/crew, keywords, providers, certification, … |
 | `get_watch_providers`                                  | Where to stream/rent/buy, by region (JustWatch via TMDB)                                   |
 | `get_person_credits`                                   | A person's filmography (cast & crew)                                                       |
 | `get_videos`                                           | Trailers/teasers/clips (YouTube links)                                                     |
+| `get_reviews`                                          | User reviews (author, rating, text) for a movie/TV                                         |
+| `get_collection`                                       | A movie franchise/collection and its parts, in release order                               |
 | `find_by_imdb_id`                                      | Resolve an IMDb id → TMDB movie/TV/person                                                  |
 | `get_tv_season` / `get_tv_episode`                     | Season episode list / single-episode details                                               |
 | `search_keywords`                                      | Resolve keyword names → ids for `discover_*`                                               |
