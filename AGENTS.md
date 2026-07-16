@@ -59,8 +59,8 @@ npm run inspector      # run under the MCP Inspector
 
 - **Docs and in-code text are English** (README, docs, comments, tool
   descriptions, error messages).
-- Runtime floor is **Node ≥ 18** (global `fetch`); tsup targets `node18`. Tests
-  may run on newer Node but must not raise the runtime floor.
+- Runtime floor is **Node ≥ 20** (global `fetch`, stable `node:test`); tsup
+  targets `node20`.
 - Log to **stderr only** — stdout is the MCP protocol channel. Use the logger;
   it redacts credentials.
 - Tool failures return `{ isError: true }` results (via `guard()` / `result.ts`),
@@ -81,7 +81,14 @@ npm run inspector      # run under the MCP Inspector
 ## Before opening a PR
 
 Run `npm run build && npm test && npm run lint && npm run format:check`.
-Update `CHANGELOG.md` (Unreleased section).
+Update `CHANGELOG.md` (Unreleased section) — see
+[docs/changelog-style.md](docs/changelog-style.md) for entry style.
+
+## Releasing
+
+`package.json` is the single source of truth for the version; `npm version`
+bumps + syncs every derived file + tags the release. See
+[docs/releasing.md](docs/releasing.md) for the full steps and MCP Registry details.
 
 ## Reuse / shared architecture
 
