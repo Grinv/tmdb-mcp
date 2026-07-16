@@ -12,7 +12,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- Fix `RateLimiter` assuming `Date.now()` is always far from the `0` epoch, which could misfire near epoch ([98499fd](https://github.com/Grinv/tmdb-mcp/commit/98499fd)).
+- Prevent `RateLimiter` from assuming `Date.now()` is always far from the `0` epoch, which could misfire near epoch ([98499fd](https://github.com/Grinv/tmdb-mcp/commit/98499fd)).
 
 ## [0.3.0] - 2026-07-09
 
@@ -26,14 +26,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- Fix `get_watch_providers` returning another region's cached result by including `region` in the cache key ([cb32e76](https://github.com/Grinv/tmdb-mcp/commit/cb32e76)).
+- Scope `get_watch_providers`' cache key by region — it previously returned another region's cached result ([cb32e76](https://github.com/Grinv/tmdb-mcp/commit/cb32e76)).
 
 ## [0.2.0] - 2026-07-09
 
 ### Added
 
-- Add the MCP logging capability — mirrors stderr log lines to the client as `notifications/message` ([e7333f5](https://github.com/Grinv/tmdb-mcp/commit/e7333f5)).
-- Add MCP Registry publishing (npm package, `environmentVariables`) via `mcp-publisher` ([e7333f5](https://github.com/Grinv/tmdb-mcp/commit/e7333f5)).
+- Support the MCP logging capability, mirroring stderr log lines to the client as `notifications/message` ([e7333f5](https://github.com/Grinv/tmdb-mcp/commit/e7333f5)).
+- Publish to the MCP Registry (npm package, `environmentVariables`) via `mcp-publisher` ([e7333f5](https://github.com/Grinv/tmdb-mcp/commit/e7333f5)).
 
 ### Changed
 
@@ -41,14 +41,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- Fix `dist/index.js` crashing standalone (`ERR_MODULE_NOT_FOUND`) by inlining the SDK/`zod` instead of leaving them external ([e7333f5](https://github.com/Grinv/tmdb-mcp/commit/e7333f5)).
-- Fix unfilled `.mcpb` optional fields leaking as literal `${user_config.x}` — now treated as unset ([e7333f5](https://github.com/Grinv/tmdb-mcp/commit/e7333f5)).
+- Prevent `dist/index.js` from crashing standalone (`ERR_MODULE_NOT_FOUND`) by inlining the SDK/`zod` instead of leaving them external ([e7333f5](https://github.com/Grinv/tmdb-mcp/commit/e7333f5)).
+- Treat unfilled `.mcpb` optional fields as unset instead of the literal `${user_config.x}` string ([e7333f5](https://github.com/Grinv/tmdb-mcp/commit/e7333f5)).
 
 ## [0.1.1] - 2026-06-30
 
 ### Added
 
-- Add npm distribution: `npx -y tmdb-mcp` works, published via Trusted Publishing (OIDC) on each release ([427f4a6](https://github.com/Grinv/tmdb-mcp/commit/427f4a6)).
+- Publish to npm (`npx -y tmdb-mcp` now works) via Trusted Publishing (OIDC) on each release ([427f4a6](https://github.com/Grinv/tmdb-mcp/commit/427f4a6)).
 
 ## [0.1.0] - 2026-06-30
 
