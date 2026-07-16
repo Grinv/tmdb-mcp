@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { connectServer, installFetch, mockFetch, jsonResponse } from "./helpers.js";
 
@@ -224,46 +224,44 @@ function router(url: string) {
   return jsonResponse({});
 }
 
-test("the server advertises its tools", async () => {
+test("the server advertises its tools", async (t) => {
   const { client, close } = await connectServer(ENV);
-  try {
-    const { tools } = await client.listTools();
-    const names = tools.map((t) => t.name);
-    for (const expected of [
-      "search_movies",
-      "get_movie",
-      "get_tv",
-      "get_ratings",
-      "get_trending",
-    ]) {
-      assert.ok(names.includes(expected), `missing tool ${expected}`);
-    }
-  } finally {
-    await close();
+  t.after(close);
+  const { tools } = await client.listTools();
+  const names = tools.map((tool) => tool.name);
+  for (const expected of ["search_movies", "get_movie", "get_tv", "get_ratings", "get_trending"]) {
+    assert.ok(names.includes(expected), `missing tool ${expected}`);
   }
 });
 
-test("search_movies returns compact, structured results", async () => {
-  const restore = installFetch(mockFetch(router));
-  const { client, close } = await connectServer(ENV);
-  try {
-    const res = await client.callTool({ name: "search_movies", arguments: { query: "matrix" } });
-    assert.notEqual(res.isError, true);
-    const s = res.structuredContent as { results: { id: number; title: string; year: number }[] };
-    assert.equal(s.results[0]!.id, 603);
-    assert.equal(s.results[0]!.title, "The Matrix");
-    assert.equal(s.results[0]!.year, 1999);
-  } finally {
-    restore();
-    await close();
-  }
+test("TMDB tools report a clear error when no token is configured", async (t) => {
+  // No TMDB_API_TOKEN in env → short-circuit before any network call.
+  const { client, close } = await connectServer({});
+  t.after(close);
+  const res = await client.callTool({ name: "search_movies", arguments: { query: "x" } });
+  assert.equal(res.isError, true);
+  const text = (res.content as { type: string; text: string }[])[0]!.text;
+  assert.match(text, /TMDB_API_TOKEN/);
 });
 
-test("get_movie folds in OMDb ratings by default", async () => {
-  const mock = mockFetch(router);
-  const restore = installFetch(mock);
+test("search_movies returns compact, structured results", async (t) => {
+  installFetch(t, mockFetch(router));
   const { client, close } = await connectServer(ENV);
-  try {
+  t.after(close);
+  const res = await client.callTool({ name: "search_movies", arguments: { query: "matrix" } });
+  assert.notEqual(res.isError, true);
+  const s = res.structuredContent as { results: { id: number; title: string; year: number }[] };
+  assert.equal(s.results[0]!.id, 603);
+  assert.equal(s.results[0]!.title, "The Matrix");
+  assert.equal(s.results[0]!.year, 1999);
+});
+
+describe("get_movie", () => {
+  test("folds in OMDb ratings by default", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
     const res = await client.callTool({ name: "get_movie", arguments: { id: 603 } });
     assert.notEqual(res.isError, true);
     const s = res.structuredContent as {
@@ -276,17 +274,13 @@ test("get_movie folds in OMDb ratings by default", async () => {
     assert.equal(s.ratings.rotten_tomatoes, "83%");
     // The enrichment must have actually hit OMDb.
     assert.ok(mock.calls.some((c) => c.url.includes("apikey")));
-  } finally {
-    restore();
-    await close();
-  }
-});
+  });
 
-test("get_movie with include_ratings=false skips the OMDb call", async () => {
-  const mock = mockFetch(router);
-  const restore = installFetch(mock);
-  const { client, close } = await connectServer(ENV);
-  try {
+  test("with include_ratings=false skips the OMDb call", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
     const res = await client.callTool({
       name: "get_movie",
       arguments: { id: 603, include_ratings: false },
@@ -294,79 +288,27 @@ test("get_movie with include_ratings=false skips the OMDb call", async () => {
     const s = res.structuredContent as { ratings?: unknown };
     assert.equal(s.ratings, undefined);
     assert.ok(!mock.calls.some((c) => c.url.includes("apikey")), "should not call OMDb");
-  } finally {
-    restore();
-    await close();
-  }
-});
+  });
 
-test("get_tv appends external_ids and enriches via the resulting imdb_id", async () => {
-  const mock = mockFetch(router);
-  const restore = installFetch(mock);
-  const { client, close } = await connectServer(ENV);
-  try {
-    const res = await client.callTool({ name: "get_tv", arguments: { id: 1396 } });
-    const s = res.structuredContent as { imdb_id: string; ratings: { found: boolean } };
-    assert.equal(s.imdb_id, "tt0903747");
-    assert.equal(s.ratings.found, true);
-    const tvCall = mock.calls.find((c) => /\/tv\/1396/.test(c.url));
-    assert.ok(tvCall && tvCall.url.includes("append_to_response=external_ids"));
-  } finally {
-    restore();
-    await close();
-  }
-});
-
-test("get_ratings looks up ratings by imdb_id", async () => {
-  const restore = installFetch(mockFetch(router));
-  const { client, close } = await connectServer(ENV);
-  try {
-    const res = await client.callTool({
-      name: "get_ratings",
-      arguments: { imdb_id: "tt0133093" },
+  test("degrades gracefully when OMDb is not configured", async (t) => {
+    installFetch(t, mockFetch(router));
+    // TMDB only — no OMDB_API_KEY.
+    const { client, close } = await connectServer({
+      TMDB_API_TOKEN: "t",
+      TMDB_MIN_INTERVAL_MS: "0",
     });
-    const s = res.structuredContent as { found: boolean; metascore: string };
-    assert.equal(s.found, true);
-    assert.equal(s.metascore, "73");
-  } finally {
-    restore();
-    await close();
-  }
-});
-
-test("TMDB tools report a clear error when no token is configured", async () => {
-  // No TMDB_API_TOKEN in env → short-circuit before any network call.
-  const { client, close } = await connectServer({});
-  try {
-    const res = await client.callTool({ name: "search_movies", arguments: { query: "x" } });
-    assert.equal(res.isError, true);
-    const text = (res.content as { type: string; text: string }[])[0]!.text;
-    assert.match(text, /TMDB_API_TOKEN/);
-  } finally {
-    await close();
-  }
-});
-
-test("get_movie degrades gracefully when OMDb is not configured", async () => {
-  const restore = installFetch(mockFetch(router));
-  // TMDB only — no OMDB_API_KEY.
-  const { client, close } = await connectServer({ TMDB_API_TOKEN: "t", TMDB_MIN_INTERVAL_MS: "0" });
-  try {
+    t.after(close);
     const res = await client.callTool({ name: "get_movie", arguments: { id: 603 } });
     const s = res.structuredContent as { ratings: { found: boolean; reason: string } };
     assert.equal(s.ratings.found, false);
     assert.match(s.ratings.reason, /OMDB_API_KEY/);
-  } finally {
-    restore();
-    await close();
-  }
-});
+  });
 
-test("get_movie returns the age certification for the requested region", async () => {
-  const mock = mockFetch(router);
-  const restore = installFetch(mock);
-  const { client, close } = await connectServer(ENV);
-  try {
+  test("returns the age certification for the requested region", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
     const res = await client.callTool({
       name: "get_movie",
       arguments: { id: 603, region: "GB", include_ratings: false },
@@ -381,17 +323,46 @@ test("get_movie returns the age certification for the requested region", async (
     assert.equal(s.certifications.US, "R");
     const call = mock.calls.find((c) => /\/movie\/603/.test(c.url))!;
     assert.match(call.url, /append_to_response=release_dates/);
-  } finally {
-    restore();
-    await close();
-  }
+  });
+
+  test("surfaces collection and origin_country", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({
+      name: "get_movie",
+      arguments: { id: 603, include_ratings: false },
+    });
+    const s = res.structuredContent as {
+      collection: { id: number; name: string; poster_url: string } | null;
+      origin_country: string[];
+    };
+    assert.equal(s.collection?.id, 2344);
+    assert.equal(s.collection?.name, "The Matrix Collection");
+    assert.match(s.collection!.poster_url, /matrix\.jpg$/);
+    assert.deepEqual(s.origin_country, ["US"]);
+  });
 });
 
-test("get_tv returns the content rating (default US region)", async () => {
-  const mock = mockFetch(router);
-  const restore = installFetch(mock);
-  const { client, close } = await connectServer(ENV);
-  try {
+describe("get_tv", () => {
+  test("appends external_ids and enriches via the resulting imdb_id", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({ name: "get_tv", arguments: { id: 1396 } });
+    const s = res.structuredContent as { imdb_id: string; ratings: { found: boolean } };
+    assert.equal(s.imdb_id, "tt0903747");
+    assert.equal(s.ratings.found, true);
+    const tvCall = mock.calls.find((c) => /\/tv\/1396/.test(c.url));
+    assert.ok(tvCall && tvCall.url.includes("append_to_response=external_ids"));
+  });
+
+  test("returns the content rating (default US region)", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
     const res = await client.callTool({
       name: "get_tv",
       arguments: { id: 1396, include_ratings: false },
@@ -404,17 +375,48 @@ test("get_tv returns the content rating (default US region)", async () => {
     assert.equal(s.certifications.DE, "16");
     const call = mock.calls.find((c) => /\/tv\/1396/.test(c.url))!;
     assert.match(call.url, /content_ratings/);
-  } finally {
-    restore();
-    await close();
-  }
+  });
+
+  test("surfaces episode air info, seasons, homepage and type", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({ name: "get_tv", arguments: { id: 1396 } });
+    const s = res.structuredContent as {
+      type: string;
+      homepage: string;
+      last_episode_to_air: { name: string; air_date: string } | null;
+      next_episode_to_air: unknown;
+      seasons: { season_number: number; episode_count: number }[];
+    };
+    assert.equal(s.type, "Scripted");
+    assert.match(s.homepage, /amc\.com/);
+    assert.equal(s.last_episode_to_air?.name, "Felina");
+    assert.equal(s.next_episode_to_air, null);
+    assert.equal(s.seasons[0]!.season_number, 1);
+    assert.equal(s.seasons[0]!.episode_count, 7);
+  });
 });
 
-test("discover_movies maps friendly filters to TMDB dotted query keys", async () => {
-  const mock = mockFetch(router);
-  const restore = installFetch(mock);
+test("get_ratings looks up ratings by imdb_id", async (t) => {
+  installFetch(t, mockFetch(router));
   const { client, close } = await connectServer(ENV);
-  try {
+  t.after(close);
+  const res = await client.callTool({
+    name: "get_ratings",
+    arguments: { imdb_id: "tt0133093" },
+  });
+  const s = res.structuredContent as { found: boolean; metascore: string };
+  assert.equal(s.found, true);
+  assert.equal(s.metascore, "73");
+});
+
+describe("discover_movies", () => {
+  test("maps friendly filters to TMDB dotted query keys", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
     const res = await client.callTool({
       name: "discover_movies",
       arguments: { with_genres: "878", year: 1999, min_rating: 7, min_votes: 100 },
@@ -426,17 +428,13 @@ test("discover_movies maps friendly filters to TMDB dotted query keys", async ()
     assert.match(call.url, /vote_count\.gte=100/);
     assert.match(call.url, /primary_release_year=1999/);
     assert.match(call.url, /with_genres=878/);
-  } finally {
-    restore();
-    await close();
-  }
-});
+  });
 
-test("discover_movies maps the new filters (dates, cast, keywords, providers, certification)", async () => {
-  const mock = mockFetch(router);
-  const restore = installFetch(mock);
-  const { client, close } = await connectServer(ENV);
-  try {
+  test("maps the new filters (dates, cast, keywords, providers, certification)", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
     await client.callTool({
       name: "discover_movies",
       arguments: {
@@ -463,17 +461,15 @@ test("discover_movies maps the new filters (dates, cast, keywords, providers, ce
     assert.match(u, /watch_region=US/);
     assert.match(u, /certification=PG-13/);
     assert.match(u, /certification_country=US/);
-  } finally {
-    restore();
-    await close();
-  }
+  });
 });
 
-test("discover_tv maps tv-specific filters (networks, first_air_date)", async () => {
-  const mock = mockFetch(router);
-  const restore = installFetch(mock);
-  const { client, close } = await connectServer(ENV);
-  try {
+describe("discover_tv", () => {
+  test("maps tv-specific filters (networks, first_air_date)", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
     await client.callTool({
       name: "discover_tv",
       arguments: { with_networks: "49", release_date_gte: "2010-01-01", year: 2012 },
@@ -482,57 +478,59 @@ test("discover_tv maps tv-specific filters (networks, first_air_date)", async ()
     assert.match(u, /with_networks=49/);
     assert.match(u, /first_air_date\.gte=2010-01-01/);
     assert.match(u, /first_air_date_year=2012/);
-  } finally {
-    restore();
-    await close();
-  }
-});
+  });
 
-test("search_keywords resolves names to ids", async () => {
-  const restore = installFetch(mockFetch(router));
-  const { client, close } = await connectServer(ENV);
-  try {
+  test("returns TV results", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
     const res = await client.callTool({
-      name: "search_keywords",
-      arguments: { query: "time travel" },
+      name: "discover_tv",
+      arguments: { with_genres: "18" },
     });
-    const s = res.structuredContent as { results: { id: number; name: string }[] };
-    assert.equal(s.results[0]!.id, 4379);
-    assert.equal(s.results[0]!.name, "time travel");
-  } finally {
-    restore();
-    await close();
-  }
+    const s = res.structuredContent as { results: { name: string }[] };
+    assert.equal(s.results[0]!.name, "Breaking Bad");
+  });
 });
 
-test("language: TMDB_LANGUAGE default is applied, and a per-call override wins", async () => {
+test("search_keywords resolves names to ids", async (t) => {
+  installFetch(t, mockFetch(router));
+  const { client, close } = await connectServer(ENV);
+  t.after(close);
+  const res = await client.callTool({
+    name: "search_keywords",
+    arguments: { query: "time travel" },
+  });
+  const s = res.structuredContent as { results: { id: number; name: string }[] };
+  assert.equal(s.results[0]!.id, 4379);
+  assert.equal(s.results[0]!.name, "time travel");
+});
+
+test("language: TMDB_LANGUAGE default is applied, and a per-call override wins", async (t) => {
   const mock = mockFetch(router);
-  const restore = installFetch(mock);
+  installFetch(t, mock);
   const { client, close } = await connectServer({
     TMDB_API_TOKEN: "t",
     TMDB_LANGUAGE: "ru-RU",
     TMDB_MIN_INTERVAL_MS: "0",
   });
-  try {
-    await client.callTool({ name: "search_movies", arguments: { query: "matrix" } });
-    await client.callTool({
-      name: "search_tv",
-      arguments: { query: "show", language: "de-DE" },
-    });
-    const movieCall = mock.calls.find((c) => c.url.includes("/search/movie"))!;
-    const tvCall = mock.calls.find((c) => c.url.includes("/search/tv"))!;
-    assert.match(movieCall.url, /language=ru-RU/);
-    assert.match(tvCall.url, /language=de-DE/);
-  } finally {
-    restore();
-    await close();
-  }
+  t.after(close);
+  await client.callTool({ name: "search_movies", arguments: { query: "matrix" } });
+  await client.callTool({
+    name: "search_tv",
+    arguments: { query: "show", language: "de-DE" },
+  });
+  const movieCall = mock.calls.find((c) => c.url.includes("/search/movie"))!;
+  const tvCall = mock.calls.find((c) => c.url.includes("/search/tv"))!;
+  assert.match(movieCall.url, /language=ru-RU/);
+  assert.match(tvCall.url, /language=de-DE/);
 });
 
-test("get_watch_providers returns providers for the requested region", async () => {
-  const restore = installFetch(mockFetch(router));
-  const { client, close } = await connectServer(ENV);
-  try {
+describe("get_watch_providers", () => {
+  test("returns providers for the requested region", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
     const res = await client.callTool({
       name: "get_watch_providers",
       arguments: { media_type: "movie", id: 603, region: "US" },
@@ -549,16 +547,12 @@ test("get_watch_providers returns providers for the requested region", async () 
     assert.deepEqual(s.streaming, ["Netflix"]);
     assert.deepEqual(s.rent, ["Apple TV"]);
     assert.deepEqual(s.available_regions, ["GB", "US"]);
-  } finally {
-    restore();
-    await close();
-  }
-});
+  });
 
-test("get_watch_providers reports unavailable for a region with no data", async () => {
-  const restore = installFetch(mockFetch(router));
-  const { client, close } = await connectServer(ENV);
-  try {
+  test("reports unavailable for a region with no data", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
     const res = await client.callTool({
       name: "get_watch_providers",
       arguments: { media_type: "movie", id: 603, region: "JP" },
@@ -566,217 +560,12 @@ test("get_watch_providers reports unavailable for a region with no data", async 
     const s = res.structuredContent as { available: boolean; available_regions: string[] };
     assert.equal(s.available, false);
     assert.ok(s.available_regions.includes("US"));
-  } finally {
-    restore();
-    await close();
-  }
-});
+  });
 
-test("get_person_credits returns cast/crew sorted by popularity, both media types", async () => {
-  const restore = installFetch(mockFetch(router));
-  const { client, close } = await connectServer(ENV);
-  try {
-    const res = await client.callTool({ name: "get_person_credits", arguments: { id: 6384 } });
-    const s = res.structuredContent as {
-      cast: { title: string; year: number; media_type: string }[];
-    };
-    // Higher-popularity movie credit should sort before the TV one.
-    assert.equal(s.cast[0]!.title, "The Matrix");
-    assert.equal(s.cast[0]!.year, 1999);
-    assert.equal(s.cast[1]!.media_type, "tv");
-    assert.equal(s.cast[1]!.year, 2010);
-  } finally {
-    restore();
-    await close();
-  }
-});
-
-test("get_videos keeps a YouTube watch URL and omits it for other sites", async () => {
-  const restore = installFetch(mockFetch(router));
-  const { client, close } = await connectServer(ENV);
-  try {
-    const res = await client.callTool({
-      name: "get_videos",
-      arguments: { media_type: "movie", id: 603 },
-    });
-    const s = res.structuredContent as { results: { url: string | null }[] };
-    assert.equal(s.results[0]!.url, "https://www.youtube.com/watch?v=abc123");
-    assert.equal(s.results[1]!.url, null);
-  } finally {
-    restore();
-    await close();
-  }
-});
-
-test("find_by_imdb_id resolves to TMDB results", async () => {
-  const mock = mockFetch(router);
-  const restore = installFetch(mock);
-  const { client, close } = await connectServer(ENV);
-  try {
-    const res = await client.callTool({
-      name: "find_by_imdb_id",
-      arguments: { imdb_id: "tt0133093" },
-    });
-    const s = res.structuredContent as { movie_results: { id: number }[] };
-    assert.equal(s.movie_results[0]!.id, 603);
-    const call = mock.calls.find((c) => c.url.includes("/find/"))!;
-    assert.match(call.url, /external_source=imdb_id/);
-  } finally {
-    restore();
-    await close();
-  }
-});
-
-test("get_tv_season returns the episode list", async () => {
-  const restore = installFetch(mockFetch(router));
-  const { client, close } = await connectServer(ENV);
-  try {
-    const res = await client.callTool({
-      name: "get_tv_season",
-      arguments: { id: 1396, season_number: 1 },
-    });
-    const s = res.structuredContent as {
-      season_number: number;
-      episode_count: number;
-      episodes: { name: string }[];
-    };
-    assert.equal(s.season_number, 1);
-    assert.equal(s.episode_count, 1);
-    assert.equal(s.episodes[0]!.name, "Pilot");
-  } finally {
-    restore();
-    await close();
-  }
-});
-
-test("get_tv_episode returns episode details with guest stars and crew", async () => {
-  const restore = installFetch(mockFetch(router));
-  const { client, close } = await connectServer(ENV);
-  try {
-    const res = await client.callTool({
-      name: "get_tv_episode",
-      arguments: { id: 1396, season_number: 1, episode_number: 1 },
-    });
-    const s = res.structuredContent as {
-      season_number: number;
-      guest_stars: { name: string }[];
-      crew: { job: string }[];
-    };
-    assert.equal(s.season_number, 1);
-    assert.equal(s.guest_stars[0]!.name, "Guest");
-    assert.equal(s.crew[0]!.job, "Director");
-  } finally {
-    restore();
-    await close();
-  }
-});
-
-test("get_movie surfaces collection and origin_country", async () => {
-  const restore = installFetch(mockFetch(router));
-  const { client, close } = await connectServer(ENV);
-  try {
-    const res = await client.callTool({
-      name: "get_movie",
-      arguments: { id: 603, include_ratings: false },
-    });
-    const s = res.structuredContent as {
-      collection: { id: number; name: string; poster_url: string } | null;
-      origin_country: string[];
-    };
-    assert.equal(s.collection?.id, 2344);
-    assert.equal(s.collection?.name, "The Matrix Collection");
-    assert.match(s.collection!.poster_url, /matrix\.jpg$/);
-    assert.deepEqual(s.origin_country, ["US"]);
-  } finally {
-    restore();
-    await close();
-  }
-});
-
-test("get_tv surfaces episode air info, seasons, homepage and type", async () => {
-  const restore = installFetch(mockFetch(router));
-  const { client, close } = await connectServer(ENV);
-  try {
-    const res = await client.callTool({ name: "get_tv", arguments: { id: 1396 } });
-    const s = res.structuredContent as {
-      type: string;
-      homepage: string;
-      last_episode_to_air: { name: string; air_date: string } | null;
-      next_episode_to_air: unknown;
-      seasons: { season_number: number; episode_count: number }[];
-    };
-    assert.equal(s.type, "Scripted");
-    assert.match(s.homepage, /amc\.com/);
-    assert.equal(s.last_episode_to_air?.name, "Felina");
-    assert.equal(s.next_episode_to_air, null);
-    assert.equal(s.seasons[0]!.season_number, 1);
-    assert.equal(s.seasons[0]!.episode_count, 7);
-  } finally {
-    restore();
-    await close();
-  }
-});
-
-test("get_similar returns similar titles for a movie", async () => {
-  const restore = installFetch(mockFetch(router));
-  const { client, close } = await connectServer(ENV);
-  try {
-    const res = await client.callTool({
-      name: "get_similar",
-      arguments: { media_type: "movie", id: 603 },
-    });
-    const s = res.structuredContent as { results: { id: number; title: string }[] };
-    assert.equal(s.results[0]!.id, 603);
-    assert.equal(s.results[0]!.title, "The Matrix");
-  } finally {
-    restore();
-    await close();
-  }
-});
-
-test("get_reviews returns author, rating and clipped content", async () => {
-  const restore = installFetch(mockFetch(router));
-  const { client, close } = await connectServer(ENV);
-  try {
-    const res = await client.callTool({
-      name: "get_reviews",
-      arguments: { media_type: "movie", id: 603 },
-    });
-    const s = res.structuredContent as {
-      results: { author: string; rating: number; content: string }[];
-    };
-    assert.equal(s.results[0]!.author, "Reviewer");
-    assert.equal(s.results[0]!.rating, 9);
-    assert.equal(s.results[0]!.content, "A great film.");
-  } finally {
-    restore();
-    await close();
-  }
-});
-
-test("get_collection returns parts ordered chronologically", async () => {
-  const restore = installFetch(mockFetch(router));
-  const { client, close } = await connectServer(ENV);
-  try {
-    const res = await client.callTool({ name: "get_collection", arguments: { id: 2344 } });
-    const s = res.structuredContent as {
-      name: string;
-      parts: { id: number; year: number }[];
-    };
-    assert.equal(s.name, "The Matrix Collection");
-    // Sorted by release date: The Matrix (1999) before Reloaded (2003).
-    assert.equal(s.parts[0]!.id, 603);
-    assert.equal(s.parts[1]!.id, 604);
-  } finally {
-    restore();
-    await close();
-  }
-});
-
-test("get_watch_providers is cached per region (not region-agnostic)", async () => {
-  const restore = installFetch(mockFetch(router));
-  const { client, close } = await connectServer(ENV);
-  try {
+  test("is cached per region (not region-agnostic)", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
     const us = (
       await client.callTool({
         name: "get_watch_providers",
@@ -794,62 +583,42 @@ test("get_watch_providers is cached per region (not region-agnostic)", async () 
     // Under the old id-only cache key this returned the US slice.
     assert.equal(gb.region, "GB");
     assert.deepEqual(gb.streaming, ["Prime Video"]);
-  } finally {
-    restore();
-    await close();
-  }
+  });
 });
 
-test("get_similar returns TV results for media_type tv", async () => {
-  const restore = installFetch(mockFetch(router));
+test("get_person_credits returns cast/crew sorted by popularity, both media types", async (t) => {
+  installFetch(t, mockFetch(router));
   const { client, close } = await connectServer(ENV);
-  try {
+  t.after(close);
+  const res = await client.callTool({ name: "get_person_credits", arguments: { id: 6384 } });
+  const s = res.structuredContent as {
+    cast: { title: string; year: number; media_type: string }[];
+  };
+  // Higher-popularity movie credit should sort before the TV one.
+  assert.equal(s.cast[0]!.title, "The Matrix");
+  assert.equal(s.cast[0]!.year, 1999);
+  assert.equal(s.cast[1]!.media_type, "tv");
+  assert.equal(s.cast[1]!.year, 2010);
+});
+
+describe("get_videos", () => {
+  test("keeps a YouTube watch URL and omits it for other sites", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
     const res = await client.callTool({
-      name: "get_similar",
-      arguments: { media_type: "tv", id: 1396 },
+      name: "get_videos",
+      arguments: { media_type: "movie", id: 603 },
     });
-    const s = res.structuredContent as { results: { media_type: string; name: string }[] };
-    assert.equal(s.results[0]!.media_type, "tv");
-    assert.equal(s.results[0]!.name, "Breaking Bad");
-  } finally {
-    restore();
-    await close();
-  }
-});
+    const s = res.structuredContent as { results: { url: string | null }[] };
+    assert.equal(s.results[0]!.url, "https://www.youtube.com/watch?v=abc123");
+    assert.equal(s.results[1]!.url, null);
+  });
 
-test("discover_tv returns TV results", async () => {
-  const restore = installFetch(mockFetch(router));
-  const { client, close } = await connectServer(ENV);
-  try {
-    const res = await client.callTool({
-      name: "discover_tv",
-      arguments: { with_genres: "18" },
-    });
-    const s = res.structuredContent as { results: { name: string }[] };
-    assert.equal(s.results[0]!.name, "Breaking Bad");
-  } finally {
-    restore();
-    await close();
-  }
-});
-
-test("get_tv_genres returns id/name pairs", async () => {
-  const restore = installFetch(mockFetch(router));
-  const { client, close } = await connectServer(ENV);
-  try {
-    const res = await client.callTool({ name: "get_tv_genres", arguments: {} });
-    const s = res.structuredContent as { genres: { id: number; name: string }[] };
-    assert.ok(s.genres.some((g) => g.name === "Drama"));
-  } finally {
-    restore();
-    await close();
-  }
-});
-
-test("get_videos works for media_type tv", async () => {
-  const restore = installFetch(mockFetch(router));
-  const { client, close } = await connectServer(ENV);
-  try {
+  test("works for media_type tv", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
     const res = await client.callTool({
       name: "get_videos",
       arguments: { media_type: "tv", id: 1396 },
@@ -857,8 +626,124 @@ test("get_videos works for media_type tv", async () => {
     assert.notEqual(res.isError, true);
     const s = res.structuredContent as { results: unknown[] };
     assert.ok(Array.isArray(s.results));
-  } finally {
-    restore();
-    await close();
-  }
+  });
+});
+
+test("find_by_imdb_id resolves to TMDB results", async (t) => {
+  const mock = mockFetch(router);
+  installFetch(t, mock);
+  const { client, close } = await connectServer(ENV);
+  t.after(close);
+  const res = await client.callTool({
+    name: "find_by_imdb_id",
+    arguments: { imdb_id: "tt0133093" },
+  });
+  const s = res.structuredContent as { movie_results: { id: number }[] };
+  assert.equal(s.movie_results[0]!.id, 603);
+  const call = mock.calls.find((c) => c.url.includes("/find/"))!;
+  assert.match(call.url, /external_source=imdb_id/);
+});
+
+test("get_tv_season returns the episode list", async (t) => {
+  installFetch(t, mockFetch(router));
+  const { client, close } = await connectServer(ENV);
+  t.after(close);
+  const res = await client.callTool({
+    name: "get_tv_season",
+    arguments: { id: 1396, season_number: 1 },
+  });
+  const s = res.structuredContent as {
+    season_number: number;
+    episode_count: number;
+    episodes: { name: string }[];
+  };
+  assert.equal(s.season_number, 1);
+  assert.equal(s.episode_count, 1);
+  assert.equal(s.episodes[0]!.name, "Pilot");
+});
+
+test("get_tv_episode returns episode details with guest stars and crew", async (t) => {
+  installFetch(t, mockFetch(router));
+  const { client, close } = await connectServer(ENV);
+  t.after(close);
+  const res = await client.callTool({
+    name: "get_tv_episode",
+    arguments: { id: 1396, season_number: 1, episode_number: 1 },
+  });
+  const s = res.structuredContent as {
+    season_number: number;
+    guest_stars: { name: string }[];
+    crew: { job: string }[];
+  };
+  assert.equal(s.season_number, 1);
+  assert.equal(s.guest_stars[0]!.name, "Guest");
+  assert.equal(s.crew[0]!.job, "Director");
+});
+
+describe("get_similar", () => {
+  test("returns similar titles for a movie", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({
+      name: "get_similar",
+      arguments: { media_type: "movie", id: 603 },
+    });
+    const s = res.structuredContent as { results: { id: number; title: string }[] };
+    assert.equal(s.results[0]!.id, 603);
+    assert.equal(s.results[0]!.title, "The Matrix");
+  });
+
+  test("returns TV results for media_type tv", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({
+      name: "get_similar",
+      arguments: { media_type: "tv", id: 1396 },
+    });
+    const s = res.structuredContent as { results: { media_type: string; name: string }[] };
+    assert.equal(s.results[0]!.media_type, "tv");
+    assert.equal(s.results[0]!.name, "Breaking Bad");
+  });
+});
+
+test("get_reviews returns author, rating and clipped content", async (t) => {
+  installFetch(t, mockFetch(router));
+  const { client, close } = await connectServer(ENV);
+  t.after(close);
+  const res = await client.callTool({
+    name: "get_reviews",
+    arguments: { media_type: "movie", id: 603 },
+  });
+  const s = res.structuredContent as {
+    results: { author: string; rating: number; content: string }[];
+  };
+  assert.equal(s.results[0]!.author, "Reviewer");
+  assert.equal(s.results[0]!.rating, 9);
+  assert.equal(s.results[0]!.content, "A great film.");
+});
+
+test("get_collection returns parts ordered chronologically", async (t) => {
+  installFetch(t, mockFetch(router));
+  const { client, close } = await connectServer(ENV);
+  t.after(close);
+  const res = await client.callTool({ name: "get_collection", arguments: { id: 2344 } });
+  const s = res.structuredContent as {
+    name: string;
+    parts: { id: number; year: number }[];
+  };
+  assert.equal(s.name, "The Matrix Collection");
+  // Sorted by release date: The Matrix (1999) before Reloaded (2003).
+  assert.equal(s.parts[0]!.id, 603);
+  assert.equal(s.parts[1]!.id, 604);
+});
+
+test("get_tv_genres returns id/name pairs", async (t) => {
+  installFetch(t, mockFetch(router));
+  const { client, close } = await connectServer(ENV);
+  t.after(close);
+  const res = await client.callTool({ name: "get_tv_genres", arguments: {} });
+  const s = res.structuredContent as { genres: { id: number; name: string }[] };
+  assert.ok(s.genres.some((g) => g.name === "Drama"));
 });

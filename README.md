@@ -141,7 +141,7 @@ npm run check:api    # live upstream health-check (needs the env credentials)
 npm run inspector    # run under the MCP Inspector
 ```
 
-Runtime requires Node ≥ 18. Contributor/agent guidance lives in
+Runtime requires Node ≥ 20. Contributor/agent guidance lives in
 [AGENTS.md](AGENTS.md).
 
 ## Updating
