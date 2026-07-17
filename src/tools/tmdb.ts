@@ -8,10 +8,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { TmdbClient } from "../clients/tmdb.js";
 import type { OmdbClient } from "../clients/omdb.js";
-import { jsonResult, errorResult, type ToolResult } from "../lib/result.js";
-import { guard } from "./guard.js";
-
-const READ_ONLY = { readOnlyHint: true, openWorldHint: true } as const;
+import { READ_ONLY, requireConfigured } from "./shared.js";
 
 const page = z.number().int().min(1).describe("1-based page number for pagination.");
 const tmdbId = z.number().int().positive().describe("TMDB numeric id.");
@@ -117,24 +114,10 @@ const discoverTvSchema = {
   with_networks: idList("TV network, e.g. HBO or Netflix"),
 };
 
-/** Run a client call and wrap its result (or any failure) as a tool result. */
-const reply = (fn: () => Promise<Record<string, unknown>>): Promise<ToolResult> =>
-  guard(async () => jsonResult(await fn()));
-
 export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: OmdbClient): void {
   // Every TMDB tool needs the token; short-circuit with one clear message
   // instead of letting each call round-trip to a 401.
-  const requireTmdb = (fn: () => Promise<Record<string, unknown>>): Promise<ToolResult> => {
-    if (!tmdb.configured) {
-      return Promise.resolve(
-        errorResult(
-          "TMDB is not configured. Set TMDB_API_TOKEN to a TMDB v4 'Read Access Token' " +
-            "(https://www.themoviedb.org/settings/api).",
-        ),
-      );
-    }
-    return reply(fn);
-  };
+  const requireTmdb = (fn: () => Promise<Record<string, unknown>>) => requireConfigured(tmdb, fn);
 
   // ---- search ---------------------------------------------------------------
 

@@ -61,6 +61,80 @@ test("honors Retry-After on 429", async (t) => {
   assert.equal(mock.calls.length, 2);
 });
 
+test("maps an invalid JSON body to an ApiError instead of throwing a raw SyntaxError", async (t) => {
+  const mock = mockFetch(() => new Response("not actually json{{{", { status: 200 }));
+  installFetch(t, mock);
+  await assert.rejects(
+    () => client().getJson("thing"),
+    (err: unknown) =>
+      err instanceof ApiError && err.code === "unknown" && /invalid JSON/i.test(err.message),
+  );
+});
+
+test("falls back to the raw body when a failing response isn't JSON", async (t) => {
+  const mock = mockFetch(() => new Response("<html>Service Unavailable</html>", { status: 503 }));
+  installFetch(t, mock);
+  await assert.rejects(
+    () => client({ retries: 0 }).getJson("thing"),
+    (err: unknown) => err instanceof ApiError && /Service Unavailable/.test(err.message),
+  );
+});
+
+test("retries a genuine network failure (fetch rejects, not just a bad status)", async (t) => {
+  let n = 0;
+  const mock = mockFetch(() => {
+    n += 1;
+    if (n === 1) throw new TypeError("fetch failed"); // e.g. DNS/connection refused
+    return jsonResponse({ ok: true });
+  });
+  installFetch(t, mock);
+  const res = await client({ retries: 1 }).getJson<{ ok: boolean }>("thing");
+  assert.equal(res.ok, true);
+  assert.equal(mock.calls.length, 2);
+});
+
+test("maps a persistent network failure to a network ApiError once retries are exhausted", async (t) => {
+  const mock = mockFetch(() => {
+    throw new TypeError("fetch failed");
+  });
+  installFetch(t, mock);
+  await assert.rejects(
+    () => client({ retries: 1 }).getJson("thing"),
+    (err: unknown) => err instanceof ApiError && err.code === "network" && err.retryable === true,
+  );
+  assert.equal(mock.calls.length, 2); // initial attempt + 1 retry, then give up
+});
+
+test("honors Retry-After as an HTTP-date, not just a plain seconds count", async (t) => {
+  let n = 0;
+  const mock = mockFetch(() => {
+    n += 1;
+    if (n === 1) {
+      const soon = new Date(Date.now() + 10).toUTCString();
+      return jsonResponse({}, { status: 429, headers: { "retry-after": soon } });
+    }
+    return jsonResponse({ ok: true });
+  });
+  installFetch(t, mock);
+  const res = await client({ retries: 1 }).getJson<{ ok: boolean }>("thing");
+  assert.equal(res.ok, true);
+  assert.equal(mock.calls.length, 2);
+});
+
+test("falls back to the default backoff when Retry-After is neither a number nor a date", async (t) => {
+  let n = 0;
+  const mock = mockFetch(() => {
+    n += 1;
+    return n === 1
+      ? jsonResponse({}, { status: 429, headers: { "retry-after": "not-a-valid-value" } })
+      : jsonResponse({ ok: true });
+  });
+  installFetch(t, mock);
+  const res = await client({ retries: 1 }).getJson<{ ok: boolean }>("thing");
+  assert.equal(res.ok, true);
+  assert.equal(mock.calls.length, 2); // still recovers, just via the default backoff
+});
+
 test("aborts on timeout and maps to a timeout error", async (t) => {
   const mock = mockFetch(
     (_url, init) =>

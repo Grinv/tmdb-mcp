@@ -4,10 +4,8 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { OmdbClient } from "../clients/omdb.js";
-import { jsonResult, errorResult, type ToolResult } from "../lib/result.js";
-import { guard } from "./guard.js";
-
-const READ_ONLY = { readOnlyHint: true, openWorldHint: true } as const;
+import { errorResult } from "../lib/result.js";
+import { READ_ONLY, requireConfigured } from "./shared.js";
 
 export function registerOmdbTools(server: McpServer, omdb: OmdbClient): void {
   server.registerTool(
@@ -41,19 +39,14 @@ export function registerOmdbTools(server: McpServer, omdb: OmdbClient): void {
     },
     ({ imdb_id, title, year }) => {
       if (!omdb.configured) {
-        return Promise.resolve(
-          errorResult(
-            "OMDb is not configured. Set OMDB_API_KEY to a free key from " +
-              "https://www.omdbapi.com/apikey.aspx.",
-          ),
-        );
+        return Promise.resolve(errorResult(omdb.notConfiguredMessage));
       }
       if (!imdb_id && !title) {
         return Promise.resolve(errorResult("Provide either imdb_id or title."));
       }
-      const run = (): Promise<Record<string, unknown>> =>
-        imdb_id ? omdb.ratingsByImdbId(imdb_id) : omdb.ratingsByTitle(title!, year);
-      return guard(async () => jsonResult(await run())) as Promise<ToolResult>;
+      return requireConfigured(omdb, () =>
+        imdb_id ? omdb.ratingsByImdbId(imdb_id) : omdb.ratingsByTitle(title!, year),
+      );
     },
   );
 }

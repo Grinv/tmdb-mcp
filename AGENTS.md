@@ -9,26 +9,9 @@ guidance here, not in CLAUDE.md. (For end-user/runtime docs, see [README.md](REA
 A TypeScript MCP server for movie/TV data. Hybrid backend: TMDB is the backbone
 (search, metadata, people, trending) via its v3 REST API with a v4 Read Access
 Token; OMDb is optional enrichment supplying IMDb/Rotten Tomatoes/Metacritic
-ratings, keyed by the `imdb_id` TMDB returns.
-
-> **Why two clients in one server (and not two servers).** The value is the
-> cross-link: `get_movie`/`get_tv` take the `imdb_id` from a TMDB detail response
-> and call OMDb so ratings come back in a single tool call — no id-threading by
-> the agent. OMDb alone is too thin (ratings-by-id) to justify its own server,
-> and its title search is weak; TMDB is the navigator. Keep enrichment optional
-> and controllable (`include_ratings`) so a caller never pays the extra OMDb hop
-> when ratings aren't needed.
-
-> **Why not the official IMDb API.** IMDb has no free public API (the official
-> route is paid/enterprise). OMDb is the pragmatic free source for IMDb-style
-> ratings. We deliberately do **not** call IMDb directly.
-
-TMDB endpoints/fields were verified against the official reference
-(<https://developer.themoviedb.org/reference>): `/movie/{id}` carries `imdb_id`
-directly; `/tv/{id}` does **not** — request `append_to_response=external_ids` to
-get `external_ids.imdb_id`. OMDb returns `200` with `{ Response: "False", Error }`
-for misses, so the client maps that to a soft `{ found: false }` instead of
-throwing.
+ratings, keyed by the `imdb_id` TMDB returns. Design rationale (why two
+clients, why not the IMDb API, TMDB endpoint quirks, template reuse) lives in
+[docs/architecture.md](docs/architecture.md).
 
 ```
 src/
@@ -36,9 +19,10 @@ src/
   server.ts       # buildServer() + start(); registers everything
   config.ts       # env → validated Config (zod)
   format.ts       # raw TMDB/OMDb payloads → trimmed, agent-facing shapes
-  lib/            # GENERIC carcass: http, rateLimit, cache, errors, logger, result, tokenStore
+  lib/            # GENERIC carcass: http, rateLimit, cache, upstream, errors, logger, result
   clients/        # tmdb.ts (backbone reads), omdb.ts (ratings enrichment)
-  tools/          # tmdb.ts (search/details/credits/…, OMDb enrichment), omdb.ts (get_ratings), guard.ts
+  tools/          # tmdb.ts (search/details/credits/…, OMDb enrichment), omdb.ts (get_ratings),
+                  # guard.ts (try/catch → ToolResult), shared.ts (READ_ONLY, requireConfigured)
   __tests__/      # node:test (*.test.ts) + helpers.ts
 scripts/          # build-tests.mjs, run-tests.mjs (generic), check-api.mjs (domain)
 ```
@@ -60,7 +44,8 @@ npm run inspector      # run under the MCP Inspector
 - **Docs and in-code text are English** (README, docs, comments, tool
   descriptions, error messages).
 - Runtime floor is **Node ≥ 20** (global `fetch`, stable `node:test`); tsup
-  targets `node20`.
+  targets `node20`. (Contributors running `npm version` need Node ≥ 20.11 —
+  see [docs/releasing.md](docs/releasing.md).)
 - Log to **stderr only** — stdout is the MCP protocol channel. Use the logger;
   it redacts credentials.
 - Tool failures return `{ isError: true }` results (via `guard()` / `result.ts`),
@@ -89,10 +74,3 @@ Update `CHANGELOG.md` (Unreleased section) — see
 `package.json` is the single source of truth for the version; `npm version`
 bumps + syncs every derived file + tags the release. See
 [docs/releasing.md](docs/releasing.md) for the full steps and MCP Registry details.
-
-## Reuse / shared architecture
-
-This server was generated from the **`mcp-server-template`** repository: a generic
-carcass (`src/lib/` + build tooling, tests infra, CI) plus a thin domain layer
-(`config.ts`, `format.ts`, `clients/`, domain `tools/`, `check-api.mjs`). When
-fixing carcass bugs, consider whether the fix belongs upstream in the template.

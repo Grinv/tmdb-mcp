@@ -3,7 +3,10 @@
 `package.json` is the **single source of truth** for the version. The npm
 `version` lifecycle hook runs `scripts/sync-version.mjs`, which propagates it to
 `src/version.ts`, `manifest.json` and `server.json` (incl. the `.mcpb` release-asset
-URL); `version.test.ts` guards that they never drift. So a release is:
+URL); `version.test.ts` guards that they never drift. `sync-version.mjs` uses
+`import.meta.dirname`, so running `npm version` yourself needs Node ≥ 20.11 —
+the package's own `engines.node` floor (≥ 20) is unaffected, since the shipped
+server never touches this script. So a release is:
 
 ```sh
 # 1. land your changes; move CHANGELOG.md's [Unreleased] notes under a new

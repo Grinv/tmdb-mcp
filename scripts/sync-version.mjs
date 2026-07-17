@@ -5,10 +5,9 @@
 // updates every file in one commit. Uses targeted token replacement — not JSON
 // re-serialization — to preserve each file's exact formatting.
 import { readFileSync, writeFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const root = join(import.meta.dirname, "..");
 const { version } = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 
 function patch(rel, edits) {

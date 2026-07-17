@@ -95,6 +95,25 @@ test("wrapStaleOnError: concurrent calls on a cold key share one in-flight compu
   assert.equal(calls, 1);
 });
 
+test("set evicts the oldest entry once at max size, keeping the cache bounded", () => {
+  const cache = new TtlCache<number>(60_000, 2); // max 2 entries
+  cache.set("a", 1);
+  cache.set("b", 2);
+  cache.set("c", 3); // should evict "a" (the oldest), not "b"
+  assert.equal(cache.get("a"), undefined);
+  assert.equal(cache.get("b"), 2);
+  assert.equal(cache.get("c"), 3);
+});
+
+test("set does not evict when overwriting an existing key at max size", () => {
+  const cache = new TtlCache<number>(60_000, 2);
+  cache.set("a", 1);
+  cache.set("b", 2);
+  cache.set("a", 99); // same key, size stays at 2 — must not evict "b"
+  assert.equal(cache.get("a"), 99);
+  assert.equal(cache.get("b"), 2);
+});
+
 test("wrapStaleOnError: concurrent failures each independently fall back to the same stale value", async (t) => {
   t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
   const cache = new TtlCache<number>(1); // 1ms TTL → expires almost immediately

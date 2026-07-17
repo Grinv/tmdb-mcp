@@ -14,6 +14,11 @@ test("classifyStatus maps HTTP codes to error codes and retryability", () => {
   assert.equal(classifyStatus(429).retryable, true);
   assert.equal(classifyStatus(503).code, "server_error");
   assert.equal(classifyStatus(503).retryable, true);
+  assert.equal(classifyStatus(400).code, "bad_request");
+  // A status matching none of the known cases must not throw or fall through
+  // to something retryable — default to a safe, non-retryable "unknown".
+  assert.equal(classifyStatus(418).code, "unknown");
+  assert.equal(classifyStatus(418).retryable, false);
 });
 
 test("redact removes bearer tokens and credential params", () => {

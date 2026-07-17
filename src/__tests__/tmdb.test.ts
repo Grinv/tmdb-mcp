@@ -187,6 +187,57 @@ const COLLECTION = {
   ],
 };
 
+const PERSON_DETAIL = {
+  id: 6193,
+  imdb_id: "nm0000138",
+  name: "Leonardo DiCaprio",
+  also_known_as: ["Leo"],
+  known_for_department: "Acting",
+  gender: 2,
+  biography: "An American actor.",
+  birthday: "1974-11-11",
+  deathday: null,
+  place_of_birth: "Los Angeles, California, USA",
+  popularity: 50,
+  profile_path: "/leo.jpg",
+};
+
+// Top-billed cast (kept, order-sorted) + a mix of headline and non-headline
+// crew jobs, so summarizeCredits' KEY_JOBS filter has something to exclude.
+const CREDITS = {
+  cast: [
+    { id: 2, name: "Bit Part", character: "Extra", order: 50 },
+    { id: 1, name: "Keanu Reeves", character: "Neo", order: 0 },
+  ],
+  crew: [
+    { id: 4, name: "Gaffer Person", job: "Gaffer", department: "Lighting" },
+    { id: 3, name: "Lana Wachowski", job: "Director", department: "Directing" },
+  ],
+};
+
+const PERSON_SEARCH_ROW = {
+  id: 6193,
+  media_type: "person",
+  name: "Leonardo DiCaprio",
+  known_for_department: "Acting",
+  popularity: 50,
+  profile_path: "/leo.jpg",
+  known_for: [{ title: "The Matrix" }, { name: "Some Show" }],
+};
+
+// One row of each media_type so summarizeMultiItem's dispatch is exercised
+// for movie, tv AND person in a single response.
+const MULTI_SEARCH = {
+  page: 1,
+  total_pages: 1,
+  total_results: 3,
+  results: [
+    { ...MOVIE_DETAIL, media_type: "movie" },
+    { ...TV_DETAIL, media_type: "tv" },
+    PERSON_SEARCH_ROW,
+  ],
+};
+
 /** Route a request to the right canned response based on its URL. Specific
  *  sub-resource routes must precede the /movie/{id} and /tv/{id} catch-alls. */
 function router(url: string) {
@@ -197,6 +248,16 @@ function router(url: string) {
   if (url.includes("/search/tv")) {
     return jsonResponse({ page: 1, total_pages: 1, total_results: 1, results: [TV_DETAIL] });
   }
+  if (url.includes("/search/multi")) return jsonResponse(MULTI_SEARCH);
+  if (url.includes("/search/person")) {
+    return jsonResponse({
+      page: 1,
+      total_pages: 1,
+      total_results: 1,
+      results: [PERSON_SEARCH_ROW],
+    });
+  }
+  if (url.includes("/trending/")) return jsonResponse(MULTI_SEARCH);
   if (url.includes("/discover/movie")) {
     return jsonResponse({ page: 1, total_pages: 1, total_results: 1, results: [MOVIE_DETAIL] });
   }
@@ -205,7 +266,9 @@ function router(url: string) {
   }
   if (url.includes("/watch/providers")) return jsonResponse(WATCH_PROVIDERS);
   if (url.includes("/combined_credits")) return jsonResponse(COMBINED_CREDITS);
-  if (url.includes("/similar")) {
+  if (url.includes("/credits")) return jsonResponse(CREDITS);
+  if (/\/person\/\d+/.test(url)) return jsonResponse(PERSON_DETAIL);
+  if (url.includes("/similar") || url.includes("/recommendations")) {
     const results = url.includes("/tv/") ? [TV_DETAIL] : [MOVIE_DETAIL];
     return jsonResponse({ page: 1, total_pages: 1, total_results: 1, results });
   }
@@ -224,36 +287,117 @@ function router(url: string) {
   return jsonResponse({});
 }
 
-test("the server advertises its tools", async (t) => {
-  const { client, close } = await connectServer(ENV);
-  t.after(close);
-  const { tools } = await client.listTools();
-  const names = tools.map((tool) => tool.name);
-  for (const expected of ["search_movies", "get_movie", "get_tv", "get_ratings", "get_trending"]) {
-    assert.ok(names.includes(expected), `missing tool ${expected}`);
-  }
+describe("server / auth", () => {
+  test("the server advertises its tools", async (t) => {
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const { tools } = await client.listTools();
+    const names = tools.map((tool) => tool.name);
+    for (const expected of [
+      "search_movies",
+      "get_movie",
+      "get_tv",
+      "get_ratings",
+      "get_trending",
+    ]) {
+      assert.ok(names.includes(expected), `missing tool ${expected}`);
+    }
+  });
+
+  test("TMDB tools report a clear error when no token is configured", async (t) => {
+    // No TMDB_API_TOKEN in env → short-circuit before any network call.
+    const { client, close } = await connectServer({});
+    t.after(close);
+    const res = await client.callTool({ name: "search_movies", arguments: { query: "x" } });
+    assert.equal(res.isError, true);
+    const text = (res.content as { type: string; text: string }[])[0]!.text;
+    assert.match(text, /TMDB_API_TOKEN/);
+  });
 });
 
-test("TMDB tools report a clear error when no token is configured", async (t) => {
-  // No TMDB_API_TOKEN in env → short-circuit before any network call.
-  const { client, close } = await connectServer({});
-  t.after(close);
-  const res = await client.callTool({ name: "search_movies", arguments: { query: "x" } });
-  assert.equal(res.isError, true);
-  const text = (res.content as { type: string; text: string }[])[0]!.text;
-  assert.match(text, /TMDB_API_TOKEN/);
+describe("search", () => {
+  test("search_movies returns compact, structured results", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({ name: "search_movies", arguments: { query: "matrix" } });
+    assert.notEqual(res.isError, true);
+    const s = res.structuredContent as { results: { id: number; title: string; year: number }[] };
+    assert.equal(s.results[0]!.id, 603);
+    assert.equal(s.results[0]!.title, "The Matrix");
+    assert.equal(s.results[0]!.year, 1999);
+  });
+
+  test("search_multi dispatches each result to its media_type's shaper", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({ name: "search_multi", arguments: { query: "matrix" } });
+    assert.notEqual(res.isError, true);
+    const s = res.structuredContent as {
+      results: {
+        id: number;
+        media_type: string;
+        title?: string;
+        name?: string;
+        known_for?: string[];
+      }[];
+    };
+    assert.equal(s.results.length, 3);
+    assert.deepEqual(
+      s.results.map((r) => r.media_type),
+      ["movie", "tv", "person"],
+    );
+    assert.equal(s.results[0]!.title, "The Matrix");
+    assert.equal(s.results[1]!.name, "Breaking Bad");
+    assert.deepEqual(s.results[2]!.known_for, ["The Matrix", "Some Show"]);
+  });
+
+  test("search_people returns compact person summaries", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({ name: "search_people", arguments: { query: "dicaprio" } });
+    assert.notEqual(res.isError, true);
+    const s = res.structuredContent as {
+      results: { id: number; media_type: string; name: string }[];
+    };
+    assert.equal(s.results[0]!.id, 6193);
+    assert.equal(s.results[0]!.media_type, "person");
+    assert.equal(s.results[0]!.name, "Leonardo DiCaprio");
+  });
 });
 
-test("search_movies returns compact, structured results", async (t) => {
-  installFetch(t, mockFetch(router));
-  const { client, close } = await connectServer(ENV);
-  t.after(close);
-  const res = await client.callTool({ name: "search_movies", arguments: { query: "matrix" } });
-  assert.notEqual(res.isError, true);
-  const s = res.structuredContent as { results: { id: number; title: string; year: number }[] };
-  assert.equal(s.results[0]!.id, 603);
-  assert.equal(s.results[0]!.title, "The Matrix");
-  assert.equal(s.results[0]!.year, 1999);
+describe("trending & recommendations", () => {
+  test("get_trending surfaces mixed-media results", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({ name: "get_trending", arguments: {} });
+    assert.notEqual(res.isError, true);
+    const s = res.structuredContent as { results: { media_type: string }[] };
+    assert.deepEqual(
+      s.results.map((r) => r.media_type),
+      ["movie", "tv", "person"],
+    );
+    // Defaults: media_type "all", time_window "week".
+    assert.match(mock.calls[0]!.url, /\/trending\/all\/week/);
+  });
+
+  test("get_movie_recommendations returns compact movie summaries", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({
+      name: "get_movie_recommendations",
+      arguments: { id: 603 },
+    });
+    assert.notEqual(res.isError, true);
+    const s = res.structuredContent as { results: { id: number; title: string }[] };
+    assert.equal(s.results[0]!.id, 603);
+    assert.equal(s.results[0]!.title, "The Matrix");
+  });
 });
 
 describe("get_movie", () => {
@@ -302,6 +446,56 @@ describe("get_movie", () => {
     const s = res.structuredContent as { ratings: { found: boolean; reason: string } };
     assert.equal(s.ratings.found, false);
     assert.match(s.ratings.reason, /OMDB_API_KEY/);
+  });
+
+  test("degrades gracefully when OMDb is configured but unreachable (TMDB still succeeds)", async (t) => {
+    const mock = mockFetch((url) => {
+      if (url.includes("apikey")) return jsonResponse({ error: "boom" }, { status: 500 });
+      return router(url);
+    });
+    installFetch(t, mock);
+    const { client, close } = await connectServer({ ...ENV, HTTP_RETRIES: "0" });
+    t.after(close);
+    const res = await client.callTool({ name: "get_movie", arguments: { id: 603 } });
+    assert.notEqual(res.isError, true); // one upstream failing must not sink the whole call
+    const s = res.structuredContent as {
+      imdb_id: string;
+      ratings: { found: boolean; reason: string };
+    };
+    assert.equal(s.imdb_id, "tt0133093"); // TMDB data still came through
+    assert.equal(s.ratings.found, false);
+    assert.equal(s.ratings.reason, "OMDb lookup failed");
+  });
+
+  test("surfaces a TMDB failure as an actionable tool error, not a thrown exception", async (t) => {
+    installFetch(
+      t,
+      mockFetch(() => jsonResponse({ error: "server exploded" }, { status: 500 })),
+    );
+    const { client, close } = await connectServer({ ...ENV, HTTP_RETRIES: "0" });
+    t.after(close);
+    const res = await client.callTool({ name: "get_movie", arguments: { id: 603 } });
+    assert.equal(res.isError, true);
+    const text = (res.content as { type: string; text: string }[])[0]!.text;
+    assert.match(text, /5xx|retry later/i);
+  });
+
+  test("skips OMDb and reports why when TMDB has no imdb_id for this title", async (t) => {
+    const mock = mockFetch((url) => {
+      if (/\/movie\/\d+/.test(url) && !url.includes("apikey")) {
+        return jsonResponse({ ...MOVIE_DETAIL, imdb_id: null });
+      }
+      return router(url);
+    });
+    installFetch(t, mock);
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({ name: "get_movie", arguments: { id: 603 } });
+    assert.notEqual(res.isError, true);
+    const s = res.structuredContent as { ratings: { found: boolean; reason: string } };
+    assert.equal(s.ratings.found, false);
+    assert.equal(s.ratings.reason, "No imdb_id available from TMDB");
+    assert.ok(!mock.calls.some((c) => c.url.includes("apikey")), "should not call OMDb");
   });
 
   test("returns the age certification for the requested region", async (t) => {
@@ -398,19 +592,6 @@ describe("get_tv", () => {
   });
 });
 
-test("get_ratings looks up ratings by imdb_id", async (t) => {
-  installFetch(t, mockFetch(router));
-  const { client, close } = await connectServer(ENV);
-  t.after(close);
-  const res = await client.callTool({
-    name: "get_ratings",
-    arguments: { imdb_id: "tt0133093" },
-  });
-  const s = res.structuredContent as { found: boolean; metascore: string };
-  assert.equal(s.found, true);
-  assert.equal(s.metascore, "73");
-});
-
 describe("discover_movies", () => {
   test("maps friendly filters to TMDB dotted query keys", async (t) => {
     const mock = mockFetch(router);
@@ -493,37 +674,39 @@ describe("discover_tv", () => {
   });
 });
 
-test("search_keywords resolves names to ids", async (t) => {
-  installFetch(t, mockFetch(router));
-  const { client, close } = await connectServer(ENV);
-  t.after(close);
-  const res = await client.callTool({
-    name: "search_keywords",
-    arguments: { query: "time travel" },
+describe("search keywords & language", () => {
+  test("search_keywords resolves names to ids", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({
+      name: "search_keywords",
+      arguments: { query: "time travel" },
+    });
+    const s = res.structuredContent as { results: { id: number; name: string }[] };
+    assert.equal(s.results[0]!.id, 4379);
+    assert.equal(s.results[0]!.name, "time travel");
   });
-  const s = res.structuredContent as { results: { id: number; name: string }[] };
-  assert.equal(s.results[0]!.id, 4379);
-  assert.equal(s.results[0]!.name, "time travel");
-});
 
-test("language: TMDB_LANGUAGE default is applied, and a per-call override wins", async (t) => {
-  const mock = mockFetch(router);
-  installFetch(t, mock);
-  const { client, close } = await connectServer({
-    TMDB_API_TOKEN: "t",
-    TMDB_LANGUAGE: "ru-RU",
-    TMDB_MIN_INTERVAL_MS: "0",
+  test("language: TMDB_LANGUAGE default is applied, and a per-call override wins", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    const { client, close } = await connectServer({
+      TMDB_API_TOKEN: "t",
+      TMDB_LANGUAGE: "ru-RU",
+      TMDB_MIN_INTERVAL_MS: "0",
+    });
+    t.after(close);
+    await client.callTool({ name: "search_movies", arguments: { query: "matrix" } });
+    await client.callTool({
+      name: "search_tv",
+      arguments: { query: "show", language: "de-DE" },
+    });
+    const movieCall = mock.calls.find((c) => c.url.includes("/search/movie"))!;
+    const tvCall = mock.calls.find((c) => c.url.includes("/search/tv"))!;
+    assert.match(movieCall.url, /language=ru-RU/);
+    assert.match(tvCall.url, /language=de-DE/);
   });
-  t.after(close);
-  await client.callTool({ name: "search_movies", arguments: { query: "matrix" } });
-  await client.callTool({
-    name: "search_tv",
-    arguments: { query: "show", language: "de-DE" },
-  });
-  const movieCall = mock.calls.find((c) => c.url.includes("/search/movie"))!;
-  const tvCall = mock.calls.find((c) => c.url.includes("/search/tv"))!;
-  assert.match(movieCall.url, /language=ru-RU/);
-  assert.match(tvCall.url, /language=de-DE/);
 });
 
 describe("get_watch_providers", () => {
@@ -586,19 +769,71 @@ describe("get_watch_providers", () => {
   });
 });
 
-test("get_person_credits returns cast/crew sorted by popularity, both media types", async (t) => {
-  installFetch(t, mockFetch(router));
-  const { client, close } = await connectServer(ENV);
-  t.after(close);
-  const res = await client.callTool({ name: "get_person_credits", arguments: { id: 6384 } });
-  const s = res.structuredContent as {
-    cast: { title: string; year: number; media_type: string }[];
-  };
-  // Higher-popularity movie credit should sort before the TV one.
-  assert.equal(s.cast[0]!.title, "The Matrix");
-  assert.equal(s.cast[0]!.year, 1999);
-  assert.equal(s.cast[1]!.media_type, "tv");
-  assert.equal(s.cast[1]!.year, 2010);
+describe("person", () => {
+  test("get_person_credits returns cast/crew sorted by popularity, both media types", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({ name: "get_person_credits", arguments: { id: 6384 } });
+    const s = res.structuredContent as {
+      cast: { title: string; year: number; media_type: string }[];
+    };
+    // Higher-popularity movie credit should sort before the TV one.
+    assert.equal(s.cast[0]!.title, "The Matrix");
+    assert.equal(s.cast[0]!.year, 1999);
+    assert.equal(s.cast[1]!.media_type, "tv");
+    assert.equal(s.cast[1]!.year, 2010);
+  });
+
+  test("get_person returns full biography details and a human-readable gender", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({ name: "get_person", arguments: { id: 6193 } });
+    assert.notEqual(res.isError, true);
+    const s = res.structuredContent as {
+      name: string;
+      gender: string;
+      imdb_id: string;
+      known_for_department: string;
+    };
+    assert.equal(s.name, "Leonardo DiCaprio");
+    assert.equal(s.gender, "male");
+    assert.equal(s.imdb_id, "nm0000138");
+    assert.equal(s.known_for_department, "Acting");
+  });
+});
+
+describe("get_movie_credits / get_tv_credits", () => {
+  // Both tools share summarizeCredits: cast re-sorted by billing `order`, and
+  // crew filtered down to headline jobs (KEY_JOBS) — a Gaffer should not
+  // survive even though a Director does.
+  test("get_movie_credits sorts cast by order and keeps only headline crew", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({ name: "get_movie_credits", arguments: { id: 603 } });
+    assert.notEqual(res.isError, true);
+    const s = res.structuredContent as {
+      cast: { name: string }[];
+      crew: { name: string; job: string }[];
+    };
+    assert.equal(s.cast[0]!.name, "Keanu Reeves"); // order: 0, before order: 50
+    assert.equal(s.cast[1]!.name, "Bit Part");
+    assert.equal(s.crew.length, 1);
+    assert.equal(s.crew[0]!.job, "Director");
+  });
+
+  test("get_tv_credits shares the same shaping", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({ name: "get_tv_credits", arguments: { id: 1396 } });
+    assert.notEqual(res.isError, true);
+    const s = res.structuredContent as { crew: { job: string }[] };
+    assert.equal(s.crew.length, 1);
+    assert.equal(s.crew[0]!.job, "Director");
+  });
 });
 
 describe("get_videos", () => {
@@ -644,40 +879,42 @@ test("find_by_imdb_id resolves to TMDB results", async (t) => {
   assert.match(call.url, /external_source=imdb_id/);
 });
 
-test("get_tv_season returns the episode list", async (t) => {
-  installFetch(t, mockFetch(router));
-  const { client, close } = await connectServer(ENV);
-  t.after(close);
-  const res = await client.callTool({
-    name: "get_tv_season",
-    arguments: { id: 1396, season_number: 1 },
+describe("tv season & episode", () => {
+  test("get_tv_season returns the episode list", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({
+      name: "get_tv_season",
+      arguments: { id: 1396, season_number: 1 },
+    });
+    const s = res.structuredContent as {
+      season_number: number;
+      episode_count: number;
+      episodes: { name: string }[];
+    };
+    assert.equal(s.season_number, 1);
+    assert.equal(s.episode_count, 1);
+    assert.equal(s.episodes[0]!.name, "Pilot");
   });
-  const s = res.structuredContent as {
-    season_number: number;
-    episode_count: number;
-    episodes: { name: string }[];
-  };
-  assert.equal(s.season_number, 1);
-  assert.equal(s.episode_count, 1);
-  assert.equal(s.episodes[0]!.name, "Pilot");
-});
 
-test("get_tv_episode returns episode details with guest stars and crew", async (t) => {
-  installFetch(t, mockFetch(router));
-  const { client, close } = await connectServer(ENV);
-  t.after(close);
-  const res = await client.callTool({
-    name: "get_tv_episode",
-    arguments: { id: 1396, season_number: 1, episode_number: 1 },
+  test("get_tv_episode returns episode details with guest stars and crew", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({
+      name: "get_tv_episode",
+      arguments: { id: 1396, season_number: 1, episode_number: 1 },
+    });
+    const s = res.structuredContent as {
+      season_number: number;
+      guest_stars: { name: string }[];
+      crew: { job: string }[];
+    };
+    assert.equal(s.season_number, 1);
+    assert.equal(s.guest_stars[0]!.name, "Guest");
+    assert.equal(s.crew[0]!.job, "Director");
   });
-  const s = res.structuredContent as {
-    season_number: number;
-    guest_stars: { name: string }[];
-    crew: { job: string }[];
-  };
-  assert.equal(s.season_number, 1);
-  assert.equal(s.guest_stars[0]!.name, "Guest");
-  assert.equal(s.crew[0]!.job, "Director");
 });
 
 describe("get_similar", () => {
@@ -724,26 +961,37 @@ test("get_reviews returns author, rating and clipped content", async (t) => {
   assert.equal(s.results[0]!.content, "A great film.");
 });
 
-test("get_collection returns parts ordered chronologically", async (t) => {
-  installFetch(t, mockFetch(router));
-  const { client, close } = await connectServer(ENV);
-  t.after(close);
-  const res = await client.callTool({ name: "get_collection", arguments: { id: 2344 } });
-  const s = res.structuredContent as {
-    name: string;
-    parts: { id: number; year: number }[];
-  };
-  assert.equal(s.name, "The Matrix Collection");
-  // Sorted by release date: The Matrix (1999) before Reloaded (2003).
-  assert.equal(s.parts[0]!.id, 603);
-  assert.equal(s.parts[1]!.id, 604);
-});
+describe("collections & genres", () => {
+  test("get_collection returns parts ordered chronologically", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({ name: "get_collection", arguments: { id: 2344 } });
+    const s = res.structuredContent as {
+      name: string;
+      parts: { id: number; year: number }[];
+    };
+    assert.equal(s.name, "The Matrix Collection");
+    // Sorted by release date: The Matrix (1999) before Reloaded (2003).
+    assert.equal(s.parts[0]!.id, 603);
+    assert.equal(s.parts[1]!.id, 604);
+  });
 
-test("get_tv_genres returns id/name pairs", async (t) => {
-  installFetch(t, mockFetch(router));
-  const { client, close } = await connectServer(ENV);
-  t.after(close);
-  const res = await client.callTool({ name: "get_tv_genres", arguments: {} });
-  const s = res.structuredContent as { genres: { id: number; name: string }[] };
-  assert.ok(s.genres.some((g) => g.name === "Drama"));
+  test("get_tv_genres returns id/name pairs", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({ name: "get_tv_genres", arguments: {} });
+    const s = res.structuredContent as { genres: { id: number; name: string }[] };
+    assert.ok(s.genres.some((g) => g.name === "Drama"));
+  });
+
+  test("get_movie_genres returns id/name pairs", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({ name: "get_movie_genres", arguments: {} });
+    const s = res.structuredContent as { genres: { id: number; name: string }[] };
+    assert.ok(s.genres.some((g) => g.name === "Comedy"));
+  });
 });

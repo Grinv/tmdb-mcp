@@ -64,6 +64,10 @@ export class HttpClient {
   }
 
   async #once<T>(url: string, options: RequestOptions, timeoutMs: number): Promise<T> {
+    // Not AbortSignal.timeout(): its internal timer is deliberately unref'd,
+    // so with a fully-mocked fetch (no real socket keeping the loop alive) the
+    // process can exit before it ever fires. A real setTimeout here always
+    // fires, mocked fetch or not.
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     const onAbort = () => controller.abort();

@@ -7,8 +7,8 @@
 // Localization: a default `language` (e.g. "ru-RU") and `region` come from
 // config and are applied to every request; callers may override per call.
 import { HttpClient } from "../lib/http.js";
-import { RateLimiter } from "../lib/rateLimit.js";
 import { TtlCache } from "../lib/cache.js";
+import { createUpstream } from "../lib/upstream.js";
 import {
   detailMovie,
   detailPerson,
@@ -101,21 +101,26 @@ export class TmdbClient {
   readonly #region: string;
   /** True when a TMDB token is configured; tools short-circuit otherwise. */
   readonly configured: boolean;
+  /** Actionable error shown by tools when `configured` is false. */
+  readonly notConfiguredMessage =
+    "TMDB is not configured. Set TMDB_API_TOKEN to a TMDB v4 'Read Access Token' " +
+    "(https://www.themoviedb.org/settings/api).";
 
   constructor(config: Config, logger: Logger) {
     this.configured = Boolean(config.tmdbApiToken);
     this.#language = config.tmdbLanguage;
     this.#region = config.tmdbRegion;
-    const limiter = new RateLimiter(config.tmdbMinIntervalMs);
-    this.#http = new HttpClient({
+    const { http, cache } = createUpstream({
       baseUrl: config.tmdbBaseUrl,
       logger,
       timeoutMs: config.httpTimeoutMs,
       retries: config.httpRetries,
+      minIntervalMs: config.tmdbMinIntervalMs,
+      cacheTtlMs: config.cacheTtlMs,
       defaultHeaders: config.tmdbApiToken ? { Authorization: `Bearer ${config.tmdbApiToken}` } : {},
-      beforeRequest: () => limiter.acquire(),
     });
-    this.#cache = new TtlCache(config.cacheTtlMs);
+    this.#http = http;
+    this.#cache = cache;
   }
 
   /** Resolve the effective language for a call (override → config default). */

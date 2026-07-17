@@ -7,8 +7,8 @@
 // { Response: "False", Error: "..." }. summarizeRatings() turns that into a
 // soft { found: false } object so enrichment never hard-fails a TMDB lookup.
 import { HttpClient } from "../lib/http.js";
-import { RateLimiter } from "../lib/rateLimit.js";
 import { TtlCache } from "../lib/cache.js";
+import { createUpstream } from "../lib/upstream.js";
 import { summarizeRatings, type OmdbResponse } from "../format.js";
 import type { Logger } from "../lib/logger.js";
 import type { Config } from "../config.js";
@@ -19,19 +19,23 @@ export class OmdbClient {
   readonly #apiKey: string | undefined;
   /** True when an OMDb key is configured; enrichment/tools skip otherwise. */
   readonly configured: boolean;
+  /** Actionable error shown by tools when `configured` is false. */
+  readonly notConfiguredMessage =
+    "OMDb is not configured. Set OMDB_API_KEY to a free key from https://www.omdbapi.com/apikey.aspx.";
 
   constructor(config: Config, logger: Logger) {
     this.#apiKey = config.omdbApiKey;
     this.configured = Boolean(config.omdbApiKey);
-    const limiter = new RateLimiter(config.omdbMinIntervalMs);
-    this.#http = new HttpClient({
+    const { http, cache } = createUpstream({
       baseUrl: config.omdbBaseUrl,
       logger,
       timeoutMs: config.httpTimeoutMs,
       retries: config.httpRetries,
-      beforeRequest: () => limiter.acquire(),
+      minIntervalMs: config.omdbMinIntervalMs,
+      cacheTtlMs: config.cacheTtlMs,
     });
-    this.#cache = new TtlCache(config.cacheTtlMs);
+    this.#http = http;
+    this.#cache = cache;
   }
 
   /** Ratings for an IMDb title id (e.g. "tt0133093"). */

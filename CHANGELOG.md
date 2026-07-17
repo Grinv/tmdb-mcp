@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-07-17
+
 ### Changed
 
 - Raise runtime floor to Node ≥ 20 (was ≥ 18) ([98499fd](https://github.com/Grinv/tmdb-mcp/commit/98499fd)).

@@ -106,6 +106,24 @@ test("messages reach the sink already redacted", () => {
   assert.doesNotMatch(calls[0]!.message, /supersecret/);
 });
 
+test("extra Error/object/circular arguments are stringified safely (as used by server.ts's process handlers)", () => {
+  const calls: SinkCall[] = [];
+  captureStderr(() => {
+    const log = createLogger("info", (level, message) => calls.push({ level, message }));
+    log.error("unhandled rejection", new Error("boom"));
+    log.error("uncaught exception", { code: "E_FAIL", detail: "x" });
+    const circular: Record<string, unknown> = { a: 1 };
+    circular.self = circular;
+    log.error("circular payload", circular);
+  });
+  assert.equal(calls.length, 3);
+  assert.match(calls[0]!.message, /unhandled rejection boom/); // Error → .message
+  assert.match(calls[1]!.message, /"code":"E_FAIL"/); // plain object → JSON.stringify
+  // JSON.stringify throws on a circular structure; must fall back to String(value)
+  // instead of throwing and breaking the caller (server.ts's own error handler).
+  assert.match(calls[2]!.message, /circular payload \[object Object\]/);
+});
+
 test("a throwing sink never breaks logging", () => {
   const { lines } = captureStderr(() => {
     const log = createLogger("info", () => {
