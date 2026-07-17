@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "tmdb-mcp",
   "display_name": "TMDB (Movies & TV)",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Search and look up movies, TV shows and people from The Movie Database (TMDB), with IMDb/Rotten Tomatoes/Metacritic ratings via OMDb.",
   "author": {
     "name": "Grinv",
