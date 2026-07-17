@@ -53,7 +53,9 @@ npm run inspector      # run under the MCP Inspector
 - Keep clients fetch+cache only; all raw→agent-facing shaping lives in
   `src/format.ts`. Trim responses for token efficiency.
 - Write tool `description`s and per-field `.describe()` text for the calling
-  model: explain when to use a tool and what each parameter means.
+  model: explain when to use a tool and what each parameter means. Check new
+  or edited descriptions against [docs/tool-descriptions.md](docs/tool-descriptions.md)
+  (Glama's TDQS rubric) before committing.
 - Keep dependencies minimal. New deps need a clear justification (supply-chain).
   In particular, do **not** pull in a third-party TMDB SDK — the `lib/` carcass
   already covers retries/cache/rate-limiting, and we shape responses ourselves.
