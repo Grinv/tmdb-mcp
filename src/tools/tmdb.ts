@@ -127,7 +127,8 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
       title: "Search movies",
       description:
         "Search TMDB movies by title; returns compact summaries with the TMDB id that the other " +
-        "movie tools (get_movie, get_movie_credits, …) require, plus pagination info.",
+        "movie tools (get_movie, get_movie_credits, …) require, plus pagination info. Use this over " +
+        "search_multi when you already know the result is a movie.",
       inputSchema: {
         query: z.string().min(1).describe("Movie title to search for."),
         year: z.number().int().min(1870).max(2100).describe("Filter by release year.").optional(),
@@ -147,7 +148,8 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
       title: "Search TV shows",
       description:
         "Search TMDB TV shows by name; returns compact summaries with the TMDB id that get_tv and " +
-        "the other TV tools require.",
+        "the other TV tools require. Use this over search_multi when you already know the result is " +
+        "a TV show.",
       inputSchema: {
         query: z.string().min(1).describe("TV show name to search for."),
         year: z
@@ -191,7 +193,8 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
       title: "Search people",
       description:
         "Search TMDB people (actors, directors, crew) by name; returns the TMDB id needed by " +
-        "get_person plus their best-known titles.",
+        "get_person plus their best-known titles. Use this over search_multi when you already know " +
+        "the result is a person.",
       inputSchema: {
         query: z.string().min(1).describe("Person name to search for."),
         include_adult: includeAdult,
@@ -303,7 +306,9 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
     {
       title: "Get movie recommendations",
       description:
-        "Get movies TMDB recommends as similar to the given movie id. Get the id from search_movies.",
+        "Get movies TMDB recommends for the given movie id (its personalization/co-viewing " +
+        "algorithm). Distinct from get_similar, which uses content-similarity instead — try that " +
+        "one if these feel too loosely related. Get the id from search_movies.",
       inputSchema: { id: tmdbId, page: page.optional() },
       annotations: READ_ONLY,
     },
@@ -315,7 +320,9 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
     {
       title: "Get TV recommendations",
       description:
-        "Get TV shows TMDB recommends as similar to the given show id. Get the id from search_tv.",
+        "Get TV shows TMDB recommends for the given show id (its personalization/co-viewing " +
+        "algorithm). Distinct from get_similar, which uses content-similarity instead — try that " +
+        "one if these feel too loosely related. Get the id from search_tv.",
       inputSchema: { id: tmdbId, page: page.optional() },
       annotations: READ_ONLY,
     },
@@ -460,8 +467,7 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
       },
       annotations: READ_ONLY,
     },
-    ({ media_type, id, region: r }) =>
-      requireTmdb(() => tmdb.getWatchProviders(media_type, id, r ?? "US")),
+    ({ media_type, id, region: r }) => requireTmdb(() => tmdb.getWatchProviders(media_type, id, r)),
   );
 
   // ---- person filmography ---------------------------------------------------

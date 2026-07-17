@@ -395,7 +395,7 @@ export class TmdbClient {
   async getWatchProviders(
     mediaType: "movie" | "tv",
     id: number,
-    region: string,
+    region = this.#region,
   ): Promise<Record<string, unknown>> {
     // region is part of the cache key: summarizeWatchProviders returns a
     // region-specific slice, so caching it under an id-only key would serve one
