@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-07-18
+
 ### Fixed
 
 - `get_watch_providers` now honors the configured `TMDB_REGION` default instead of always falling back to `"US"`, matching `search_movies`/`get_movie`/`get_tv` ([d0ee332](https://github.com/Grinv/tmdb-mcp/commit/d0ee332)).
