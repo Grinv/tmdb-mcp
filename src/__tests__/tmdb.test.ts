@@ -1,14 +1,13 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { connectServer, installFetch, mockFetch, jsonResponse } from "./helpers.js";
-
-// Credentials + zeroed throttling so tests run offline and fast.
-const ENV = {
-  TMDB_API_TOKEN: "test-token",
-  OMDB_API_KEY: "test-key",
-  TMDB_MIN_INTERVAL_MS: "0",
-  OMDB_MIN_INTERVAL_MS: "0",
-};
+import {
+  connectServer,
+  installFetch,
+  mockFetch,
+  jsonResponse,
+  pageOf,
+  DEFAULT_ENV as ENV,
+} from "./helpers.js";
 
 const MOVIE_DETAIL = {
   id: 603,
@@ -147,27 +146,17 @@ const EPISODE = {
   crew: [{ id: 7, name: "Director Person", job: "Director" }],
 };
 
-const KEYWORDS = {
-  page: 1,
-  total_pages: 1,
-  total_results: 1,
-  results: [{ id: 4379, name: "time travel" }],
-};
+const KEYWORDS = pageOf([{ id: 4379, name: "time travel" }]);
 
-const REVIEWS = {
-  page: 1,
-  total_pages: 1,
-  total_results: 1,
-  results: [
-    {
-      author: "Reviewer",
-      author_details: { username: "rev", rating: 9 },
-      content: "A great film.",
-      created_at: "2020-01-01T00:00:00.000Z",
-      url: "https://www.themoviedb.org/review/1",
-    },
-  ],
-};
+const REVIEWS = pageOf([
+  {
+    author: "Reviewer",
+    author_details: { username: "rev", rating: 9 },
+    content: "A great film.",
+    created_at: "2020-01-01T00:00:00.000Z",
+    url: "https://www.themoviedb.org/review/1",
+  },
+]);
 
 const GENRES = {
   genres: [
@@ -227,50 +216,42 @@ const PERSON_SEARCH_ROW = {
 
 // One row of each media_type so summarizeMultiItem's dispatch is exercised
 // for movie, tv AND person in a single response.
-const MULTI_SEARCH = {
-  page: 1,
-  total_pages: 1,
-  total_results: 3,
-  results: [
-    { ...MOVIE_DETAIL, media_type: "movie" },
-    { ...TV_DETAIL, media_type: "tv" },
-    PERSON_SEARCH_ROW,
-  ],
-};
+const MULTI_SEARCH = pageOf([
+  { ...MOVIE_DETAIL, media_type: "movie" },
+  { ...TV_DETAIL, media_type: "tv" },
+  PERSON_SEARCH_ROW,
+]);
 
 /** Route a request to the right canned response based on its URL. Specific
  *  sub-resource routes must precede the /movie/{id} and /tv/{id} catch-alls. */
 function router(url: string) {
   if (url.includes("/search/keyword")) return jsonResponse(KEYWORDS);
   if (url.includes("/search/movie")) {
-    return jsonResponse({ page: 1, total_pages: 1, total_results: 1, results: [MOVIE_DETAIL] });
+    return jsonResponse(pageOf([MOVIE_DETAIL]));
   }
   if (url.includes("/search/tv")) {
-    return jsonResponse({ page: 1, total_pages: 1, total_results: 1, results: [TV_DETAIL] });
+    return jsonResponse(pageOf([TV_DETAIL]));
   }
   if (url.includes("/search/multi")) return jsonResponse(MULTI_SEARCH);
   if (url.includes("/search/person")) {
-    return jsonResponse({
-      page: 1,
-      total_pages: 1,
-      total_results: 1,
-      results: [PERSON_SEARCH_ROW],
-    });
+    return jsonResponse(pageOf([PERSON_SEARCH_ROW]));
   }
   if (url.includes("/trending/")) return jsonResponse(MULTI_SEARCH);
   if (url.includes("/discover/movie")) {
-    return jsonResponse({ page: 1, total_pages: 1, total_results: 1, results: [MOVIE_DETAIL] });
+    return jsonResponse(pageOf([MOVIE_DETAIL]));
   }
   if (url.includes("/discover/tv")) {
-    return jsonResponse({ page: 1, total_pages: 1, total_results: 1, results: [TV_DETAIL] });
+    return jsonResponse(pageOf([TV_DETAIL]));
   }
   if (url.includes("/watch/providers")) return jsonResponse(WATCH_PROVIDERS);
   if (url.includes("/combined_credits")) return jsonResponse(COMBINED_CREDITS);
   if (url.includes("/credits")) return jsonResponse(CREDITS);
   if (/\/person\/\d+/.test(url)) return jsonResponse(PERSON_DETAIL);
   if (url.includes("/similar") || url.includes("/recommendations")) {
-    const results = url.includes("/tv/") ? [TV_DETAIL] : [MOVIE_DETAIL];
-    return jsonResponse({ page: 1, total_pages: 1, total_results: 1, results });
+    const results: (typeof MOVIE_DETAIL | typeof TV_DETAIL)[] = url.includes("/tv/")
+      ? [TV_DETAIL]
+      : [MOVIE_DETAIL];
+    return jsonResponse(pageOf(results));
   }
   if (url.includes("/reviews")) return jsonResponse(REVIEWS);
   if (url.includes("/collection/")) return jsonResponse(COLLECTION);

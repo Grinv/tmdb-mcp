@@ -2,7 +2,7 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { TmdbClient } from "../clients/tmdb.js";
 import { loadConfig } from "../config.js";
-import { silentLogger, installFetch, mockFetch, jsonResponse } from "./helpers.js";
+import { silentLogger, installFetch, mockFetch, jsonResponse, pageOf } from "./helpers.js";
 
 // Direct tests against TmdbClient's own interface — no MCP transport, no zod
 // validation, no JSON-RPC round-trip. Covers behavior the tool-layer e2e tests
@@ -16,7 +16,7 @@ function client(env: NodeJS.ProcessEnv = {}): TmdbClient {
   );
 }
 
-const EMPTY_PAGE = { page: 1, total_pages: 1, total_results: 0, results: [] };
+const EMPTY_PAGE = pageOf([]);
 
 describe("TmdbClient: recommendations vs similar hit distinct endpoints", () => {
   test("getRecommendations uses the /recommendations segment", async (t) => {

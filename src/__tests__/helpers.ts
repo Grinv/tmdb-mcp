@@ -10,6 +10,25 @@ export function silentLogger(): Logger {
   return createLogger("silent");
 }
 
+// Credentials + zeroed throttling so full-stack tests run offline and fast;
+// shared so both TMDB and OMDb test files don't each redefine the same object.
+export const DEFAULT_ENV: NodeJS.ProcessEnv = {
+  TMDB_API_TOKEN: "test-token",
+  OMDB_API_KEY: "test-key",
+  TMDB_MIN_INTERVAL_MS: "0",
+  OMDB_MIN_INTERVAL_MS: "0",
+};
+
+/** Wrap results in TMDB's paged-response envelope (mirrors format.ts's `page()`). */
+export function pageOf<T>(results: T[]): {
+  results: T[];
+  page: number;
+  total_pages: number;
+  total_results: number;
+} {
+  return { results, page: 1, total_pages: 1, total_results: results.length };
+}
+
 export function jsonResponse(
   body: unknown,
   init: { status?: number; headers?: Record<string, string> } = {},

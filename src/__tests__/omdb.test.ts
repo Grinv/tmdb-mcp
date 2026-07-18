@@ -1,13 +1,12 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { connectServer, installFetch, mockFetch, jsonResponse } from "./helpers.js";
-
-const ENV = {
-  TMDB_API_TOKEN: "test-token",
-  OMDB_API_KEY: "test-key",
-  TMDB_MIN_INTERVAL_MS: "0",
-  OMDB_MIN_INTERVAL_MS: "0",
-};
+import {
+  connectServer,
+  installFetch,
+  mockFetch,
+  jsonResponse,
+  DEFAULT_ENV as ENV,
+} from "./helpers.js";
 
 const OMDB_OK = {
   Response: "True",
