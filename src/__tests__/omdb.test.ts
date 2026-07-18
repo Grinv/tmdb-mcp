@@ -5,6 +5,7 @@ import {
   installFetch,
   mockFetch,
   jsonResponse,
+  toolText,
   DEFAULT_ENV as ENV,
 } from "./helpers.js";
 
@@ -87,7 +88,7 @@ describe("get_ratings", () => {
       t.after(close);
       const res = await client.callTool({ name: "get_ratings", arguments: {} });
       assert.equal(res.isError, true);
-      const text = (res.content as { type: string; text: string }[])[0]!.text;
+      const text = toolText(res);
       assert.match(text, /OMDB_API_KEY/);
     });
 
@@ -100,7 +101,7 @@ describe("get_ratings", () => {
       t.after(close);
       const res = await client.callTool({ name: "get_ratings", arguments: {} });
       assert.equal(res.isError, true);
-      const text = (res.content as { type: string; text: string }[])[0]!.text;
+      const text = toolText(res);
       assert.match(text, /Provide either imdb_id or title/);
     });
   });

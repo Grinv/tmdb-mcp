@@ -1,11 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { connectServer } from "./helpers.js";
-
-function textOf(content: { type: string; text?: string }): string {
-  assert.equal(content.type, "text");
-  return content.text!;
-}
+import { connectServer, contentText } from "./helpers.js";
 
 describe("recommend_similar prompt", () => {
   test("is advertised via prompts/list", async (t) => {
@@ -27,7 +22,7 @@ describe("recommend_similar prompt", () => {
     assert.equal(res.messages.length, 1);
     const msg = res.messages[0]!;
     assert.equal(msg.role, "user");
-    const text = textOf(msg.content);
+    const text = contentText(msg.content);
     assert.match(text, /The Man from Earth/);
     assert.match(text, /Recommend 5/);
     assert.match(text, /search_multi/);
@@ -41,7 +36,7 @@ describe("recommend_similar prompt", () => {
       name: "recommend_similar",
       arguments: { title: "Forrest Gump", media_type: "movie", count: "3" },
     });
-    const text = textOf(res.messages[0]!.content);
+    const text = contentText(res.messages[0]!.content);
     assert.match(text, /Forrest Gump.*\(a movie\)/);
     assert.match(text, /Recommend 3/);
   });

@@ -1,5 +1,6 @@
 // Shared test helpers. Not a test file (no *.test suffix) so the runner skips it.
 import type { TestContext } from "node:test";
+import assert from "node:assert/strict";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createLogger, type Logger } from "../lib/logger.js";
@@ -18,6 +19,17 @@ export const DEFAULT_ENV: NodeJS.ProcessEnv = {
   TMDB_MIN_INTERVAL_MS: "0",
   OMDB_MIN_INTERVAL_MS: "0",
 };
+
+/** The text of a single MCP content block, asserting it's actually a text block. */
+export function contentText(content: { type: string; text?: string } | undefined): string {
+  assert.equal(content?.type, "text");
+  return content!.text ?? "";
+}
+
+/** The first text content block's text from a tool call result (empty string if absent). */
+export function toolText(res: { content?: unknown; [key: string]: unknown }): string {
+  return contentText((res.content as { type: string; text?: string }[] | undefined)?.[0]);
+}
 
 /** Wrap results in TMDB's paged-response envelope (mirrors format.ts's `page()`). */
 export function pageOf<T>(results: T[]): {

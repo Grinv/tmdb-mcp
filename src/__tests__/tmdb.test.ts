@@ -6,6 +6,7 @@ import {
   mockFetch,
   jsonResponse,
   pageOf,
+  toolText,
   DEFAULT_ENV as ENV,
 } from "./helpers.js";
 
@@ -301,7 +302,7 @@ describe("server / auth", () => {
     t.after(close);
     const res = await client.callTool({ name: "search_movies", arguments: { query: "x" } });
     assert.equal(res.isError, true);
-    const text = (res.content as { type: string; text: string }[])[0]!.text;
+    const text = toolText(res);
     assert.match(text, /TMDB_API_TOKEN/);
   });
 });
@@ -467,7 +468,7 @@ describe("get_movie", () => {
     t.after(close);
     const res = await client.callTool({ name: "get_movie", arguments: { id: 603 } });
     assert.equal(res.isError, true);
-    const text = (res.content as { type: string; text: string }[])[0]!.text;
+    const text = toolText(res);
     assert.match(text, /5xx|retry later/i);
   });
 
@@ -971,6 +972,57 @@ test("get_reviews returns author, rating and clipped content", async (t) => {
   assert.equal(s.results[0]!.author, "Reviewer");
   assert.equal(s.results[0]!.rating, 9);
   assert.equal(s.results[0]!.content, "A great film.");
+});
+
+// clients/tmdb.ts's non-cached methods (search*/discover/getSimilar/getReviews/...)
+// have no per-method try/catch of their own — an upstream failure must still
+// reach the tool layer as a clean isError result, not a raw thrown ApiError or
+// something #cached's wrapStaleOnError happens to catch that these don't.
+describe("upstream failures reach the tool layer for non-cached client paths", () => {
+  test("search_movies surfaces a TMDB failure as an actionable tool error", async (t) => {
+    installFetch(
+      t,
+      mockFetch(() => jsonResponse({ error: "server exploded" }, { status: 500 })),
+    );
+    const { client, close } = await connectServer({ ...ENV, HTTP_RETRIES: "0" });
+    t.after(close);
+    const res = await client.callTool({ name: "search_movies", arguments: { query: "matrix" } });
+    assert.equal(res.isError, true);
+    const text = toolText(res);
+    assert.match(text, /5xx|retry later/i);
+  });
+
+  test("discover_movies surfaces a TMDB failure as an actionable tool error", async (t) => {
+    installFetch(
+      t,
+      mockFetch(() => jsonResponse({ error: "nope" }, { status: 404 })),
+    );
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({
+      name: "discover_movies",
+      arguments: { with_genres: "878" },
+    });
+    assert.equal(res.isError, true);
+    const text = toolText(res);
+    assert.match(text, /no matching resource|404/i);
+  });
+
+  test("get_similar surfaces a TMDB failure as an actionable tool error", async (t) => {
+    installFetch(
+      t,
+      mockFetch(() => jsonResponse({}, { status: 429 })),
+    );
+    const { client, close } = await connectServer({ ...ENV, HTTP_RETRIES: "0" });
+    t.after(close);
+    const res = await client.callTool({
+      name: "get_similar",
+      arguments: { media_type: "movie", id: 603 },
+    });
+    assert.equal(res.isError, true);
+    const text = toolText(res);
+    assert.match(text, /rate limit|429/i);
+  });
 });
 
 describe("collections & genres", () => {
