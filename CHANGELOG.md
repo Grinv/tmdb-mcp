@@ -8,7 +8,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- Add the `recommend_similar` MCP prompt, which plans a search for titles similar to one the user liked via `get_similar`/recommendations/discover instead of the model's own knowledge ([2d85f67](https://github.com/Grinv/tmdb-mcp/commit/2d85f67)).
+- Add the `recommend_similar` MCP prompt, which plans a search for titles similar to one the user liked via `get_similar`/recommendations/discover instead of the model's own knowledge ([2d85f67](https://github.com/Grinv/tmdb-mcp/commit/2d85f67)); the `.mcpb` install preview now lists it too ([be487dc](https://github.com/Grinv/tmdb-mcp/commit/be487dc)).
+
+### Changed
+
+- Sharpen `get_movie`/`get_tv`/`get_ratings` descriptions to disclose the ratings degrade-to-`{found:false}` shape, and `get_trending`'s `media_type` default ([e0d520d](https://github.com/Grinv/tmdb-mcp/commit/e0d520d)).
 
 ### Fixed
 
