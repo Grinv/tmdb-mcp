@@ -14,6 +14,8 @@ export interface RequestOptions {
   timeoutMs?: number;
   /** Max retry attempts for retryable failures (network/timeout/5xx/429). */
   retries?: number;
+  /** Caller-supplied cancellation (e.g. an MCP tool call's abort signal). */
+  signal?: AbortSignal;
 }
 
 export interface HttpClientOptions {
@@ -51,7 +53,9 @@ export class HttpClient {
         return await this.#once<T>(url, options, timeoutMs);
       } catch (err) {
         const apiErr = err instanceof ApiError ? err : toNetworkError(err);
-        if (!apiErr.retryable || attempt >= retries) throw apiErr;
+        // A caller-cancelled request must not be retried even if its code
+        // would otherwise be retryable (e.g. it raced a timeout).
+        if (!apiErr.retryable || attempt >= retries || options.signal?.aborted) throw apiErr;
         const backoff = backoffMs(attempt, apiErr);
         this.#opts.logger.debug(
           `retrying ${url} after ${backoff}ms (attempt ${attempt + 1}/${retries}, ${apiErr.code})`,
@@ -69,6 +73,11 @@ export class HttpClient {
     // fires, mocked fetch or not.
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const onAbort = () => controller.abort();
+    options.signal?.addEventListener("abort", onAbort, { once: true });
+    // A signal already aborted before we started listening (e.g. cancelled
+    // while awaiting the rate limiter) never fires its 'abort' event again.
+    if (options.signal?.aborted) onAbort();
 
     let res: Response;
     try {
@@ -84,6 +93,11 @@ export class HttpClient {
         signal: controller.signal,
       });
     } catch (err) {
+      if (options.signal?.aborted) {
+        // Caller cancelled (e.g. the MCP client sent notifications/cancelled)
+        // — propagate as a non-retryable abort, distinct from our own timeout.
+        throw new ApiError({ code: "network", message: "Request aborted by caller", cause: err });
+      }
       if (controller.signal.aborted) {
         throw new ApiError({
           code: "timeout",
@@ -95,6 +109,7 @@ export class HttpClient {
       throw toNetworkError(err);
     } finally {
       clearTimeout(timer);
+      options.signal?.removeEventListener("abort", onAbort);
     }
 
     if (!res.ok) throw await toHttpError(res);

@@ -204,3 +204,46 @@ test("aborts on timeout and maps to a timeout error", async (t) => {
     (err: unknown) => err instanceof ApiError && err.code === "timeout",
   );
 });
+
+// A never-resolving fetch (only settles if its signal is aborted) so the test
+// can abort mid-flight and observe the caller-cancellation path specifically,
+// distinct from the timeout path above. Mirrors real fetch(): rejects
+// immediately if the signal is already aborted, not just on a future 'abort'.
+function hangingFetch() {
+  return mockFetch(
+    (_url, init) =>
+      new Promise<Response>((_resolve, reject) => {
+        if (init?.signal?.aborted) {
+          reject(new DOMException("aborted", "AbortError"));
+          return;
+        }
+        init?.signal?.addEventListener("abort", () =>
+          reject(new DOMException("aborted", "AbortError")),
+        );
+      }),
+  );
+}
+
+test("a caller-aborted request maps to a non-retryable abort error, not a timeout", async (t) => {
+  const mock = hangingFetch();
+  installFetch(t, mock);
+  const controller = new AbortController();
+  const call = client({ retries: 2 }).getJson("thing", { signal: controller.signal });
+  controller.abort();
+  await assert.rejects(
+    () => call,
+    (err: unknown) => err instanceof ApiError && err.code === "network" && err.retryable === false,
+  );
+  assert.equal(mock.calls.length, 1); // no retry after a caller cancellation
+});
+
+test("a signal already aborted before the call starts still cancels the request", async (t) => {
+  const mock = hangingFetch();
+  installFetch(t, mock);
+  const controller = new AbortController();
+  controller.abort(); // aborted before getJson is ever called
+  await assert.rejects(
+    () => client().getJson("thing", { signal: controller.signal }),
+    (err: unknown) => err instanceof ApiError && err.code === "network",
+  );
+});
