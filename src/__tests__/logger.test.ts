@@ -162,6 +162,16 @@ test("mcpLoggingSink delivers a notifications/message with the mapped MCP level"
   }
 });
 
+test("mcpLoggingSink silently drops a failed send instead of throwing (logging must never break the server)", async () => {
+  const cap = await connectWithLogCapture();
+  await cap.close(); // disconnects the transport; sendLoggingMessage now rejects with "Not connected"
+  const log = createLogger("info", mcpLoggingSink(cap.server));
+  assert.doesNotThrow(() => captureStderr(() => log.error("server closing down")));
+  // Let the rejected sendLoggingMessage promise's .catch settle before the test exits,
+  // so a regression that removed the .catch would surface as an unhandled rejection.
+  await new Promise((r) => setImmediate(r));
+});
+
 test("logs are NOT mirrored to the client before initialize, only after", async () => {
   // Regression: sending notifications/message before the client's `initialized`
   // violates the MCP lifecycle and strict clients (Claude Desktop) disconnect.
