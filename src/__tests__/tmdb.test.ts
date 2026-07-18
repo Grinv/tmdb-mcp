@@ -1025,6 +1025,48 @@ describe("upstream failures reach the tool layer for non-cached client paths", (
   });
 });
 
+describe("MCP client cancellation reaches non-cached client calls", () => {
+  test("cancelling search_movies aborts the in-flight TMDB request", async (t) => {
+    // A never-resolving fetch (only settles if aborted) so there's a window
+    // for the client's cancellation to actually reach the server mid-flight.
+    let sawAbort = false;
+    installFetch(
+      t,
+      mockFetch(
+        (_url, init) =>
+          new Promise<Response>((_resolve, reject) => {
+            if (init?.signal?.aborted) {
+              sawAbort = true;
+              reject(new DOMException("aborted", "AbortError"));
+              return;
+            }
+            init?.signal?.addEventListener("abort", () => {
+              sawAbort = true;
+              reject(new DOMException("aborted", "AbortError"));
+            });
+          }),
+      ),
+    );
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+
+    const controller = new AbortController();
+    // client.callTool's own `signal` sends notifications/cancelled to the
+    // server when aborted, which the SDK maps onto the tool handler's
+    // `extra.signal` — that's what reaches tmdb.searchMovies(args, signal).
+    const call = client.callTool(
+      { name: "search_movies", arguments: { query: "matrix" } },
+      undefined,
+      { signal: controller.signal },
+    );
+    controller.abort();
+    await assert.rejects(() => call);
+    // Give the notifications/cancelled round-trip a tick to reach the server.
+    await new Promise((r) => setTimeout(r, 20));
+    assert.equal(sawAbort, true, "the server-side fetch should have been aborted too");
+  });
+});
+
 describe("collections & genres", () => {
   test("get_collection returns parts ordered chronologically", async (t) => {
     installFetch(t, mockFetch(router));

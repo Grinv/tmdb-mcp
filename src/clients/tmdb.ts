@@ -129,13 +129,20 @@ export class TmdbClient {
   }
 
   /** GET with the effective `language` injected (an explicit query.language wins). */
-  #get<T>(path: string, query: Query = {}, language?: string): Promise<T> {
-    return this.#http.getJson<T>(path, { query: { language: this.#lang(language), ...query } });
+  #get<T>(path: string, query: Query = {}, language?: string, signal?: AbortSignal): Promise<T> {
+    return this.#http.getJson<T>(path, {
+      query: { language: this.#lang(language), ...query },
+      signal,
+    });
   }
 
   // ---- search ---------------------------------------------------------------
 
-  async searchMovies(p: SearchParams): Promise<Record<string, unknown>> {
+  // These search/discover/similar-family methods are NOT cached (unlike the
+  // detail getters below), so they accept the caller's AbortSignal and can be
+  // genuinely cancelled mid-flight when the MCP client cancels the tool call.
+
+  async searchMovies(p: SearchParams, signal?: AbortSignal): Promise<Record<string, unknown>> {
     const res = await this.#get<TmdbPage<TmdbMovie>>(
       "search/movie",
       {
@@ -146,11 +153,12 @@ export class TmdbClient {
         region: p.region ?? this.#region,
       },
       p.language,
+      signal,
     );
     return page(res, summarizeMovie);
   }
 
-  async searchTv(p: SearchParams): Promise<Record<string, unknown>> {
+  async searchTv(p: SearchParams, signal?: AbortSignal): Promise<Record<string, unknown>> {
     const res = await this.#get<TmdbPage<TmdbTv>>(
       "search/tv",
       {
@@ -160,31 +168,43 @@ export class TmdbClient {
         include_adult: p.include_adult,
       },
       p.language,
+      signal,
     );
     return page(res, summarizeTv);
   }
 
-  async searchMulti(p: SearchParams): Promise<Record<string, unknown>> {
+  async searchMulti(p: SearchParams, signal?: AbortSignal): Promise<Record<string, unknown>> {
     const res = await this.#get<TmdbPage<TmdbMultiItem>>(
       "search/multi",
       { query: p.query, page: p.page, include_adult: p.include_adult },
       p.language,
+      signal,
     );
     return page(res, summarizeMultiItem);
   }
 
-  async searchPeople(p: SearchParams): Promise<Record<string, unknown>> {
+  async searchPeople(p: SearchParams, signal?: AbortSignal): Promise<Record<string, unknown>> {
     const res = await this.#get<TmdbPage<TmdbMultiItem>>(
       "search/person",
       { query: p.query, page: p.page, include_adult: p.include_adult },
       p.language,
+      signal,
     );
     return page(res, summarizeMultiItem);
   }
 
   // Keyword ids feed discover_*'s with_keywords; this resolves names → ids.
-  async searchKeywords(query: string, pg?: number): Promise<Record<string, unknown>> {
-    const res = await this.#get<KeywordsResponse>("search/keyword", { query, page: pg });
+  async searchKeywords(
+    query: string,
+    pg?: number,
+    signal?: AbortSignal,
+  ): Promise<Record<string, unknown>> {
+    const res = await this.#get<KeywordsResponse>(
+      "search/keyword",
+      { query, page: pg },
+      undefined,
+      signal,
+    );
     return summarizeKeywords(res);
   }
 
@@ -285,15 +305,19 @@ export class TmdbClient {
     kind: "recommendations" | "similar",
     pg?: number,
     language?: string,
+    signal?: AbortSignal,
   ): Promise<Record<string, unknown>> {
     if (mediaType === "tv") {
-      return this.#get<TmdbPage<TmdbTv>>(`tv/${id}/${kind}`, { page: pg }, language).then((res) =>
-        page(res, summarizeTv),
+      return this.#get<TmdbPage<TmdbTv>>(`tv/${id}/${kind}`, { page: pg }, language, signal).then(
+        (res) => page(res, summarizeTv),
       );
     }
-    return this.#get<TmdbPage<TmdbMovie>>(`movie/${id}/${kind}`, { page: pg }, language).then(
-      (res) => page(res, summarizeMovie),
-    );
+    return this.#get<TmdbPage<TmdbMovie>>(
+      `movie/${id}/${kind}`,
+      { page: pg },
+      language,
+      signal,
+    ).then((res) => page(res, summarizeMovie));
   }
 
   /** TMDB's editorial recommendations for a movie or TV show. */
@@ -302,8 +326,9 @@ export class TmdbClient {
     id: number,
     pg?: number,
     language?: string,
+    signal?: AbortSignal,
   ): Promise<Record<string, unknown>> {
-    return this.#pagedTitles(mediaType, id, "recommendations", pg, language);
+    return this.#pagedTitles(mediaType, id, "recommendations", pg, language, signal);
   }
 
   /** TMDB's algorithmic "similar" list (distinct from getRecommendations). */
@@ -312,8 +337,9 @@ export class TmdbClient {
     id: number,
     pg?: number,
     language?: string,
+    signal?: AbortSignal,
   ): Promise<Record<string, unknown>> {
-    return this.#pagedTitles(mediaType, id, "similar", pg, language);
+    return this.#pagedTitles(mediaType, id, "similar", pg, language, signal);
   }
 
   // User reviews for a movie or TV show (same response shape for both).
@@ -322,11 +348,13 @@ export class TmdbClient {
     id: number,
     pg?: number,
     language?: string,
+    signal?: AbortSignal,
   ): Promise<Record<string, unknown>> {
     const res = await this.#get<TmdbPage<TmdbReview>>(
       `${mediaType}/${id}/reviews`,
       { page: pg },
       language,
+      signal,
     );
     return page(res, summarizeReview);
   }
@@ -373,12 +401,17 @@ export class TmdbClient {
 
   // ---- discover -------------------------------------------------------------
 
-  async discover(kind: "movie" | "tv", p: DiscoverParams): Promise<Record<string, unknown>> {
+  async discover(
+    kind: "movie" | "tv",
+    p: DiscoverParams,
+    signal?: AbortSignal,
+  ): Promise<Record<string, unknown>> {
     if (kind === "tv") {
       const res = await this.#get<TmdbPage<TmdbTv>>(
         "discover/tv",
         discoverQuery(p, "tv"),
         p.language,
+        signal,
       );
       return page(res, summarizeTv);
     }
@@ -386,6 +419,7 @@ export class TmdbClient {
       "discover/movie",
       discoverQuery(p, "movie"),
       p.language,
+      signal,
     );
     return page(res, summarizeMovie);
   }

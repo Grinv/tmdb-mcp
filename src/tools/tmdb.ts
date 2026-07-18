@@ -149,7 +149,7 @@ export function registerTmdbTools(
       },
       annotations: READ_ONLY,
     },
-    (args) => requireTmdb(() => tmdb.searchMovies(args)),
+    (args, { signal }) => requireTmdb(() => tmdb.searchMovies(args, signal)),
   );
 
   server.registerTool(
@@ -175,7 +175,7 @@ export function registerTmdbTools(
       },
       annotations: READ_ONLY,
     },
-    (args) => requireTmdb(() => tmdb.searchTv(args)),
+    (args, { signal }) => requireTmdb(() => tmdb.searchTv(args, signal)),
   );
 
   server.registerTool(
@@ -194,7 +194,7 @@ export function registerTmdbTools(
       },
       annotations: READ_ONLY,
     },
-    (args) => requireTmdb(() => tmdb.searchMulti(args)),
+    (args, { signal }) => requireTmdb(() => tmdb.searchMulti(args, signal)),
   );
 
   server.registerTool(
@@ -213,7 +213,7 @@ export function registerTmdbTools(
       },
       annotations: READ_ONLY,
     },
-    (args) => requireTmdb(() => tmdb.searchPeople(args)),
+    (args, { signal }) => requireTmdb(() => tmdb.searchPeople(args, signal)),
   );
 
   server.registerTool(
@@ -229,7 +229,7 @@ export function registerTmdbTools(
       },
       annotations: READ_ONLY,
     },
-    ({ query, page: pg }) => requireTmdb(() => tmdb.searchKeywords(query, pg)),
+    ({ query, page: pg }, { signal }) => requireTmdb(() => tmdb.searchKeywords(query, pg, signal)),
   );
 
   // ---- details --------------------------------------------------------------
@@ -322,7 +322,8 @@ export function registerTmdbTools(
       inputSchema: { id: tmdbId, page: page.optional() },
       annotations: READ_ONLY,
     },
-    ({ id, page: pg }) => requireTmdb(() => tmdb.getRecommendations("movie", id, pg)),
+    ({ id, page: pg }, { signal }) =>
+      requireTmdb(() => tmdb.getRecommendations("movie", id, pg, undefined, signal)),
   );
 
   server.registerTool(
@@ -336,7 +337,8 @@ export function registerTmdbTools(
       inputSchema: { id: tmdbId, page: page.optional() },
       annotations: READ_ONLY,
     },
-    ({ id, page: pg }) => requireTmdb(() => tmdb.getRecommendations("tv", id, pg)),
+    ({ id, page: pg }, { signal }) =>
+      requireTmdb(() => tmdb.getRecommendations("tv", id, pg, undefined, signal)),
   );
 
   server.registerTool(
@@ -349,7 +351,8 @@ export function registerTmdbTools(
       inputSchema: { media_type: mediaKind, id: tmdbId, page: page.optional() },
       annotations: READ_ONLY,
     },
-    ({ media_type, id, page: pg }) => requireTmdb(() => tmdb.getSimilar(media_type, id, pg)),
+    ({ media_type, id, page: pg }, { signal }) =>
+      requireTmdb(() => tmdb.getSimilar(media_type, id, pg, undefined, signal)),
   );
 
   server.registerTool(
@@ -362,7 +365,8 @@ export function registerTmdbTools(
       inputSchema: { media_type: mediaKind, id: tmdbId, page: page.optional() },
       annotations: READ_ONLY,
     },
-    ({ media_type, id, page: pg }) => requireTmdb(() => tmdb.getReviews(media_type, id, pg)),
+    ({ media_type, id, page: pg }, { signal }) =>
+      requireTmdb(() => tmdb.getReviews(media_type, id, pg, undefined, signal)),
   );
 
   server.registerTool(
@@ -443,7 +447,7 @@ export function registerTmdbTools(
       inputSchema: discoverMovieSchema,
       annotations: READ_ONLY,
     },
-    (args) => requireTmdb(() => tmdb.discover("movie", args)),
+    (args, { signal }) => requireTmdb(() => tmdb.discover("movie", args, signal)),
   );
 
   server.registerTool(
@@ -457,7 +461,7 @@ export function registerTmdbTools(
       inputSchema: discoverTvSchema,
       annotations: READ_ONLY,
     },
-    (args) => requireTmdb(() => tmdb.discover("tv", args)),
+    (args, { signal }) => requireTmdb(() => tmdb.discover("tv", args, signal)),
   );
 
   // ---- watch providers ------------------------------------------------------

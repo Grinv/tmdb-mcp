@@ -1,6 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { TmdbClient } from "../clients/tmdb.js";
+import { ApiError } from "../lib/errors.js";
 import { loadConfig } from "../config.js";
 import { silentLogger, installFetch, mockFetch, jsonResponse, pageOf } from "./helpers.js";
 
@@ -72,6 +73,60 @@ describe("TmdbClient: region/language resolve from config when not overridden pe
     await client({ TMDB_REGION: "DE" }).searchMovies({ query: "matrix" });
     const call = mock.calls.find((c) => c.url.includes("/search/movie"))!;
     assert.match(call.url, /region=DE/);
+  });
+});
+
+describe("TmdbClient: non-cached methods honor a caller AbortSignal", () => {
+  // A never-resolving fetch (only settles if its signal is aborted), so
+  // aborting mid-flight is the only thing that can end the request. Mirrors
+  // real fetch(): rejects immediately if the signal is already aborted by
+  // the time fetch() is called (which it may be here — the caller's abort()
+  // runs synchronously right after searchMovies/discover suspend on their
+  // first internal await, before their code reaches the actual fetch call).
+  function hangingFetch(onAbort: () => void) {
+    return mockFetch(
+      (_url, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          if (init?.signal?.aborted) {
+            onAbort();
+            reject(new DOMException("aborted", "AbortError"));
+            return;
+          }
+          init?.signal?.addEventListener("abort", () => {
+            onAbort();
+            reject(new DOMException("aborted", "AbortError"));
+          });
+        }),
+    );
+  }
+
+  test("searchMovies aborts the underlying fetch when the signal fires mid-flight", async (t) => {
+    let sawAbort = false;
+    installFetch(
+      t,
+      hangingFetch(() => (sawAbort = true)),
+    );
+    const controller = new AbortController();
+    const call = client().searchMovies({ query: "matrix" }, controller.signal);
+    controller.abort();
+    await assert.rejects(
+      () => call,
+      (err: unknown) => err instanceof ApiError && err.code === "network",
+    );
+    assert.equal(sawAbort, true);
+  });
+
+  test("discover aborts the underlying fetch when the signal fires mid-flight", async (t) => {
+    let sawAbort = false;
+    installFetch(
+      t,
+      hangingFetch(() => (sawAbort = true)),
+    );
+    const controller = new AbortController();
+    const call = client().discover("movie", { min_rating: 7 }, controller.signal);
+    controller.abort();
+    await assert.rejects(() => call);
+    assert.equal(sawAbort, true);
   });
 });
 
