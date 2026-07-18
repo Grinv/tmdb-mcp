@@ -508,45 +508,51 @@ export class TmdbClient {
   }
 }
 
-// Map friendly DiscoverParams to TMDB's query keys (some use a dotted, range
-// syntax like `vote_average.gte`). Movie and TV differ on the date/year keys
-// and a few exclusive filters (certification = movie, networks = tv).
-function discoverQuery(p: DiscoverParams, kind: "movie" | "tv"): Query {
-  const common: Query = {
-    sort_by: p.sort_by,
-    with_genres: p.with_genres,
-    without_genres: p.without_genres,
-    with_original_language: p.with_original_language,
-    with_companies: p.with_companies,
-    with_keywords: p.with_keywords,
-    without_keywords: p.without_keywords,
-    with_watch_providers: p.with_watch_providers,
-    watch_region: p.watch_region,
-    page: p.page,
-    "vote_average.gte": p.min_rating,
-    "vote_average.lte": p.max_rating,
-    "vote_count.gte": p.min_votes,
-    "with_runtime.gte": p.min_runtime,
-    "with_runtime.lte": p.max_runtime,
-  };
-  if (kind === "movie") {
-    return {
-      ...common,
-      primary_release_year: p.year,
-      "primary_release_date.gte": p.release_date_gte,
-      "primary_release_date.lte": p.release_date_lte,
-      with_cast: p.with_cast,
-      with_crew: p.with_crew,
-      with_people: p.with_people,
-      certification: p.certification,
-      certification_country: p.certification_country,
-    };
+// Maps each DiscoverParams field to the TMDB query key(s) it becomes for
+// movie and/or tv (some use a dotted range syntax like "vote_average.gte";
+// some differ per kind; some — certification = movie, with_networks = tv —
+// are exclusive to one). The Record type requires every DiscoverParams field
+// (other than `language`, applied separately) to have a row here, so adding a
+// field to the interface without adding its mapping is a compile error
+// instead of a filter that silently never reaches TMDB.
+// Note: this only guards the interface ↔ query-key link; the tool-facing zod
+// schemas in tools/tmdb.ts (whose per-field descriptions are hand-authored
+// for the calling model) still need to be kept in sync with DiscoverParams by hand.
+const DISCOVER_FIELD_MAP: Record<
+  Exclude<keyof DiscoverParams, "language">,
+  Partial<Record<"movie" | "tv", string>>
+> = {
+  sort_by: { movie: "sort_by", tv: "sort_by" },
+  with_genres: { movie: "with_genres", tv: "with_genres" },
+  without_genres: { movie: "without_genres", tv: "without_genres" },
+  year: { movie: "primary_release_year", tv: "first_air_date_year" },
+  release_date_gte: { movie: "primary_release_date.gte", tv: "first_air_date.gte" },
+  release_date_lte: { movie: "primary_release_date.lte", tv: "first_air_date.lte" },
+  min_rating: { movie: "vote_average.gte", tv: "vote_average.gte" },
+  max_rating: { movie: "vote_average.lte", tv: "vote_average.lte" },
+  min_votes: { movie: "vote_count.gte", tv: "vote_count.gte" },
+  min_runtime: { movie: "with_runtime.gte", tv: "with_runtime.gte" },
+  max_runtime: { movie: "with_runtime.lte", tv: "with_runtime.lte" },
+  with_original_language: { movie: "with_original_language", tv: "with_original_language" },
+  with_cast: { movie: "with_cast" },
+  with_crew: { movie: "with_crew" },
+  with_people: { movie: "with_people" },
+  with_companies: { movie: "with_companies", tv: "with_companies" },
+  with_keywords: { movie: "with_keywords", tv: "with_keywords" },
+  without_keywords: { movie: "without_keywords", tv: "without_keywords" },
+  with_watch_providers: { movie: "with_watch_providers", tv: "with_watch_providers" },
+  watch_region: { movie: "watch_region", tv: "watch_region" },
+  with_networks: { tv: "with_networks" },
+  certification: { movie: "certification" },
+  certification_country: { movie: "certification_country" },
+  page: { movie: "page", tv: "page" },
+};
+
+export function discoverQuery(p: DiscoverParams, kind: "movie" | "tv"): Query {
+  const query: Query = {};
+  for (const field of Object.keys(DISCOVER_FIELD_MAP) as (keyof typeof DISCOVER_FIELD_MAP)[]) {
+    const tmdbKey = DISCOVER_FIELD_MAP[field][kind];
+    if (tmdbKey) query[tmdbKey] = p[field];
   }
-  return {
-    ...common,
-    first_air_date_year: p.year,
-    "first_air_date.gte": p.release_date_gte,
-    "first_air_date.lte": p.release_date_lte,
-    with_networks: p.with_networks,
-  };
+  return query;
 }

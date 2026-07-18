@@ -1,0 +1,107 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { discoverQuery, type DiscoverParams } from "../clients/tmdb.js";
+
+// discoverQuery maps the friendly DiscoverParams the tool schema exposes to
+// TMDB's actual (often dotted) query keys. A field silently dropped from this
+// mapping means a filter the agent thinks it applied never reaches TMDB —
+// these tests pin down the exact key each field becomes, per media kind.
+
+const ALL_PARAMS: DiscoverParams = {
+  sort_by: "popularity.desc",
+  with_genres: "28",
+  without_genres: "27",
+  year: 1999,
+  release_date_gte: "1999-01-01",
+  release_date_lte: "1999-12-31",
+  min_rating: 7,
+  max_rating: 9,
+  min_votes: 100,
+  min_runtime: 90,
+  max_runtime: 180,
+  with_original_language: "en",
+  with_cast: "6193",
+  with_crew: "525",
+  with_people: "6193",
+  with_companies: "420",
+  with_keywords: "9663",
+  without_keywords: "1701",
+  with_watch_providers: "8",
+  watch_region: "US",
+  with_networks: "49",
+  certification: "PG-13",
+  certification_country: "US",
+  language: "en-US",
+  page: 2,
+};
+
+test("discoverQuery: movie kind maps year/date range to primary_release_* keys", () => {
+  const q = discoverQuery(ALL_PARAMS, "movie");
+  assert.equal(q.primary_release_year, 1999);
+  assert.equal(q["primary_release_date.gte"], "1999-01-01");
+  assert.equal(q["primary_release_date.lte"], "1999-12-31");
+  assert.equal(q.first_air_date_year, undefined);
+});
+
+test("discoverQuery: tv kind maps year/date range to first_air_date_* keys", () => {
+  const q = discoverQuery(ALL_PARAMS, "tv");
+  assert.equal(q.first_air_date_year, 1999);
+  assert.equal(q["first_air_date.gte"], "1999-01-01");
+  assert.equal(q["first_air_date.lte"], "1999-12-31");
+  assert.equal(q.primary_release_year, undefined);
+});
+
+test("discoverQuery: rating/votes/runtime map to TMDB's dotted range keys for both kinds", () => {
+  for (const kind of ["movie", "tv"] as const) {
+    const q = discoverQuery(ALL_PARAMS, kind);
+    assert.equal(q["vote_average.gte"], 7);
+    assert.equal(q["vote_average.lte"], 9);
+    assert.equal(q["vote_count.gte"], 100);
+    assert.equal(q["with_runtime.gte"], 90);
+    assert.equal(q["with_runtime.lte"], 180);
+  }
+});
+
+test("discoverQuery: movie-only filters (cast/crew/people/certification) are dropped for tv", () => {
+  const q = discoverQuery(ALL_PARAMS, "tv");
+  assert.equal(q.with_cast, undefined);
+  assert.equal(q.with_crew, undefined);
+  assert.equal(q.with_people, undefined);
+  assert.equal(q.certification, undefined);
+  assert.equal(q.certification_country, undefined);
+});
+
+test("discoverQuery: tv-only filter (with_networks) is dropped for movie", () => {
+  const q = discoverQuery(ALL_PARAMS, "movie");
+  assert.equal(q.with_networks, undefined);
+});
+
+test("discoverQuery: movie-only filters pass through for movie, with_networks passes through for tv", () => {
+  const movie = discoverQuery(ALL_PARAMS, "movie");
+  assert.equal(movie.with_cast, "6193");
+  assert.equal(movie.certification, "PG-13");
+
+  const tv = discoverQuery(ALL_PARAMS, "tv");
+  assert.equal(tv.with_networks, "49");
+});
+
+test("discoverQuery: shared filters and page pass through unchanged for both kinds", () => {
+  for (const kind of ["movie", "tv"] as const) {
+    const q = discoverQuery(ALL_PARAMS, kind);
+    assert.equal(q.sort_by, "popularity.desc");
+    assert.equal(q.with_genres, "28");
+    assert.equal(q.without_genres, "27");
+    assert.equal(q.with_original_language, "en");
+    assert.equal(q.with_companies, "420");
+    assert.equal(q.with_keywords, "9663");
+    assert.equal(q.without_keywords, "1701");
+    assert.equal(q.with_watch_providers, "8");
+    assert.equal(q.watch_region, "US");
+    assert.equal(q.page, 2);
+  }
+});
+
+test("discoverQuery: language is not part of the query (applied separately via #get)", () => {
+  const q = discoverQuery(ALL_PARAMS, "movie");
+  assert.equal(q.language, undefined);
+});
