@@ -26,7 +26,7 @@ export function buildServer(config: Config, logger: Logger): McpServer {
   const omdb = new OmdbClient(config, logger);
 
   const server = new McpServer(
-    { name: "tmdb-mcp", version: VERSION },
+    { name: "tmdb-mcp", title: "TMDB MCP Server", version: VERSION },
     // Declare the logging capability so the SDK registers `logging/setLevel`
     // and lets us push `notifications/message` to the client (see start()).
     { capabilities: { logging: {} }, instructions: INSTRUCTIONS },
