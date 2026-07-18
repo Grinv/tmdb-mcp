@@ -3,6 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/tmdb-mcp.svg)](https://www.npmjs.com/package/tmdb-mcp)
 [![CI](https://github.com/Grinv/tmdb-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/Grinv/tmdb-mcp/actions/workflows/ci.yml)
 [![license: MIT](https://img.shields.io/npm/l/tmdb-mcp.svg)](LICENSE)
+[![MCP Registry](https://img.shields.io/badge/MCP%20Registry-io.github.Grinv%2Ftmdb--mcp-blue)](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.Grinv/tmdb-mcp&version=latest)
 [![tmdb-mcp MCP server](https://glama.ai/mcp/servers/Grinv/tmdb-mcp/badges/score.svg)](https://glama.ai/mcp/servers/Grinv/tmdb-mcp)
 
 An [MCP](https://modelcontextprotocol.io) server for **The Movie Database
