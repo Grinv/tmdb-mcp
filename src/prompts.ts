@@ -18,7 +18,9 @@ export function registerPrompts(server: McpServer): void {
       description:
         "Plan a search for movies or TV shows similar to a given title, using TMDB's " +
         "similarity/recommendation data (and discover as a fallback) rather than the " +
-        "model's own knowledge.",
+        "model's own knowledge. Use this instead of calling get_similar/get_movie_recommendations " +
+        "yourself when you want the merged, ranked shortlist in one step; call those tools " +
+        "directly only if you already have a specific TMDB id and just need its raw candidate list.",
       argsSchema: {
         title: z.string().min(1).describe("A movie or TV show title the user liked."),
         media_type: z

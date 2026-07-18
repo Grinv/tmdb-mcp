@@ -15,7 +15,8 @@ export function registerOmdbTools(server: McpServer, omdb: OmdbClient): void {
       description:
         "Look up IMDb, Rotten Tomatoes and Metacritic ratings from OMDb by IMDb id (preferred, " +
         "e.g. 'tt0133093') or by title (+ optional year). Prefer get_movie/get_tv when you have a " +
-        "TMDB id — they already include these ratings. Requires OMDB_API_KEY.",
+        "TMDB id — they already include these ratings. Requires OMDB_API_KEY. A no-match lookup is " +
+        "not an error: it returns `{found:false, reason}`.",
       inputSchema: {
         imdb_id: z
           .string()

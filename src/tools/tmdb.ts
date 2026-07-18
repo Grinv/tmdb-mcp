@@ -242,7 +242,9 @@ export function registerTmdbTools(
         "Get full details for one movie by TMDB id: overview, genres, runtime, budget/revenue, " +
         "vote average, the age/content rating (certification) for `region`, and links (TMDB + IMDb). " +
         "By default also includes IMDb/Rotten Tomatoes/Metacritic ratings from OMDb " +
-        "(set include_ratings=false to skip). Get the id from search_movies.",
+        "(set include_ratings=false to skip); if unavailable (no OMDB_API_KEY, no imdb_id, or the " +
+        "OMDb lookup fails), `ratings` degrades to `{found:false, reason}` instead of failing the " +
+        "call. Get the id from search_movies.",
       inputSchema: { id: tmdbId, region, language, include_ratings: includeRatings },
       annotations: READ_ONLY,
     },
@@ -260,7 +262,9 @@ export function registerTmdbTools(
         "Get full details for one TV show by TMDB id: overview, genres, seasons/episodes counts, " +
         "networks, status, the age/content rating (certification) for `region`, and links. " +
         "By default also includes IMDb/Rotten Tomatoes/Metacritic ratings from OMDb " +
-        "(set include_ratings=false to skip). Get the id from search_tv.",
+        "(set include_ratings=false to skip); if unavailable (no OMDB_API_KEY, no imdb_id, or the " +
+        "OMDb lookup fails), `ratings` degrades to `{found:false, reason}` instead of failing the " +
+        "call. Get the id from search_tv.",
       inputSchema: { id: tmdbId, region, language, include_ratings: includeRatings },
       annotations: READ_ONLY,
     },
@@ -386,7 +390,7 @@ export function registerTmdbTools(
       inputSchema: {
         media_type: z
           .enum(["all", "movie", "tv", "person"])
-          .describe("Which kind of entity to rank.")
+          .describe("Which kind of entity to rank. Defaults to 'all'.")
           .optional(),
         time_window: z
           .enum(["day", "week"])
