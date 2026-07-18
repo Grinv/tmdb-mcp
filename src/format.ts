@@ -77,6 +77,23 @@ function tvCertifications(t: TmdbTv): Record<string, string> {
   return out;
 }
 
+// Most countries have no TMDB certification data at all; falling back to the
+// US rating (present for nearly everything) beats returning null whenever the
+// requested region has none. `certification_region` reflects whichever region
+// the value actually came from, so callers can tell a fallback from a match.
+function resolveCertification(
+  certifications: Record<string, string>,
+  region: string,
+): { certification: string | null; certification_region: string } {
+  if (certifications[region])
+    return { certification: certifications[region], certification_region: region };
+  if (certifications.US) return { certification: certifications.US, certification_region: "US" };
+  const [fallbackRegion] = Object.keys(certifications).sort();
+  return fallbackRegion
+    ? { certification: certifications[fallbackRegion]!, certification_region: fallbackRegion }
+    : { certification: null, certification_region: region };
+}
+
 // ---- raw TMDB shapes (only the fields we read) ------------------------------
 
 interface NamedRef {
@@ -224,13 +241,15 @@ export function summarizeMovie(m: TmdbMovie): Record<string, unknown> {
 
 export function detailMovie(m: TmdbMovie, region: string): Record<string, unknown> {
   const certifications = movieCertifications(m);
+  // Age/content rating for `region` (e.g. MPAA "PG-13"), falling back to US
+  // then any available country when `region` has no data; full map below.
+  const { certification, certification_region } = resolveCertification(certifications, region);
   return {
     id: m.id,
     imdb_id: m.imdb_id ?? null,
     media_type: "movie",
-    // Age/content rating for `region` (e.g. MPAA "PG-13"); full map below.
-    certification: certifications[region] ?? null,
-    certification_region: region,
+    certification,
+    certification_region,
     certifications,
     title: m.title,
     original_title: m.original_title,
@@ -286,13 +305,15 @@ export function summarizeTv(t: TmdbTv): Record<string, unknown> {
 
 export function detailTv(t: TmdbTv, region: string): Record<string, unknown> {
   const certifications = tvCertifications(t);
+  // Age/content rating for `region` (e.g. "TV-MA"), falling back to US then
+  // any available country when `region` has no data; full map below.
+  const { certification, certification_region } = resolveCertification(certifications, region);
   return {
     id: t.id,
     imdb_id: t.external_ids?.imdb_id ?? null,
     media_type: "tv",
-    // Age/content rating for `region` (e.g. "TV-MA"); full map below.
-    certification: certifications[region] ?? null,
-    certification_region: region,
+    certification,
+    certification_region,
     certifications,
     name: t.name,
     original_name: t.original_name,

@@ -1,4 +1,4 @@
-# tmdb-mcp
+# TMDB MCP Server
 
 [![npm version](https://img.shields.io/npm/v/tmdb-mcp.svg)](https://www.npmjs.com/package/tmdb-mcp)
 [![CI](https://github.com/Grinv/tmdb-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/Grinv/tmdb-mcp/actions/workflows/ci.yml)

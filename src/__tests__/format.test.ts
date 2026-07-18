@@ -71,6 +71,36 @@ test("detailMovie: requesting a region with no certification data returns null, 
   assert.equal(detailMovie(movie, "JP").certification, null);
 });
 
+test("detailMovie: falls back to US when the requested region has no certification", () => {
+  const movie: TmdbMovie = {
+    id: 1,
+    release_dates: {
+      results: [
+        { iso_3166_1: "US", release_dates: [{ certification: "R", type: 3 }] },
+        { iso_3166_1: "GB", release_dates: [{ certification: "15", type: 3 }] },
+      ],
+    },
+  };
+  const d = detailMovie(movie, "JP");
+  assert.equal(d.certification, "R");
+  assert.equal(d.certification_region, "US");
+});
+
+test("detailMovie: without a US rating, falls back to the alphabetically-first available region", () => {
+  const movie: TmdbMovie = {
+    id: 1,
+    release_dates: {
+      results: [
+        { iso_3166_1: "FR", release_dates: [{ certification: "12", type: 3 }] },
+        { iso_3166_1: "DE", release_dates: [{ certification: "16", type: 3 }] },
+      ],
+    },
+  };
+  const d = detailMovie(movie, "JP");
+  assert.equal(d.certification, "16");
+  assert.equal(d.certification_region, "DE");
+});
+
 test("detailTv: certifications map one rating per country from content_ratings", () => {
   const tv: TmdbTv = {
     id: 1,
@@ -85,6 +115,21 @@ test("detailTv: certifications map one rating per country from content_ratings",
   const d = detailTv(tv, "DE");
   assert.equal(d.certification, "16");
   assert.deepEqual(d.certifications, { US: "TV-MA", DE: "16" });
+});
+
+test("detailTv: falls back to US when the requested region has no content rating", () => {
+  const tv: TmdbTv = {
+    id: 1,
+    content_ratings: {
+      results: [
+        { iso_3166_1: "US", rating: "TV-MA" },
+        { iso_3166_1: "DE", rating: "16" },
+      ],
+    },
+  };
+  const d = detailTv(tv, "JP");
+  assert.equal(d.certification, "TV-MA");
+  assert.equal(d.certification_region, "US");
 });
 
 test("summarizeReview: clip() keeps text at exactly the limit intact, truncates past it", () => {

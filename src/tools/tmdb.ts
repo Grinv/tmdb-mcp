@@ -240,7 +240,9 @@ export function registerTmdbTools(
       title: "Get movie details",
       description:
         "Get full details for one movie by TMDB id: overview, genres, runtime, budget/revenue, " +
-        "vote average, the age/content rating (certification) for `region`, and links (TMDB + IMDb). " +
+        "vote average, the age/content rating (certification) for `region` — falling back to the " +
+        "US rating, then any available country, when `region` has none; check `certification_region` " +
+        "to see which one was used — and links (TMDB + IMDb). " +
         "By default also includes IMDb/Rotten Tomatoes/Metacritic ratings from OMDb " +
         "(set include_ratings=false to skip); if unavailable (no OMDB_API_KEY, no imdb_id, or the " +
         "OMDb lookup fails), `ratings` degrades to `{found:false, reason}` instead of failing the " +
@@ -260,7 +262,9 @@ export function registerTmdbTools(
       title: "Get TV show details",
       description:
         "Get full details for one TV show by TMDB id: overview, genres, seasons/episodes counts, " +
-        "networks, status, the age/content rating (certification) for `region`, and links. " +
+        "networks, status, the age/content rating (certification) for `region` — falling back to " +
+        "the US rating, then any available country, when `region` has none; check " +
+        "`certification_region` to see which one was used — and links. " +
         "By default also includes IMDb/Rotten Tomatoes/Metacritic ratings from OMDb " +
         "(set include_ratings=false to skip); if unavailable (no OMDB_API_KEY, no imdb_id, or the " +
         "OMDb lookup fails), `ratings` degrades to `{found:false, reason}` instead of failing the " +

@@ -6,6 +6,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-07-18
+
+### Changed
+
+- `get_movie`/`get_tv` no longer return a null certification just because the requested region lacks one — they fall back to the US rating, then any available country, and report which region the value actually came from via `certification_region`.
+
 ## [0.4.0] - 2026-07-18
 
 ### Added
