@@ -6,6 +6,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Add the `recommend_similar` MCP prompt, which plans a search for titles similar to one the user liked via `get_similar`/recommendations/discover instead of the model's own knowledge ([2d85f67](https://github.com/Grinv/tmdb-mcp/commit/2d85f67)).
+
 ### Fixed
 
 - Tool parameter descriptions naming a region default now reflect the server's actual `TMDB_REGION` instead of always saying `'US'` ([daec76a](https://github.com/Grinv/tmdb-mcp/commit/daec76a)).
