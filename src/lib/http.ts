@@ -14,7 +14,6 @@ export interface RequestOptions {
   timeoutMs?: number;
   /** Max retry attempts for retryable failures (network/timeout/5xx/429). */
   retries?: number;
-  signal?: AbortSignal;
 }
 
 export interface HttpClientOptions {
@@ -70,8 +69,6 @@ export class HttpClient {
     // fires, mocked fetch or not.
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
-    const onAbort = () => controller.abort();
-    options.signal?.addEventListener("abort", onAbort, { once: true });
 
     let res: Response;
     try {
@@ -87,10 +84,6 @@ export class HttpClient {
         signal: controller.signal,
       });
     } catch (err) {
-      if (options.signal?.aborted) {
-        // Caller cancelled — propagate as a non-retryable abort.
-        throw new ApiError({ code: "network", message: "Request aborted by caller", cause: err });
-      }
       if (controller.signal.aborted) {
         throw new ApiError({
           code: "timeout",
@@ -102,7 +95,6 @@ export class HttpClient {
       throw toNetworkError(err);
     } finally {
       clearTimeout(timer);
-      options.signal?.removeEventListener("abort", onAbort);
     }
 
     if (!res.ok) throw await toHttpError(res);
