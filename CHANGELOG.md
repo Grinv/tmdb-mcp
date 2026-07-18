@@ -9,6 +9,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - Add the `recommend_similar` MCP prompt, which plans a search for titles similar to one the user liked via `get_similar`/recommendations/discover instead of the model's own knowledge ([2d85f67](https://github.com/Grinv/tmdb-mcp/commit/2d85f67)); the `.mcpb` install preview now lists it too ([be487dc](https://github.com/Grinv/tmdb-mcp/commit/be487dc)).
+- The search/discover/recommendations/similar/reviews tools now honor MCP client cancellation, aborting the in-flight TMDB request instead of running it to completion in the background ([8109dc9](https://github.com/Grinv/tmdb-mcp/commit/8109dc9), [55fe55f](https://github.com/Grinv/tmdb-mcp/commit/55fe55f)).
 
 ### Changed
 
