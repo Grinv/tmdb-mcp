@@ -15,7 +15,7 @@ const EnvSchema = z.object({
   //     sent as `Authorization: Bearer <token>`. Get one at
   //     https://www.themoviedb.org/settings/api ---
   TMDB_API_TOKEN: z.string().min(1).optional(),
-  TMDB_BASE_URL: z.string().url().default("https://api.themoviedb.org/3"),
+  TMDB_BASE_URL: z.url().default("https://api.themoviedb.org/3"),
   // Default response language (ISO-639-1, optionally with a region: "ru-RU",
   // "en-US", "ja"). Applied to every TMDB request so titles/overviews/genre
   // names come back localized; tools can override it per call.
@@ -30,7 +30,7 @@ const EnvSchema = z.object({
   // --- OMDb: optional enrichment for IMDb/RT/Metacritic ratings, keyed by the
   //     imdb_id TMDB returns. Free key at https://www.omdbapi.com/apikey.aspx ---
   OMDB_API_KEY: z.string().min(1).optional(),
-  OMDB_BASE_URL: z.string().url().default("https://www.omdbapi.com"),
+  OMDB_BASE_URL: z.url().default("https://www.omdbapi.com"),
 
   // --- Generic tunables. ---
   HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),

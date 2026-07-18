@@ -381,7 +381,7 @@ export function summarizeCredits(c: TmdbCredits, castLimit = 20): Record<string,
 export function summarizeMultiItem(item: TmdbMultiItem): Record<string, unknown> {
   switch (item.media_type) {
     case "tv":
-      return summarizeTv(item as TmdbTv);
+      return summarizeTv(item);
     case "person":
       return {
         id: item.id,
@@ -398,7 +398,7 @@ export function summarizeMultiItem(item: TmdbMultiItem): Record<string, unknown>
     case "movie":
     default:
       // Multi-search omits media_type on some rows; title vs name disambiguates.
-      return item.title !== undefined ? summarizeMovie(item as TmdbMovie) : summarizeTv(item);
+      return item.title !== undefined ? summarizeMovie(item) : summarizeTv(item);
   }
 }
 
