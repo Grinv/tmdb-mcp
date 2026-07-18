@@ -34,3 +34,21 @@ test("requireConfigured guards a thrown ApiError into an actionable error result
   assert.equal(res.isError, true);
   assert.match(res.content[0]!.text, /no matching resource|404/i);
 });
+
+test("requireConfigured guards a thrown plain Error (not just ApiError) into a tool result", async () => {
+  const client = { configured: true, notConfiguredMessage: "unused" };
+  const res = await requireConfigured(client, async () => {
+    throw new Error("boom");
+  });
+  assert.equal(res.isError, true);
+  assert.equal(res.content[0]!.text, "Unexpected error: boom");
+});
+
+test("requireConfigured guards a non-Error throw value by stringifying it", async () => {
+  const client = { configured: true, notConfiguredMessage: "unused" };
+  const res = await requireConfigured(client, async () => {
+    throw "just a string";
+  });
+  assert.equal(res.isError, true);
+  assert.equal(res.content[0]!.text, "Unexpected error: just a string");
+});
