@@ -8,6 +8,7 @@ import { TmdbClient } from "./clients/tmdb.js";
 import { OmdbClient } from "./clients/omdb.js";
 import { registerTmdbTools } from "./tools/tmdb.js";
 import { registerOmdbTools } from "./tools/omdb.js";
+import { registerPrompts } from "./prompts.js";
 import { VERSION } from "./version.js";
 
 const INSTRUCTIONS =
@@ -33,6 +34,7 @@ export function buildServer(config: Config, logger: Logger): McpServer {
 
   registerTmdbTools(server, tmdb, omdb, config);
   registerOmdbTools(server, omdb);
+  registerPrompts(server);
   return server;
 }
 

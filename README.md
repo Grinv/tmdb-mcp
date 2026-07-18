@@ -101,6 +101,12 @@ See [docs/clients.md](docs/clients.md) for per-client details and all tunables.
 | `search_keywords`                                      | Resolve keyword names → ids for `discover_*`                                               |
 | `get_ratings`                                          | IMDb/RT/Metacritic ratings by IMDb id or title (standalone)                                |
 
+**Prompts.** Alongside the tools above, the server exposes one MCP prompt:
+`recommend_similar` (`title`, optional `media_type`, optional `count`) plans a
+search for titles similar to one the user liked, driving `get_similar` /
+`get_movie_recommendations` / `get_tv_recommendations` / `discover_movies` /
+`discover_tv` instead of relying on the model's own knowledge.
+
 **Backbone vs. enrichment.** TMDB is the primary source (search, metadata,
 people, trending). OMDb is optional enrichment: `get_movie`/`get_tv` chain the
 `imdb_id` TMDB returns into an OMDb lookup so ratings come back in one call.

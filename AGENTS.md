@@ -19,6 +19,7 @@ src/
   server.ts       # buildServer() + start(); registers everything
   config.ts       # env → validated Config (zod)
   format.ts       # raw TMDB/OMDb payloads → trimmed, agent-facing shapes
+  prompts.ts      # MCP Prompts: multi-step plans that guide the model through the tools
   lib/            # GENERIC carcass: http, rateLimit, cache, upstream, errors, logger, result
   clients/        # tmdb.ts (backbone reads), omdb.ts (ratings enrichment)
   tools/          # tmdb.ts (search/details/credits/…, OMDb enrichment), omdb.ts (get_ratings),
