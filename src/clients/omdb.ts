@@ -7,7 +7,7 @@
 // { Response: "False", Error: "..." }. summarizeRatings() turns that into a
 // soft { found: false } object so enrichment never hard-fails a TMDB lookup.
 import { HttpClient } from "../lib/http.js";
-import { TtlCache } from "../lib/cache.js";
+import { TtlCache, cacheKey } from "../lib/cache.js";
 import { createUpstream } from "../lib/upstream.js";
 import { summarizeRatings, type OmdbResponse } from "../format.js";
 import type { Logger } from "../lib/logger.js";
@@ -40,7 +40,7 @@ export class OmdbClient {
 
   /** Ratings for an IMDb title id (e.g. "tt0133093"). */
   async ratingsByImdbId(imdbId: string): Promise<Record<string, unknown>> {
-    return this.#cache.wrapStaleOnError(`omdb:i:${imdbId}`, async () => {
+    return this.#cache.wrapStaleOnError(cacheKey(`omdb:i:${imdbId}`), async () => {
       const res = await this.#http.getJson<OmdbResponse>("", {
         query: { apikey: this.#apiKey, i: imdbId },
       });
@@ -50,7 +50,7 @@ export class OmdbClient {
 
   /** Ratings looked up by title (+ optional year to disambiguate). */
   async ratingsByTitle(title: string, year?: number): Promise<Record<string, unknown>> {
-    return this.#cache.wrapStaleOnError(`omdb:t:${title}:${year ?? ""}`, async () => {
+    return this.#cache.wrapStaleOnError(cacheKey(`omdb:t:${title}`, { year }), async () => {
       const res = await this.#http.getJson<OmdbResponse>("", {
         query: { apikey: this.#apiKey, t: title, y: year },
       });

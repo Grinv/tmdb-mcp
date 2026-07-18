@@ -1,8 +1,30 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { TtlCache } from "../lib/cache.js";
+import { TtlCache, cacheKey } from "../lib/cache.js";
 
 const tick = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+test("cacheKey: dim insertion order does not affect the resulting key", () => {
+  assert.equal(
+    cacheKey("movie:1", { region: "US", language: "en-US" }),
+    cacheKey("movie:1", { language: "en-US", region: "US" }),
+  );
+});
+
+test("cacheKey: different dim values produce different keys", () => {
+  assert.notEqual(
+    cacheKey("movie:1", { region: "US", language: "en-US" }),
+    cacheKey("movie:1", { region: "GB", language: "en-US" }),
+  );
+});
+
+test("cacheKey: a missing dim is not conflated with an empty-string dim", () => {
+  assert.notEqual(cacheKey("watch:1"), cacheKey("watch:1", { region: "" }));
+});
+
+test("cacheKey: no dims returns the resource unchanged", () => {
+  assert.equal(cacheKey("find:imdb_id:tt123"), "find:imdb_id:tt123");
+});
 
 test("wrap caches and reuses the fresh value", async () => {
   const cache = new TtlCache<number>(60_000);

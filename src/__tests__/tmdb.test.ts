@@ -519,6 +519,27 @@ describe("get_movie", () => {
     assert.match(call.url, /append_to_response=release_dates/);
   });
 
+  test("is cached per region (not region-agnostic)", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const us = (
+      await client.callTool({
+        name: "get_movie",
+        arguments: { id: 603, region: "US", include_ratings: false },
+      })
+    ).structuredContent as { certification: string };
+    const gb = (
+      await client.callTool({
+        name: "get_movie",
+        arguments: { id: 603, region: "GB", include_ratings: false },
+      })
+    ).structuredContent as { certification: string };
+    assert.equal(us.certification, "R");
+    // Under a cache key that dropped region, this would return the US value.
+    assert.equal(gb.certification, "15");
+  });
+
   test("surfaces collection and origin_country", async (t) => {
     installFetch(t, mockFetch(router));
     const { client, close } = await connectServer(ENV);

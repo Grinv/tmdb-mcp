@@ -2,6 +2,25 @@
 // pressure on rate-limited upstreams. Expired entries are retained (bounded by
 // max size) so they can be served as a stale fallback when the upstream is down.
 
+/**
+ * Build a deterministic cache key from a stable resource path (e.g.
+ * `movie:${id}`) plus the params that vary the *shaped* response (region,
+ * language, ...). Named fields instead of hand-interpolated template literals
+ * make each cached accessor's variance dimensions visible at the call site
+ * and sort-order-independent, closing the bug class where a dimension (e.g.
+ * region) was silently left out of a key and one request's response leaked
+ * into another's cache slot.
+ */
+export function cacheKey(
+  resource: string,
+  dims: Record<string, string | number | boolean | undefined> = {},
+): string {
+  const parts = Object.keys(dims)
+    .sort()
+    .map((k) => `${k}=${dims[k] ?? ""}`);
+  return parts.length ? `${resource}:${parts.join(":")}` : resource;
+}
+
 interface Entry<T> {
   value: T;
   expires: number;
