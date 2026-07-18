@@ -6,6 +6,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Tool parameter descriptions naming a region default now reflect the server's actual `TMDB_REGION` instead of always saying `'US'` ([daec76a](https://github.com/Grinv/tmdb-mcp/commit/daec76a)).
+
 ## [0.3.2] - 2026-07-18
 
 ### Fixed
