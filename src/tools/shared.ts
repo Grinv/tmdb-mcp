@@ -1,8 +1,8 @@
 // Small pieces shared by every tool-registration module: the read-only
 // annotation, and the "does this client have credentials" short-circuit that
 // every TMDB/OMDb tool needs before it can call its client.
-import { errorResult, jsonResult, type ToolResult } from "../lib/result.js";
-import { guard } from "./guard.js";
+import { ApiError } from "../lib/errors.js";
+import { apiErrorToResult, errorResult, jsonResult, type ToolResult } from "../lib/result.js";
 
 export const READ_ONLY = { readOnlyHint: true, openWorldHint: true } as const;
 
@@ -16,12 +16,18 @@ export interface ConfigurableClient {
 }
 
 /** Short-circuits with `client.notConfiguredMessage` when `client.configured`
- *  is false; otherwise runs `fn`, wraps its result via jsonResult, and guards
- *  against thrown ApiErrors — the common shape of every tool handler here. */
-export function requireConfigured(
+ *  is false; otherwise runs `fn`, wraps its result via jsonResult, and
+ *  converts any thrown error into a tool result instead of letting it
+ *  propagate — the common shape of every tool handler here. */
+export async function requireConfigured(
   client: ConfigurableClient,
   fn: () => Promise<Record<string, unknown>>,
 ): Promise<ToolResult> {
-  if (!client.configured) return Promise.resolve(errorResult(client.notConfiguredMessage));
-  return guard(async () => jsonResult(await fn()));
+  if (!client.configured) return errorResult(client.notConfiguredMessage);
+  try {
+    return jsonResult(await fn());
+  } catch (err) {
+    if (err instanceof ApiError) return apiErrorToResult(err);
+    return errorResult(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }

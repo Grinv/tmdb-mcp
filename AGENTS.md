@@ -22,7 +22,7 @@ src/
   lib/            # GENERIC carcass: http, rateLimit, cache, upstream, errors, logger, result
   clients/        # tmdb.ts (backbone reads), omdb.ts (ratings enrichment)
   tools/          # tmdb.ts (search/details/credits/…, OMDb enrichment), omdb.ts (get_ratings),
-                  # guard.ts (try/catch → ToolResult), shared.ts (READ_ONLY, requireConfigured)
+                  # shared.ts (READ_ONLY, requireConfigured — try/catch → ToolResult)
   __tests__/      # node:test (*.test.ts) + helpers.ts
 scripts/          # build-tests.mjs, run-tests.mjs (generic), check-api.mjs (domain)
 ```
