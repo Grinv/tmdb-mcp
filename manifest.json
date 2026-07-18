@@ -65,6 +65,15 @@
     { "name": "get_reviews", "description": "User reviews for a movie or TV show." },
     { "name": "get_collection", "description": "A movie collection/franchise and its parts." }
   ],
+  "prompts_generated": false,
+  "prompts": [
+    {
+      "name": "recommend_similar",
+      "description": "Plan a search for movies or TV shows similar to a title the user liked, using get_similar/recommendations/discover instead of the model's own knowledge.",
+      "arguments": ["title", "media_type", "count"],
+      "text": "I liked \"{{title}}\". Recommend {{count}} similar movies or TV shows using the available tools — don't rely on your own memory for the candidate list or ratings.\n\n1. Resolve \"{{title}}\" to a TMDB id: use search_multi (or search_movies/search_tv if the media type is already known) and pick the best match.\n2. Call get_similar and get_movie_recommendations/get_tv_recommendations for that id and merge the candidates.\n3. If that pool has fewer than {{count}} good candidates, broaden with discover_movies/discover_tv filtered to the same genres.\n4. Return the best {{count}}: title, year, and a one-line reason it fits — include ratings (get_movie/get_tv's include_ratings, or get_ratings) where available."
+    }
+  ],
   "user_config": {
     "tmdb_api_token": {
       "type": "string",
