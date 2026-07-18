@@ -247,12 +247,12 @@ export class TmdbClient {
   }
 
   async getPerson(id: number, language?: string): Promise<Record<string, unknown>> {
-    return this.#cache.wrapStaleOnError(
+    return this.#cached<TmdbPerson>(
       cacheKey(`person:${id}`, { language: this.#lang(language) }),
-      async () => {
-        const res = await this.#get<TmdbPerson>(`person/${id}`, {}, language);
-        return detailPerson(res);
-      },
+      `person/${id}`,
+      detailPerson,
+      {},
+      language,
     );
   }
 
@@ -362,16 +362,12 @@ export class TmdbClient {
   // Genre lists drive the readable names in search results; very static → cache.
   // Cached per language so localized names are not mixed.
   async getGenres(mediaType: "movie" | "tv", language?: string): Promise<Record<string, unknown>> {
-    return this.#cache.wrapStaleOnError(
+    return this.#cached<{ genres: { id?: number; name?: string }[] }>(
       cacheKey(`genres:${mediaType}`, { language: this.#lang(language) }),
-      async () => {
-        const res = await this.#get<{ genres: { id?: number; name?: string }[] }>(
-          `genre/${mediaType}/list`,
-          {},
-          language,
-        );
-        return summarizeGenres(res.genres ?? []);
-      },
+      `genre/${mediaType}/list`,
+      (res) => summarizeGenres(res.genres ?? []),
+      {},
+      language,
     );
   }
 
@@ -479,17 +475,13 @@ export class TmdbClient {
     episode: number,
     language?: string,
   ): Promise<Record<string, unknown>> {
-    return this.#cache.wrapStaleOnError(
+    return this.#cached<Parameters<typeof summarizeEpisode>[0]>(
       cacheKey(`tv-episode:${id}:${season}:${episode}`, { language: this.#lang(language) }),
-      async () => {
-        const res = await this.#get<Parameters<typeof summarizeEpisode>[0]>(
-          `tv/${id}/season/${season}/episode/${episode}`,
-          {},
-          language,
-        );
-        // Inject season_number in case the episode payload omits it.
-        return summarizeEpisode({ ...res, season_number: res.season_number ?? season });
-      },
+      `tv/${id}/season/${season}/episode/${episode}`,
+      // Inject season_number in case the episode payload omits it.
+      (res) => summarizeEpisode({ ...res, season_number: res.season_number ?? season }),
+      {},
+      language,
     );
   }
 
