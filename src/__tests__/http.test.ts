@@ -135,6 +135,60 @@ test("falls back to the default backoff when Retry-After is neither a number nor
   assert.equal(mock.calls.length, 2); // still recovers, just via the default backoff
 });
 
+test("a 204 response resolves to undefined instead of throwing on empty body", async (t) => {
+  const mock = mockFetch(() => new Response(null, { status: 204 }));
+  installFetch(t, mock);
+  const res = await client().getJson<{ ok: boolean } | undefined>("thing");
+  assert.equal(res, undefined);
+});
+
+test("a 200 with an empty text body resolves to undefined, not a JSON-parse error", async (t) => {
+  const mock = mockFetch(() => new Response("", { status: 200 }));
+  installFetch(t, mock);
+  const res = await client().getJson<{ ok: boolean } | undefined>("thing");
+  assert.equal(res, undefined);
+});
+
+test("maps a persistent 5xx to a retryable server_error once retries are exhausted", async (t) => {
+  const mock = mockFetch(() => jsonResponse({ error: "down" }, { status: 503 }));
+  installFetch(t, mock);
+  await assert.rejects(
+    () => client({ retries: 1 }).getJson("thing"),
+    (err: unknown) =>
+      err instanceof ApiError && err.code === "server_error" && err.retryable === true,
+  );
+  assert.equal(mock.calls.length, 2); // initial attempt + 1 retry, then give up
+});
+
+test("maps a persistent 429 to a retryable rate_limited error once retries are exhausted", async (t) => {
+  const mock = mockFetch(() => jsonResponse({}, { status: 429 }));
+  installFetch(t, mock);
+  await assert.rejects(
+    () => client({ retries: 1 }).getJson("thing"),
+    (err: unknown) =>
+      err instanceof ApiError && err.code === "rate_limited" && err.retryable === true,
+  );
+  assert.equal(mock.calls.length, 2);
+});
+
+test("falls back to an empty detail when reading the error body itself throws", async (t) => {
+  const fakeRes = {
+    ok: false,
+    status: 500,
+    statusText: "Internal Server Error",
+    headers: new Headers(),
+    text: () => {
+      throw new Error("stream already consumed");
+    },
+  } as unknown as Response;
+  const mock = mockFetch(() => fakeRes);
+  installFetch(t, mock);
+  await assert.rejects(
+    () => client({ retries: 0 }).getJson("thing"),
+    (err: unknown) => err instanceof ApiError && err.message === "HTTP 500 Internal Server Error",
+  );
+});
+
 test("aborts on timeout and maps to a timeout error", async (t) => {
   const mock = mockFetch(
     (_url, init) =>
