@@ -3,7 +3,7 @@
   "name": "io.github.Grinv/tmdb-mcp",
   "description": "MCP server for The Movie Database (TMDB) with IMDb/Rotten Tomatoes/Metacritic ratings via OMDb.",
   "status": "active",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "repository": {
     "url": "https://github.com/Grinv/tmdb-mcp",
     "source": "github"
@@ -12,7 +12,7 @@
     {
       "registryType": "npm",
       "identifier": "tmdb-mcp",
-      "version": "0.3.2",
+      "version": "0.4.0",
       "runtimeHint": "npx",
       "transport": { "type": "stdio" },
       "environmentVariables": [
@@ -44,8 +44,8 @@
     },
     {
       "registryType": "mcpb",
-      "identifier": "https://github.com/Grinv/tmdb-mcp/releases/download/v0.3.2/tmdb-mcp.mcpb",
-      "version": "0.3.2",
+      "identifier": "https://github.com/Grinv/tmdb-mcp/releases/download/v0.4.0/tmdb-mcp.mcpb",
+      "version": "0.4.0",
       "transport": { "type": "stdio" },
       "environmentVariables": [
         {
