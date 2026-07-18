@@ -237,10 +237,9 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
       annotations: READ_ONLY,
     },
     ({ id, region: r, language: lang, include_ratings }) =>
-      requireTmdb(async () => {
-        const { shaped, imdbId } = await tmdb.getMovieWithImdb(id, r, lang);
-        return maybeEnrich(shaped, imdbId, include_ratings ?? true, omdb);
-      }),
+      requireTmdb(() =>
+        getEnrichedDetail("movie", id, r, lang, include_ratings ?? true, tmdb, omdb),
+      ),
   );
 
   server.registerTool(
@@ -256,10 +255,7 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
       annotations: READ_ONLY,
     },
     ({ id, region: r, language: lang, include_ratings }) =>
-      requireTmdb(async () => {
-        const { shaped, imdbId } = await tmdb.getTvWithImdb(id, r, lang);
-        return maybeEnrich(shaped, imdbId, include_ratings ?? true, omdb);
-      }),
+      requireTmdb(() => getEnrichedDetail("tv", id, r, lang, include_ratings ?? true, tmdb, omdb)),
   );
 
   server.registerTool(
@@ -557,8 +553,22 @@ export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: Omd
   );
 }
 
+/** get_movie/get_tv's shared shape: fetch the TMDB detail, then fold in OMDb ratings. */
+async function getEnrichedDetail(
+  mediaType: "movie" | "tv",
+  id: number,
+  region: string | undefined,
+  language: string | undefined,
+  wantRatings: boolean,
+  tmdb: TmdbClient,
+  omdb: OmdbClient,
+): Promise<Record<string, unknown>> {
+  const { shaped, imdbId } = await tmdb.getDetailWithImdb(mediaType, id, region, language);
+  return maybeEnrich(shaped, imdbId, wantRatings, omdb);
+}
+
 /** Attach OMDb ratings to a TMDB detail object when requested and possible. */
-async function maybeEnrich(
+export async function maybeEnrich(
   shaped: Record<string, unknown>,
   imdbId: string | null,
   wantRatings: boolean,

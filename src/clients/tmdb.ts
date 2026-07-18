@@ -211,16 +211,6 @@ export class TmdbClient {
     );
   }
 
-  /** Like getMovie but also returns the raw imdb_id for OMDb enrichment. */
-  async getMovieWithImdb(
-    id: number,
-    region = this.#region,
-    language?: string,
-  ): Promise<{ shaped: Record<string, unknown>; imdbId: string | null }> {
-    const shaped = await this.getMovie(id, region, language);
-    return { shaped, imdbId: (shaped.imdb_id as string | null) ?? null };
-  }
-
   async getTv(
     id: number,
     region = this.#region,
@@ -242,12 +232,17 @@ export class TmdbClient {
     );
   }
 
-  async getTvWithImdb(
+  /** Like getMovie/getTv but also returns the raw imdb_id for OMDb enrichment. */
+  async getDetailWithImdb(
+    mediaType: "movie" | "tv",
     id: number,
     region = this.#region,
     language?: string,
   ): Promise<{ shaped: Record<string, unknown>; imdbId: string | null }> {
-    const shaped = await this.getTv(id, region, language);
+    const shaped =
+      mediaType === "tv"
+        ? await this.getTv(id, region, language)
+        : await this.getMovie(id, region, language);
     return { shaped, imdbId: (shaped.imdb_id as string | null) ?? null };
   }
 
