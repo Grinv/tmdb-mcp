@@ -1,6 +1,6 @@
 {
   "name": "tmdb-mcp",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "mcpName": "io.github.Grinv/tmdb-mcp",
   "description": "MCP server for The Movie Database (TMDB) with IMDb/Rotten Tomatoes/Metacritic ratings via OMDb.",
   "type": "module",
