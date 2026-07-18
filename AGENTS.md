@@ -49,8 +49,8 @@ npm run inspector      # run under the MCP Inspector
   see [docs/releasing.md](docs/releasing.md).)
 - Log to **stderr only** — stdout is the MCP protocol channel. Use the logger;
   it redacts credentials.
-- Tool failures return `{ isError: true }` results (via `guard()` / `result.ts`),
-  never thrown — the agent should get an actionable message.
+- Tool failures return `{ isError: true }` results (via `requireConfigured()` /
+  `result.ts`), never thrown — the agent should get an actionable message.
 - Keep clients fetch+cache only; all raw→agent-facing shaping lives in
   `src/format.ts`. Trim responses for token efficiency.
 - Write tool `description`s and per-field `.describe()` text for the calling
