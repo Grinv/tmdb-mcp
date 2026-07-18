@@ -8,6 +8,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { TmdbClient } from "../clients/tmdb.js";
 import type { OmdbClient } from "../clients/omdb.js";
+import type { Config } from "../config.js";
 import { READ_ONLY, requireConfigured } from "./shared.js";
 
 const page = z.number().int().min(1).describe("1-based page number for pagination.");
@@ -28,11 +29,14 @@ const includeRatings = z
 const mediaType = z
   .enum(["movie", "tv"])
   .describe("Whether the id refers to a movie or a TV show.");
-const region = z
-  .string()
-  .regex(/^[A-Z]{2}$/, "Use a two-letter ISO-3166-1 country code, e.g. 'US'.")
-  .describe("ISO-3166-1 country code for region-specific results (default 'US').")
-  .optional();
+// The default named in the description must match the server's actual
+// TMDB_REGION, so it's built per-server from config rather than hardcoded.
+const regionSchema = (defaultRegion: string) =>
+  z
+    .string()
+    .regex(/^[A-Z]{2}$/, "Use a two-letter ISO-3166-1 country code, e.g. 'US'.")
+    .describe(`ISO-3166-1 country code for region-specific results (default '${defaultRegion}').`)
+    .optional();
 const sortBy = z
   .string()
   .describe("TMDB sort, e.g. 'popularity.desc', 'vote_average.desc', 'primary_release_date.desc'.")
@@ -114,10 +118,16 @@ const discoverTvSchema = {
   with_networks: idList("TV network, e.g. HBO or Netflix"),
 };
 
-export function registerTmdbTools(server: McpServer, tmdb: TmdbClient, omdb: OmdbClient): void {
+export function registerTmdbTools(
+  server: McpServer,
+  tmdb: TmdbClient,
+  omdb: OmdbClient,
+  config: Pick<Config, "tmdbRegion">,
+): void {
   // Every TMDB tool needs the token; short-circuit with one clear message
   // instead of letting each call round-trip to a 401.
   const requireTmdb = (fn: () => Promise<Record<string, unknown>>) => requireConfigured(tmdb, fn);
+  const region = regionSchema(config.tmdbRegion);
 
   // ---- search ---------------------------------------------------------------
 

@@ -304,6 +304,16 @@ describe("server / auth", () => {
     }
   });
 
+  test("the region parameter's description names the server's actual TMDB_REGION default", async (t) => {
+    const { client, close } = await connectServer({ ...ENV, TMDB_REGION: "RU" });
+    t.after(close);
+    const { tools } = await client.listTools();
+    const getMovie = tools.find((tool) => tool.name === "get_movie")!;
+    const desc = (getMovie.inputSchema.properties as Record<string, { description?: string }>)
+      .region?.description;
+    assert.match(desc ?? "", /default 'RU'/);
+  });
+
   test("TMDB tools report a clear error when no token is configured", async (t) => {
     // No TMDB_API_TOKEN in env → short-circuit before any network call.
     const { client, close } = await connectServer({});

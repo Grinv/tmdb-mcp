@@ -222,7 +222,7 @@ export function summarizeMovie(m: TmdbMovie): Record<string, unknown> {
   };
 }
 
-export function detailMovie(m: TmdbMovie, region = "US"): Record<string, unknown> {
+export function detailMovie(m: TmdbMovie, region: string): Record<string, unknown> {
   const certifications = movieCertifications(m);
   return {
     id: m.id,
@@ -284,7 +284,7 @@ export function summarizeTv(t: TmdbTv): Record<string, unknown> {
   };
 }
 
-export function detailTv(t: TmdbTv, region = "US"): Record<string, unknown> {
+export function detailTv(t: TmdbTv, region: string): Record<string, unknown> {
   const certifications = tvCertifications(t);
   return {
     id: t.id,

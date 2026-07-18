@@ -31,7 +31,7 @@ export function buildServer(config: Config, logger: Logger): McpServer {
     { capabilities: { logging: {} }, instructions: INSTRUCTIONS },
   );
 
-  registerTmdbTools(server, tmdb, omdb);
+  registerTmdbTools(server, tmdb, omdb, config);
   registerOmdbTools(server, omdb);
   return server;
 }
