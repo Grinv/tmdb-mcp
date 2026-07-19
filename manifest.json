@@ -69,7 +69,7 @@
   "prompts": [
     {
       "name": "recommend_similar",
-      "description": "Plan a search for movies or TV shows similar to a title the user liked, using get_similar/recommendations/discover instead of the model's own knowledge.",
+      "description": "Plan a search for movies or TV shows similar to a given title, using TMDB's similarity/recommendation data (and discover as a fallback) rather than the model's own knowledge. Use this instead of calling get_similar/get_movie_recommendations yourself when you want the merged, ranked shortlist in one step; call those tools directly only if you already have a specific TMDB id and just need its raw candidate list.",
       "arguments": ["title", "media_type", "count"],
       "text": "I liked \"{{title}}\". Recommend {{count}} similar movies or TV shows using the available tools — don't rely on your own memory for the candidate list or ratings.\n\n1. Resolve \"{{title}}\" to a TMDB id: use search_multi (or search_movies/search_tv if the media type is already known) and pick the best match.\n2. Call get_similar and get_movie_recommendations/get_tv_recommendations for that id and merge the candidates.\n3. If that pool has fewer than {{count}} good candidates, broaden with discover_movies/discover_tv filtered to the same genres.\n4. Return the best {{count}}: title, year, and a one-line reason it fits — include ratings (get_movie/get_tv's include_ratings, or get_ratings) where available."
     }

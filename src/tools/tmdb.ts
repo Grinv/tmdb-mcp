@@ -11,7 +11,11 @@ import type { OmdbClient } from "../clients/omdb.js";
 import type { Config } from "../config.js";
 import { READ_ONLY, requireConfigured } from "./shared.js";
 
-const page = z.number().int().min(1).describe("1-based page number for pagination.");
+const page = z
+  .number()
+  .int()
+  .min(1)
+  .describe("1-based page number for pagination (TMDB returns up to 20 results per page).");
 const tmdbId = z.number().int().positive().describe("TMDB numeric id.");
 const mediaKind = z.enum(["movie", "tv"]).describe("Media type: 'movie' or 'tv'.");
 const includeAdult = z
@@ -194,7 +198,8 @@ export function registerTmdbTools(
       description:
         "Search movies, TV shows and people in one call. Each result carries a media_type " +
         "('movie' | 'tv' | 'person') so you can route to the right get_* tool. Use when the user's " +
-        "query could be any of these.",
+        "query could be any of these; if you already know the type, search_movies/search_tv/" +
+        "search_people are more precise.",
       inputSchema: {
         query: z.string().min(1).describe("Free-text query."),
         include_adult: includeAdult,
@@ -212,8 +217,8 @@ export function registerTmdbTools(
       title: "Search people",
       description:
         "Search TMDB people (actors, directors, crew) by name; returns the TMDB id needed by " +
-        "get_person plus their best-known titles. Use this over search_multi when you already know " +
-        "the result is a person.",
+        "get_person plus their top 5 best-known titles (known_for). Use this over search_multi when " +
+        "you already know the result is a person.",
       inputSchema: {
         query: z.string().min(1).describe("Person name to search for."),
         include_adult: includeAdult,
@@ -309,7 +314,8 @@ export function registerTmdbTools(
       title: "Get person details",
       description:
         "Get full details for one person by TMDB id: biography, birthday/deathday, department, and " +
-        "links (TMDB + IMDb). Get the id from search_people or a credits list.",
+        "links (TMDB + IMDb). Does not include filmography — use get_person_credits for that. Get " +
+        "the id from search_people or a credits list.",
       inputSchema: { id: tmdbId, language },
       annotations: READ_ONLY,
     },
@@ -503,8 +509,9 @@ export function registerTmdbTools(
       title: "Where to watch",
       description:
         "Find where a movie or TV show can be streamed, rented or bought in a given country " +
-        "(JustWatch data via TMDB). Returns provider names per access type plus the regions that " +
-        "have data. Get the id from search_movies/search_tv.",
+        "(JustWatch data via TMDB). Returns provider names per access type for that country; if it " +
+        "has no data, returns `available:false` plus `available_regions` to retry with. Get the id " +
+        "from search_movies/search_tv.",
       inputSchema: {
         media_type: mediaType,
         id: tmdbId,
@@ -523,8 +530,9 @@ export function registerTmdbTools(
       title: "Get person filmography",
       description:
         "List the movies and TV shows a person is known for (cast roles and crew jobs), most " +
-        "popular first, capped to the top 25 of each. Use for 'what has this actor/director been " +
-        "in'. Get the id from search_people.",
+        "popular first, capped to the top 25 of each. Cast entries include a vote_average; crew " +
+        "entries (director, writer, …) do not — call get_movie/get_tv on the id for a crew credit's " +
+        "rating. Use for 'what has this actor/director been in'. Get the id from search_people.",
       inputSchema: { id: tmdbId },
       annotations: READ_ONLY,
     },

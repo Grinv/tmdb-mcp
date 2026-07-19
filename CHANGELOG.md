@@ -6,6 +6,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-07-20
+
+### Fixed
+
+- Fix `search_people` mis-shaping every result as a TV show (`media_type: "tv"`, wrong fields) instead of a person — TMDB's `/search/person` endpoint, unlike `/search/multi`, never sends `media_type`.
+
+### Changed
+
+- Sharpen `get_person_credits`, `get_watch_providers`, `search_multi`, `get_person` and the shared pagination parameter's descriptions: disclose that crew credits lack `vote_average` (unlike cast credits), the `available:false`/`available_regions` fallback for an unlisted region, cross-references between the search tools, and TMDB's 20-result page size.
+
 ## [0.5.0] - 2026-07-20
 
 ### Added

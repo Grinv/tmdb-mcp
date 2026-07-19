@@ -51,6 +51,9 @@ npm run inspector      # run under the MCP Inspector
   it redacts credentials.
 - Tool failures return `{ isError: true }` results (via `requireConfigured()` /
   `result.ts`), never thrown — the agent should get an actionable message.
+- Mocked-`fetch` test fixtures must mirror the real upstream response shape
+  for that exact endpoint, not just whatever fields make the current code
+  pass — see [docs/testing.md](docs/testing.md).
 - Keep clients fetch+cache only; all raw→agent-facing shaping lives in
   `src/format.ts`. Trim responses for token efficiency.
 - Write tool `description`s and per-field `.describe()` text for the calling

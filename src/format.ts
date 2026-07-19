@@ -398,24 +398,30 @@ export function summarizeCredits(c: TmdbCredits, castLimit = 20): Record<string,
   return { cast, crew };
 }
 
+// Used directly by search_people (whose /search/person response carries no
+// media_type at all) and by summarizeMultiItem's "person" case below.
+export function summarizePerson(item: TmdbMultiItem): Record<string, unknown> {
+  return {
+    id: item.id,
+    media_type: "person",
+    name: item.name,
+    known_for_department: item.known_for_department ?? null,
+    popularity: item.popularity ?? null,
+    profile_url: imageUrl(item.profile_path),
+    known_for: (item.known_for ?? [])
+      .map((k) => k.title || k.name)
+      .filter(Boolean)
+      .slice(0, 5),
+  };
+}
+
 // Trending / multi-search dispatch by media_type; people carry known_for titles.
 export function summarizeMultiItem(item: TmdbMultiItem): Record<string, unknown> {
   switch (item.media_type) {
     case "tv":
       return summarizeTv(item);
     case "person":
-      return {
-        id: item.id,
-        media_type: "person",
-        name: item.name,
-        known_for_department: item.known_for_department ?? null,
-        popularity: item.popularity ?? null,
-        profile_url: imageUrl(item.profile_path),
-        known_for: (item.known_for ?? [])
-          .map((k) => k.title || k.name)
-          .filter(Boolean)
-          .slice(0, 5),
-      };
+      return summarizePerson(item);
     case "movie":
     default:
       // Multi-search omits media_type on some rows; title vs name disambiguates.

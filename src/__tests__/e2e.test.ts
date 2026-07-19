@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, copyFileSync, writeFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, copyFileSync, writeFileSync, rmSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -12,7 +12,16 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 // It guards the integration boundary that earlier shipped bugs hid in — the bundle
 // must start, complete the initialize handshake, register every tool, and run
 // self-contained (a non-inlined dep would crash the child with ERR_MODULE_NOT_FOUND).
-const distPath = join(process.cwd(), "..", "dist", "index.js");
+const root = join(process.cwd(), "..");
+const distPath = join(root, "dist", "index.js");
+// Tool count comes from manifest.json (itself checked against the in-memory
+// server's registered tools in version.test.ts) instead of a hardcoded number
+// that would silently go stale the next time a tool is added or removed.
+const manifestToolCount = (
+  JSON.parse(readFileSync(join(root, "manifest.json"), "utf8")) as {
+    tools: unknown[];
+  }
+).tools.length;
 
 test("e2e: built bundle runs standalone, handshakes, lists all tools, gates TMDB tools", async (t) => {
   if (!existsSync(distPath)) {
@@ -46,8 +55,17 @@ test("e2e: built bundle runs standalone, handshakes, lists all tools, gates TMDB
   try {
     await client.connect(transport); // real initialize handshake over a spawned process
 
+    // Paired with version.test.ts's in-memory name check: that one proves
+    // manifest.json's tool names match buildServer()'s (a strictly stronger
+    // check than count, since it also catches a rename/swap); this proves the
+    // real built bundle registers the same *count* — together, built binary
+    // count === manifest.json count === in-memory server names.
     const { tools } = await client.listTools();
-    assert.equal(tools.length, 27, "every tool should register in the built bundle");
+    assert.equal(
+      tools.length,
+      manifestToolCount,
+      "every tool listed in manifest.json should register in the built bundle",
+    );
 
     // A TMDB tool without a token must short-circuit with the actionable message
     // (no network) — proving the config gate works through the real binary.

@@ -15,6 +15,26 @@ npm version <patch|minor|major>   # bumps + syncs every file + commits "release:
 git push --follow-tags            # pushing the tag triggers .github/workflows/release.yml
 ```
 
+## Pre-release audit
+
+Before tagging (step 1 above), audit these against the current source — none
+of it is version-bump mechanics, so `sync-version.mjs`/`version.test.ts` don't
+catch drift here, and it tends to accumulate silently across several PRs:
+
+- **Tool/prompt descriptions** (`src/tools/*.ts`, `src/prompts.ts`) — self-check
+  against [docs/tool-descriptions.md](tool-descriptions.md)'s TDQS rubric.
+- **`manifest.json`** — its `tools`/`prompts` arrays are a hand-maintained copy
+  of the source; check the tool list and the `recommend_similar` prompt's
+  `description`/`text` haven't drifted from `src/tools/*.ts`/`src/prompts.ts`.
+- **`server.json`** — `packages[].environmentVariables` vs `config.ts` (see
+  "Keep config in three places in sync" below) and the top-level `description`
+  (≤ 100 chars).
+- **`README.md`** — the tool table (any added/renamed/removed tool) and any
+  claim about cross-cutting behavior (e.g. which tools accept `language`/
+  `region`) against what the schemas actually declare.
+- **`AGENTS.md`** — the `src/` tree diagram and any convention that's since
+  changed.
+
 The tag push (`v*`) runs the **Release** workflow: `check:api` gate → build → test
 → pack `.mcpb` → GitHub Release → `npm publish` (OIDC trusted publishing, with
 provenance — no token) → **publish to the official MCP Registry** (`mcp-publisher`,

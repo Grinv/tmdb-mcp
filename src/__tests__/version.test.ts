@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { VERSION } from "../version.js";
+import { connectServer, DEFAULT_ENV } from "./helpers.js";
 
 // Tests run from the dist-tests/ working directory; the repo root is one level up.
 const root = join(process.cwd(), "..");
@@ -12,6 +13,8 @@ const pkg = readJson("package.json") as { version: string; mcpName: string };
 const manifest = readJson("manifest.json") as {
   version: string;
   user_config: Record<string, unknown>;
+  tools: { name: string }[];
+  prompts: { name: string; description: string; arguments: string[] }[];
 };
 const server = readJson("server.json") as {
   name: string;
@@ -81,4 +84,52 @@ test("server.json environmentVariables match manifest.json user_config", () => {
         e.description.length <= 100,
         `${e.name} description is ${e.description.length} > 100`,
       );
+});
+
+// manifest.json's `tools`/`prompts` arrays (the .mcpb install preview) are a
+// hand-maintained copy of what the server actually registers — nothing keeps
+// them in sync automatically, so a renamed/added/removed tool or prompt, or a
+// prompt whose description/args drifted from src/prompts.ts, would go
+// unnoticed without this. Both loop over whatever is currently registered, so
+// adding a second/third prompt or tool needs no new test. Names only for
+// tools (their manifest description is an intentionally short catalog blurb,
+// not a copy of the full tool description).
+//
+// Together with e2e.test.ts (which checks the real built dist/index.js's tool
+// count against manifest.tools.length), this closes the triangle: built
+// binary count === manifest.json count === in-memory server names (a strictly
+// stronger check than count, since it also catches a rename/swap).
+test("manifest.json tools list matches the server's registered tools", async (t) => {
+  const { client, close } = await connectServer(DEFAULT_ENV);
+  t.after(close);
+  const { tools } = await client.listTools();
+  const serverToolCount = tools.length;
+  assert.equal(
+    serverToolCount,
+    manifest.tools.length,
+    "manifest.json's tool count drifted from the server's registered tools",
+  );
+  assert.deepEqual(tools.map((tl) => tl.name).sort(), manifest.tools.map((tl) => tl.name).sort());
+});
+
+test("manifest.json's prompts match every registered prompt", async (t) => {
+  const { client, close } = await connectServer(DEFAULT_ENV);
+  t.after(close);
+  const { prompts } = await client.listPrompts();
+  // Same name set first (catches an added/removed/renamed prompt regardless
+  // of how many there are), then description + argument names per prompt.
+  assert.deepEqual(prompts.map((p) => p.name).sort(), manifest.prompts.map((p) => p.name).sort());
+  for (const registered of prompts) {
+    const manifestPrompt = manifest.prompts.find((p) => p.name === registered.name)!;
+    assert.equal(
+      registered.description,
+      manifestPrompt.description,
+      `${registered.name} description drifted from manifest.json`,
+    );
+    assert.deepEqual(
+      (registered.arguments ?? []).map((a) => a.name).sort(),
+      manifestPrompt.arguments.slice().sort(),
+      `${registered.name} arguments drifted from manifest.json`,
+    );
+  }
 });

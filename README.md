@@ -116,7 +116,9 @@ that it is unconfigured.
 
 **Localization.** Set `TMDB_LANGUAGE` (e.g. `ru-RU`) and `TMDB_REGION` (e.g.
 `RU`) to get localized titles/overviews/genre names and region-specific
-certifications. Most tools also accept a per-call `language` override.
+certifications. The search tools, `get_movie`/`get_tv`/`get_person`,
+`get_collection` and `discover_movies`/`discover_tv` also accept a per-call
+`language` override.
 
 ## Getting your credentials
 

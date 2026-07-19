@@ -22,6 +22,7 @@ import {
   summarizeKeywords,
   summarizeMovie,
   summarizeMultiItem,
+  summarizePerson,
   summarizePersonCredits,
   summarizeReview,
   summarizeSeason,
@@ -190,7 +191,9 @@ export class TmdbClient {
       p.language,
       signal,
     );
-    return page(res, summarizeMultiItem);
+    // /search/person never carries media_type, unlike /search/multi, so
+    // dispatch-by-media_type (summarizeMultiItem) would misclassify every row.
+    return page(res, summarizePerson);
   }
 
   // Keyword ids feed discover_*'s with_keywords; this resolves names → ids.

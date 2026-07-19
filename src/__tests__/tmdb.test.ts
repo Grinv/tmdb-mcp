@@ -216,9 +216,21 @@ const CREDITS = {
   ],
 };
 
+// /search/multi rows carry media_type (that's how the endpoint tells movie/tv/
+// person apart); /search/person rows never do — TMDB only returns person
+// fields there. Two separate fixtures so each route is exercised faithfully.
 const PERSON_SEARCH_ROW = {
   id: 6193,
   media_type: "person",
+  name: "Leonardo DiCaprio",
+  known_for_department: "Acting",
+  popularity: 50,
+  profile_path: "/leo.jpg",
+  known_for: [{ title: "The Matrix" }, { name: "Some Show" }],
+};
+
+const PERSON_SEARCH_ROW_NO_MEDIA_TYPE = {
+  id: 6193,
   name: "Leonardo DiCaprio",
   known_for_department: "Acting",
   popularity: 50,
@@ -246,7 +258,7 @@ function router(url: string) {
   }
   if (url.includes("/search/multi")) return jsonResponse(MULTI_SEARCH);
   if (url.includes("/search/person")) {
-    return jsonResponse(pageOf([PERSON_SEARCH_ROW]));
+    return jsonResponse(pageOf([PERSON_SEARCH_ROW_NO_MEDIA_TYPE]));
   }
   if (url.includes("/trending/")) return jsonResponse(MULTI_SEARCH);
   if (url.includes("/discover/movie")) {
