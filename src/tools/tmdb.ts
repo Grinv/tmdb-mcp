@@ -25,6 +25,15 @@ const includeRatings = z
       "(requires OMDB_API_KEY). Set false to skip the extra lookup when ratings are not needed.",
   )
   .optional();
+const expandEpisodes = z
+  .boolean()
+  .describe(
+    "If true, also fetch every season's full episode list (name, air date, runtime, rating) as " +
+      "`seasons_detail`, in one extra request — use this instead of calling get_tv_season once per " +
+      "season when you need all episodes of a multi-season show. Can return a large payload for " +
+      "very long-running shows (many seasons/episodes). Defaults to false.",
+  )
+  .optional();
 
 const mediaType = z
   .enum(["movie", "tv"])
@@ -268,12 +277,30 @@ export function registerTmdbTools(
         "By default also includes IMDb/Rotten Tomatoes/Metacritic ratings from OMDb " +
         "(set include_ratings=false to skip); if unavailable (no OMDB_API_KEY, no imdb_id, or the " +
         "OMDb lookup fails), `ratings` degrades to `{found:false, reason}` instead of failing the " +
-        "call. Get the id from search_tv.",
-      inputSchema: { id: tmdbId, region, language, include_ratings: includeRatings },
+        "call. Set expand_episodes=true to also pull every season's episode list in one extra " +
+        "request instead of calling get_tv_season per season. Get the id from search_tv.",
+      inputSchema: {
+        id: tmdbId,
+        region,
+        language,
+        include_ratings: includeRatings,
+        expand_episodes: expandEpisodes,
+      },
       annotations: READ_ONLY,
     },
-    ({ id, region: r, language: lang, include_ratings }) =>
-      requireTmdb(() => getEnrichedDetail("tv", id, r, lang, include_ratings ?? true, tmdb, omdb)),
+    ({ id, region: r, language: lang, include_ratings, expand_episodes }) =>
+      requireTmdb(() =>
+        getEnrichedDetail(
+          "tv",
+          id,
+          r,
+          lang,
+          include_ratings ?? true,
+          tmdb,
+          omdb,
+          expand_episodes ?? false,
+        ),
+      ),
   );
 
   server.registerTool(
@@ -294,8 +321,8 @@ export function registerTmdbTools(
     {
       title: "Get movie cast & crew",
       description:
-        "List the top-billed cast and the headline crew (director, writers, composer, DoP, …) of a " +
-        "movie by TMDB id. Get the id from search_movies.",
+        "List the top-billed cast (up to 20) and the headline crew (director, writers, composer, " +
+        "DoP, …) of a movie by TMDB id. Get the id from search_movies.",
       inputSchema: { id: tmdbId },
       annotations: READ_ONLY,
     },
@@ -307,8 +334,8 @@ export function registerTmdbTools(
     {
       title: "Get TV cast & crew",
       description:
-        "List the main cast and headline crew (creators, writers, …) of a TV show by TMDB id. " +
-        "Get the id from search_tv.",
+        "List the main cast (up to 20) and headline crew (creators, writers, …) of a TV show by " +
+        "TMDB id. Get the id from search_tv.",
       inputSchema: { id: tmdbId },
       annotations: READ_ONLY,
     },
@@ -364,8 +391,8 @@ export function registerTmdbTools(
     {
       title: "Get user reviews",
       description:
-        "Get user reviews for a movie or TV show (author, their rating, and the review text). " +
-        "Get the id from search_movies/search_tv.",
+        "Get user reviews for a movie or TV show (author, their rating, and the review text, " +
+        "clipped to ~1500 characters). Get the id from search_movies/search_tv.",
       inputSchema: { media_type: mediaKind, id: tmdbId, page: page.optional() },
       annotations: READ_ONLY,
     },
@@ -496,7 +523,8 @@ export function registerTmdbTools(
       title: "Get person filmography",
       description:
         "List the movies and TV shows a person is known for (cast roles and crew jobs), most " +
-        "popular first. Use for 'what has this actor/director been in'. Get the id from search_people.",
+        "popular first, capped to the top 25 of each. Use for 'what has this actor/director been " +
+        "in'. Get the id from search_people.",
       inputSchema: { id: tmdbId },
       annotations: READ_ONLY,
     },
@@ -546,7 +574,9 @@ export function registerTmdbTools(
       title: "Get TV season",
       description:
         "Get one season of a TV show (by show id + season number): overview and the episode list " +
-        "with air dates, runtimes and ratings. Season 0 is usually specials. Get the show id from search_tv.",
+        "with air dates, runtimes and ratings. Season 0 is usually specials. Use get_tv with " +
+        "expand_episodes=true instead if you need every season's episodes in one call. Get the " +
+        "show id from search_tv.",
       inputSchema: {
         id: tmdbId,
         season_number: z.number().int().min(0).describe("Season number (0 = specials)."),
@@ -562,7 +592,8 @@ export function registerTmdbTools(
       title: "Get TV episode",
       description:
         "Get one episode of a TV show by show id + season number + episode number: overview, air " +
-        "date, runtime, rating, guest stars and director/writer. Get the show id from search_tv.",
+        "date, runtime, rating, guest stars (up to 15) and director/writer. Get the show id from " +
+        "search_tv.",
       inputSchema: {
         id: tmdbId,
         season_number: z.number().int().min(0).describe("Season number (0 = specials)."),
@@ -584,8 +615,15 @@ async function getEnrichedDetail(
   wantRatings: boolean,
   tmdb: TmdbClient,
   omdb: OmdbClient,
+  expandEpisodes = false,
 ): Promise<Record<string, unknown>> {
-  const { shaped, imdbId } = await tmdb.getDetailWithImdb(mediaType, id, region, language);
+  const { shaped, imdbId } = await tmdb.getDetailWithImdb(
+    mediaType,
+    id,
+    region,
+    language,
+    expandEpisodes,
+  );
   return maybeEnrich(shaped, imdbId, wantRatings, omdb);
 }
 

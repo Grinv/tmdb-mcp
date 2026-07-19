@@ -235,8 +235,9 @@ export class TmdbClient {
     id: number,
     region = this.#region,
     language?: string,
+    expandEpisodes = false,
   ): Promise<Record<string, unknown>> {
-    return this.#cache.wrapStaleOnError(
+    const shaped = await this.#cache.wrapStaleOnError(
       cacheKey(`tv:${id}`, { region, language: this.#lang(language) }),
       async () => {
         // external_ids appended so the TV detail carries an imdb_id (the base
@@ -250,6 +251,39 @@ export class TmdbClient {
         return detailTv(res, region);
       },
     );
+    if (!expandEpisodes) return shaped;
+    const seasonNumbers = ((shaped.seasons as { season_number: number | null }[]) ?? [])
+      .map((s) => s.season_number)
+      .filter((n): n is number => n !== null);
+    if (seasonNumbers.length === 0) return shaped;
+    return { ...shaped, seasons_detail: await this.getTvSeasonsBulk(id, seasonNumbers, language) };
+  }
+
+  // Fetch every season's full episode list in one extra request via
+  // append_to_response=season/1,season/2,..., instead of one getTvSeason call
+  // per season. Cached separately from getTv (and keyed by the season list)
+  // since it's only fetched when a caller opts in via expandEpisodes.
+  async getTvSeasonsBulk(
+    id: number,
+    seasonNumbers: number[],
+    language?: string,
+  ): Promise<Record<string, unknown>[]> {
+    const key = cacheKey(`tv-seasons-bulk:${id}`, {
+      seasons: seasonNumbers.join(","),
+      language: this.#lang(language),
+    });
+    const bulk = await this.#cache.wrapStaleOnError(key, async () => {
+      const append = seasonNumbers.map((n) => `season/${n}`).join(",");
+      const res = await this.#get<Record<string, TmdbSeason>>(
+        `tv/${id}`,
+        { append_to_response: append },
+        language,
+      );
+      return {
+        seasons: seasonNumbers.map((n) => summarizeSeason(res[`season/${n}`] ?? {})),
+      };
+    });
+    return bulk.seasons as Record<string, unknown>[];
   }
 
   /** Like getMovie/getTv but also returns the raw imdb_id for OMDb enrichment. */
@@ -258,10 +292,11 @@ export class TmdbClient {
     id: number,
     region = this.#region,
     language?: string,
+    expandEpisodes = false,
   ): Promise<{ shaped: Record<string, unknown>; imdbId: string | null }> {
     const shaped =
       mediaType === "tv"
-        ? await this.getTv(id, region, language)
+        ? await this.getTv(id, region, language, expandEpisodes)
         : await this.getMovie(id, region, language);
     return { shaped, imdbId: (shaped.imdb_id as string | null) ?? null };
   }

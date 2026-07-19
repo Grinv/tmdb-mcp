@@ -49,7 +49,10 @@ const TV_DETAIL = {
     air_date: "2013-09-29",
   },
   next_episode_to_air: null,
-  seasons: [{ season_number: 1, name: "Season 1", episode_count: 7, air_date: "2008-01-20" }],
+  seasons: [
+    { season_number: 1, name: "Season 1", episode_count: 7, air_date: "2008-01-20" },
+    { season_number: 2, name: "Season 2", episode_count: 13, air_date: "2009-03-08" },
+  ],
   external_ids: { imdb_id: "tt0903747" },
   content_ratings: {
     results: [
@@ -145,6 +148,14 @@ const EPISODE = {
   vote_average: 8.1,
   guest_stars: [{ id: 9, name: "Guest", character: "Stranger" }],
   crew: [{ id: 7, name: "Director Person", job: "Director" }],
+};
+
+// Fixture for the bulk `append_to_response=season/1,season/2` call
+// get_tv's expand_episodes=true makes after learning number_of_seasons.
+const TV_SEASONS_APPENDED = {
+  ...TV_DETAIL,
+  "season/1": SEASON,
+  "season/2": { ...SEASON, id: 101, name: "Season 2", season_number: 2 },
 };
 
 const KEYWORDS = pageOf([{ id: 4379, name: "time travel" }]);
@@ -261,6 +272,11 @@ function router(url: string) {
   if (url.includes("/find/")) return jsonResponse(FIND);
   if (/\/season\/\d+\/episode\/\d+/.test(url)) return jsonResponse(EPISODE);
   if (/\/season\/\d+/.test(url)) return jsonResponse(SEASON);
+  // append_to_response's "season/N" entries are percent-encoded inside the
+  // query string (not a literal /season/N path segment), so they land here.
+  if (url.includes("append_to_response") && url.toLowerCase().includes("season%2f")) {
+    return jsonResponse(TV_SEASONS_APPENDED);
+  }
   if (url.includes("omdbapi.com") || url.includes("/?apikey")) {
     return jsonResponse(OMDB_OK);
   }
@@ -602,6 +618,39 @@ describe("get_tv", () => {
     assert.equal(s.next_episode_to_air, null);
     assert.equal(s.seasons[0]!.season_number, 1);
     assert.equal(s.seasons[0]!.episode_count, 7);
+  });
+
+  test("expand_episodes fetches every season's episodes in one extra request", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({
+      name: "get_tv",
+      arguments: { id: 1396, expand_episodes: true },
+    });
+    const s = res.structuredContent as {
+      seasons_detail: { season_number: number; episodes: { name: string }[] }[];
+    };
+    assert.equal(s.seasons_detail.length, 2);
+    assert.equal(s.seasons_detail[0]!.season_number, 1);
+    assert.equal(s.seasons_detail[0]!.episodes[0]!.name, "Pilot");
+    assert.equal(s.seasons_detail[1]!.season_number, 2);
+
+    const tvCalls = mock.calls.filter((c) => /\/tv\/1396(\?|$)/.test(c.url));
+    // One call for the base detail, one appending both seasons — not one per season.
+    assert.equal(tvCalls.length, 2);
+    const bulkCall = tvCalls.find((c) => c.url.toLowerCase().includes("season%2f"))!;
+    assert.match(bulkCall.url.toLowerCase(), /season%2f1%2cseason%2f2/);
+  });
+
+  test("without expand_episodes, get_tv makes no season requests", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    await client.callTool({ name: "get_tv", arguments: { id: 1396 } });
+    assert.ok(!mock.calls.some((c) => c.url.toLowerCase().includes("season")));
   });
 });
 

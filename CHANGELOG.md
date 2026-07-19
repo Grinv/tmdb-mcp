@@ -6,6 +6,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-20
+
+### Added
+
+- Add `expand_episodes` to `get_tv`, fetching every season's full episode list (`seasons_detail`) in one extra request instead of calling `get_tv_season` once per season.
+
 ## [0.4.1] - 2026-07-18
 
 ### Changed
