@@ -39,22 +39,37 @@ export class OmdbClient {
   }
 
   /** Ratings for an IMDb title id (e.g. "tt0133093"). */
-  async ratingsByImdbId(imdbId: string): Promise<ReturnType<typeof summarizeRatings>> {
-    return this.#cache.wrapStaleOnError(cacheKey(`omdb:i:${imdbId}`), async () => {
-      const res = await this.#http.getJson<OmdbResponse>("", {
-        query: { apikey: this.#apiKey, i: imdbId },
-      });
-      return summarizeRatings(res);
-    });
+  async ratingsByImdbId(
+    imdbId: string,
+    onStale?: () => void,
+  ): Promise<ReturnType<typeof summarizeRatings>> {
+    return this.#cache.wrapStaleOnError(
+      cacheKey(`omdb:i:${imdbId}`),
+      async () => {
+        const res = await this.#http.getJson<OmdbResponse>("", {
+          query: { apikey: this.#apiKey, i: imdbId },
+        });
+        return summarizeRatings(res);
+      },
+      onStale,
+    );
   }
 
   /** Ratings looked up by title (+ optional year to disambiguate). */
-  async ratingsByTitle(title: string, year?: number): Promise<ReturnType<typeof summarizeRatings>> {
-    return this.#cache.wrapStaleOnError(cacheKey(`omdb:t:${title}`, { year }), async () => {
-      const res = await this.#http.getJson<OmdbResponse>("", {
-        query: { apikey: this.#apiKey, t: title, y: year },
-      });
-      return summarizeRatings(res);
-    });
+  async ratingsByTitle(
+    title: string,
+    year?: number,
+    onStale?: () => void,
+  ): Promise<ReturnType<typeof summarizeRatings>> {
+    return this.#cache.wrapStaleOnError(
+      cacheKey(`omdb:t:${title}`, { year }),
+      async () => {
+        const res = await this.#http.getJson<OmdbResponse>("", {
+          query: { apikey: this.#apiKey, t: title, y: year },
+        });
+        return summarizeRatings(res);
+      },
+      onStale,
+    );
   }
 }

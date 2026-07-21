@@ -15,11 +15,20 @@ export interface ToolResult {
  *
  * The text is compact (no indentation): MCP clients that don't read
  * `structuredContent` fall back to this string and feed it to the model, so
- * pretty-print whitespace would be pure token overhead. */
-export function jsonResult(structured: Record<string, unknown>): ToolResult {
+ * pretty-print whitespace would be pure token overhead.
+ *
+ * `meta`, when given, is attached as the result's `_meta` — a sibling of
+ * `structuredContent`, never merged into it, so it stays out of the tool's
+ * `outputSchema`-validated payload (e.g. a stale-cache flag is metadata about
+ * the response, not part of the movie/show shape itself). */
+export function jsonResult(
+  structured: Record<string, unknown>,
+  meta?: Record<string, unknown>,
+): ToolResult {
   return {
     content: [{ type: "text", text: JSON.stringify(structured) }],
     structuredContent: structured,
+    ...(meta ? { _meta: meta } : {}),
   };
 }
 

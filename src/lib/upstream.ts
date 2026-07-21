@@ -31,6 +31,6 @@ export function createUpstream(opts: UpstreamOptions): Upstream {
     defaultHeaders: opts.defaultHeaders,
     beforeRequest: () => limiter.acquire(),
   });
-  const cache = new TtlCache(opts.cacheTtlMs);
+  const cache = new TtlCache(opts.cacheTtlMs, undefined, opts.logger);
   return { http, cache };
 }

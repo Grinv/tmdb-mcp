@@ -170,6 +170,15 @@ describe("e2e: process lifecycle (SIGINT/SIGTERM)", () => {
       t.skip("dist/index.js not built — run `npm run build` first (CI builds before tests)");
       return;
     }
+    // Windows has no POSIX signals: subprocess.kill("SIGTERM") force-terminates the
+    // child directly instead of delivering anything its `process.on("SIGTERM", ...)`
+    // handler could catch, so this test would pass there without ever exercising
+    // server.ts's shutdown()/handle.close() path — a false-positive pass, not real
+    // coverage. Skip rather than claim graceful-shutdown coverage this platform can't give.
+    if (process.platform === "win32") {
+      t.skip("SIGTERM isn't delivered to a signal handler on Windows — see comment above");
+      return;
+    }
     const { child, ready, stderr } = spawnServer();
     await ready;
     child.kill("SIGTERM");
@@ -184,6 +193,13 @@ describe("e2e: process lifecycle (SIGINT/SIGTERM)", () => {
   test("shuts down cleanly on SIGINT", async (t) => {
     if (!existsSync(distPath)) {
       t.skip("dist/index.js not built — run `npm run build` first (CI builds before tests)");
+      return;
+    }
+    // Same Windows caveat as the SIGTERM test above: subprocess.kill() force-terminates
+    // unconditionally there regardless of which signal name is passed, never reaching
+    // server.ts's shutdown() path — skip rather than claim coverage this platform can't give.
+    if (process.platform === "win32") {
+      t.skip("SIGINT isn't delivered to a signal handler on Windows — see comment above");
       return;
     }
     const { child, ready, stderr } = spawnServer();

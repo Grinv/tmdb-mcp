@@ -52,6 +52,15 @@ import type { DiscoverParams } from "../tools/tmdb.js";
 
 type Query = Record<string, string | number | boolean | undefined>;
 
+// TMDB's hard cap on remote calls per append_to_response request.
+const MAX_APPEND_TO_RESPONSE = 20;
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
+  return chunks;
+}
+
 export interface SearchParams {
   query: string;
   year?: number;
@@ -215,6 +224,7 @@ export class TmdbClient {
     id: number,
     region = this.#region,
     language?: string,
+    onStale?: () => void,
   ): Promise<ReturnType<typeof detailMovie>> {
     // region + language are dims because the headline `certification` and the
     // localized text fields vary by them.
@@ -229,6 +239,7 @@ export class TmdbClient {
         );
         return detailMovie(res, region);
       },
+      onStale,
     );
   }
 
@@ -237,6 +248,7 @@ export class TmdbClient {
     region = this.#region,
     language?: string,
     expandEpisodes = false,
+    onStale?: () => void,
   ): Promise<TvDetail> {
     const shaped = await this.#cache.wrapStaleOnError(
       cacheKey(`tv:${id}`, { region, language: this.#lang(language) }),
@@ -251,39 +263,55 @@ export class TmdbClient {
         );
         return detailTv(res, region);
       },
+      onStale,
     );
     if (!expandEpisodes) return shaped;
     const seasonNumbers = shaped.seasons
       .map((s) => s.season_number)
       .filter((n): n is number => n !== null);
     if (seasonNumbers.length === 0) return shaped;
-    return { ...shaped, seasons_detail: await this.getTvSeasonsBulk(id, seasonNumbers, language) };
+    return {
+      ...shaped,
+      seasons_detail: await this.getTvSeasonsBulk(id, seasonNumbers, language, onStale),
+    };
   }
 
-  // Fetch every season's full episode list in one extra request via
-  // append_to_response=season/1,season/2,..., instead of one getTvSeason call
-  // per season. Cached separately from getTv (and keyed by the season list)
-  // since it's only fetched when a caller opts in via expandEpisodes.
+  // Fetch every season's full episode list via append_to_response=season/1,
+  // season/2,..., instead of one getTvSeason call per season. TMDB caps
+  // append_to_response at 20 remote calls per request, so shows with more
+  // seasons (e.g. long-running sitcoms/soaps) are split into multiple
+  // append_to_response requests of at most that many seasons each. Cached
+  // separately from getTv (and keyed by the season list) since it's only
+  // fetched when a caller opts in via expandEpisodes.
   async getTvSeasonsBulk(
     id: number,
     seasonNumbers: number[],
     language?: string,
+    onStale?: () => void,
   ): Promise<ReturnType<typeof summarizeSeason>[]> {
     const key = cacheKey(`tv-seasons-bulk:${id}`, {
       seasons: seasonNumbers.join(","),
       language: this.#lang(language),
     });
-    const bulk = await this.#cache.wrapStaleOnError(key, async () => {
-      const append = seasonNumbers.map((n) => `season/${n}`).join(",");
-      const res = await this.#get<Record<string, TmdbSeason>>(
-        `tv/${id}`,
-        { append_to_response: append },
-        language,
-      );
-      return {
-        seasons: seasonNumbers.map((n) => summarizeSeason(res[`season/${n}`] ?? {})),
-      };
-    });
+    const bulk = await this.#cache.wrapStaleOnError(
+      key,
+      async () => {
+        const chunks = chunk(seasonNumbers, MAX_APPEND_TO_RESPONSE);
+        const chunkResults = await Promise.all(
+          chunks.map(async (numbers) => {
+            const append = numbers.map((n) => `season/${n}`).join(",");
+            const res = await this.#get<Record<string, TmdbSeason>>(
+              `tv/${id}`,
+              { append_to_response: append },
+              language,
+            );
+            return numbers.map((n) => summarizeSeason(res[`season/${n}`] ?? {}));
+          }),
+        );
+        return { seasons: chunkResults.flat() };
+      },
+      onStale,
+    );
     return bulk.seasons;
   }
 
@@ -294,30 +322,37 @@ export class TmdbClient {
     region = this.#region,
     language?: string,
     expandEpisodes = false,
+    onStale?: () => void,
   ): Promise<{
     shaped: ReturnType<typeof detailMovie> | TvDetail;
     imdbId: string | null;
   }> {
     const shaped =
       mediaType === "tv"
-        ? await this.getTv(id, region, language, expandEpisodes)
-        : await this.getMovie(id, region, language);
+        ? await this.getTv(id, region, language, expandEpisodes, onStale)
+        : await this.getMovie(id, region, language, onStale);
     return { shaped, imdbId: shaped.imdb_id };
   }
 
-  async getPerson(id: number, language?: string): Promise<ReturnType<typeof detailPerson>> {
+  async getPerson(
+    id: number,
+    language?: string,
+    onStale?: () => void,
+  ): Promise<ReturnType<typeof detailPerson>> {
     return this.#cached(
       cacheKey(`person:${id}`, { language: this.#lang(language) }),
       `person/${id}`,
       detailPerson,
       {},
       language,
+      onStale,
     );
   }
 
   async getMovieCredits(
     id: number,
     language?: string,
+    onStale?: () => void,
   ): Promise<ReturnType<typeof summarizeCredits>> {
     return this.#cached(
       cacheKey(`movie-credits:${id}`, { language: this.#lang(language) }),
@@ -325,16 +360,22 @@ export class TmdbClient {
       (c: TmdbCredits) => summarizeCredits(c),
       {},
       language,
+      onStale,
     );
   }
 
-  async getTvCredits(id: number, language?: string): Promise<ReturnType<typeof summarizeCredits>> {
+  async getTvCredits(
+    id: number,
+    language?: string,
+    onStale?: () => void,
+  ): Promise<ReturnType<typeof summarizeCredits>> {
     return this.#cached(
       cacheKey(`tv-credits:${id}`, { language: this.#lang(language) }),
       `tv/${id}/credits`,
       (c: TmdbCredits) => summarizeCredits(c),
       {},
       language,
+      onStale,
     );
   }
 
@@ -406,6 +447,7 @@ export class TmdbClient {
   async getCollection(
     id: number,
     language?: string,
+    onStale?: () => void,
   ): Promise<ReturnType<typeof summarizeCollection>> {
     return this.#cached(
       cacheKey(`collection:${id}`, { language: this.#lang(language) }),
@@ -413,6 +455,7 @@ export class TmdbClient {
       summarizeCollection,
       {},
       language,
+      onStale,
     );
   }
 
@@ -437,6 +480,7 @@ export class TmdbClient {
   async getGenres(
     mediaType: "movie" | "tv",
     language?: string,
+    onStale?: () => void,
   ): Promise<ReturnType<typeof summarizeGenres>> {
     return this.#cached(
       cacheKey(`genres:${mediaType}`, { language: this.#lang(language) }),
@@ -444,6 +488,7 @@ export class TmdbClient {
       (res: { genres: { id?: number; name?: string }[] }) => summarizeGenres(res.genres ?? []),
       {},
       language,
+      onStale,
     );
   }
 
@@ -478,6 +523,7 @@ export class TmdbClient {
     mediaType: "movie" | "tv",
     id: number,
     region = this.#region,
+    onStale?: () => void,
   ): Promise<ReturnType<typeof summarizeWatchProviders>> {
     // region is a dim: summarizeWatchProviders returns a region-specific
     // slice, so caching it under an id-only key would serve one region's
@@ -490,6 +536,7 @@ export class TmdbClient {
         );
         return summarizeWatchProviders(res, region);
       },
+      onStale,
     );
   }
 
@@ -498,6 +545,7 @@ export class TmdbClient {
   async getPersonCredits(
     id: number,
     language?: string,
+    onStale?: () => void,
   ): Promise<ReturnType<typeof summarizePersonCredits>> {
     return this.#cached(
       cacheKey(`person-credits:${id}`, { language: this.#lang(language) }),
@@ -505,6 +553,7 @@ export class TmdbClient {
       (c: CombinedCredits) => summarizePersonCredits(c),
       {},
       language,
+      onStale,
     );
   }
 
@@ -514,6 +563,7 @@ export class TmdbClient {
     mediaType: "movie" | "tv",
     id: number,
     language?: string,
+    onStale?: () => void,
   ): Promise<ReturnType<typeof summarizeVideos>> {
     return this.#cached(
       cacheKey(`${mediaType}-videos:${id}`, { language: this.#lang(language) }),
@@ -521,6 +571,7 @@ export class TmdbClient {
       summarizeVideos,
       {},
       language,
+      onStale,
     );
   }
 
@@ -529,12 +580,15 @@ export class TmdbClient {
   async findByExternalId(
     externalId: string,
     source: ExternalSource,
+    onStale?: () => void,
   ): Promise<ReturnType<typeof summarizeFind>> {
     return this.#cached(
       cacheKey(`find:${source}:${externalId}`),
       `find/${externalId}`,
       summarizeFind,
       { external_source: source },
+      undefined,
+      onStale,
     );
   }
 
@@ -544,6 +598,7 @@ export class TmdbClient {
     id: number,
     season: number,
     language?: string,
+    onStale?: () => void,
   ): Promise<ReturnType<typeof summarizeSeason>> {
     return this.#cached(
       cacheKey(`tv-season:${id}:${season}`, { language: this.#lang(language) }),
@@ -551,6 +606,7 @@ export class TmdbClient {
       summarizeSeason,
       {},
       language,
+      onStale,
     );
   }
 
@@ -559,6 +615,7 @@ export class TmdbClient {
     season: number,
     episode: number,
     language?: string,
+    onStale?: () => void,
   ): Promise<ReturnType<typeof summarizeEpisode>> {
     return this.#cached(
       cacheKey(`tv-episode:${id}:${season}:${episode}`, { language: this.#lang(language) }),
@@ -568,6 +625,7 @@ export class TmdbClient {
         summarizeEpisode({ ...res, season_number: res.season_number ?? season }),
       {},
       language,
+      onStale,
     );
   }
 
@@ -580,11 +638,16 @@ export class TmdbClient {
     shape: (data: T) => R,
     query: Query = {},
     language?: string,
+    onStale?: () => void,
   ): Promise<R> {
-    return this.#cache.wrapStaleOnError(key, async () => {
-      const res = await this.#get<T>(path, query, language);
-      return shape(res);
-    });
+    return this.#cache.wrapStaleOnError(
+      key,
+      async () => {
+        const res = await this.#get<T>(path, query, language);
+        return shape(res);
+      },
+      onStale,
+    );
   }
 }
 

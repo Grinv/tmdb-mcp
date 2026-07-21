@@ -349,6 +349,17 @@ describe("search", () => {
     assert.equal(s.results[0]!.year, 1999);
   });
 
+  test("page beyond TMDB's 500-page cap is rejected before hitting TMDB", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({
+      name: "search_movies",
+      arguments: { query: "matrix", page: 501 },
+    });
+    assert.equal(res.isError, true);
+  });
+
   test("search_multi dispatches each result to its media_type's shaper", async (t) => {
     installFetch(t, mockFetch(router));
     const { client, close } = await connectServer(ENV);
@@ -499,6 +510,41 @@ describe("get_movie", () => {
     assert.equal(res.isError, true);
     const text = toolText(res);
     assert.match(text, /5xx|retry later/i);
+  });
+
+  test("carries a tmdb-mcp/stale _meta flag when serving a stale cached value", async (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
+    let movieCalls = 0;
+    const mock = mockFetch((url) => {
+      if (url.includes("/movie/603?")) {
+        movieCalls += 1;
+        if (movieCalls > 1) return jsonResponse({ error: "server exploded" }, { status: 500 });
+      }
+      return router(url);
+    });
+    installFetch(t, mock);
+    const { client, close } = await connectServer({ ...ENV, HTTP_RETRIES: "0", CACHE_TTL_MS: "1" });
+    t.after(close);
+
+    const first = await client.callTool({
+      name: "get_movie",
+      arguments: { id: 603, include_ratings: false },
+    });
+    assert.notEqual(first.isError, true);
+    assert.equal((first as { _meta?: unknown })._meta, undefined);
+
+    t.mock.timers.tick(5); // past the 1ms TTL, so the next call's compute() is attempted and fails
+
+    const second = await client.callTool({
+      name: "get_movie",
+      arguments: { id: 603, include_ratings: false },
+    });
+    assert.notEqual(second.isError, true);
+    const s = second.structuredContent as { imdb_id: string };
+    assert.equal(s.imdb_id, "tt0133093"); // still served, from the stale cache
+    assert.deepEqual((second as { _meta?: Record<string, unknown> })._meta, {
+      "tmdb-mcp/stale": true,
+    });
   });
 
   test("skips OMDb and reports why when TMDB has no imdb_id for this title", async (t) => {
@@ -717,6 +763,47 @@ describe("discover_movies", () => {
     assert.match(u, /watch_region=US/);
     assert.match(u, /certification=PG-13/);
     assert.match(u, /certification_country=US/);
+  });
+});
+
+describe("discover_movies/discover_tv reject incomplete filter pairs", () => {
+  // TMDB silently ignores certification/with_watch_providers when their
+  // required pair field is missing instead of erroring, which reads as "the
+  // filter was applied" when it wasn't — so the tool schema rejects it upfront.
+  test("certification without certification_country is rejected before hitting TMDB", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({
+      name: "discover_movies",
+      arguments: { certification: "R" },
+    });
+    assert.equal(res.isError, true);
+    assert.match(toolText(res), /certification_country/);
+  });
+
+  test("with_watch_providers without watch_region is rejected before hitting TMDB (discover_tv)", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({
+      name: "discover_tv",
+      arguments: { with_watch_providers: "8" },
+    });
+    assert.equal(res.isError, true);
+    assert.match(toolText(res), /watch_region/);
+  });
+
+  test("min_rating greater than max_rating is rejected", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({
+      name: "discover_movies",
+      arguments: { min_rating: 9, max_rating: 2 },
+    });
+    assert.equal(res.isError, true);
+    assert.match(toolText(res), /min_rating/);
   });
 });
 

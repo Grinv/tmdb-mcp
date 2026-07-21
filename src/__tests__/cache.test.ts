@@ -52,6 +52,46 @@ describe("TtlCache", () => {
     assert.equal(v, 1);
   });
 
+  test("wrapStaleOnError logs a warning when serving stale data", async (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
+    const warnings: string[] = [];
+    const logger = {
+      debug: () => {},
+      info: () => {},
+      warn: (msg: string) => warnings.push(msg),
+      error: () => {},
+    };
+    const cache = new TtlCache(1, 500, logger);
+    await cache.wrapStaleOnError("k", async () => 1);
+    t.mock.timers.tick(5);
+    await cache.wrapStaleOnError("k", async () => {
+      throw new Error("upstream down");
+    });
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0]!, /stale/);
+    assert.match(warnings[0]!, /"k"/);
+  });
+
+  test("wrapStaleOnError fires onStale only when actually falling back to stale data", async (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
+    const cache = new TtlCache(1);
+    let onStaleCalls = 0;
+    const onStale = () => (onStaleCalls += 1);
+
+    await cache.wrapStaleOnError("k", async () => 1, onStale);
+    assert.equal(onStaleCalls, 0, "a successful fresh compute is not stale");
+
+    t.mock.timers.tick(5);
+    await cache.wrapStaleOnError(
+      "k",
+      async () => {
+        throw new Error("upstream down");
+      },
+      onStale,
+    );
+    assert.equal(onStaleCalls, 1);
+  });
+
   test("wrapStaleOnError rethrows when nothing was ever cached", async () => {
     const cache = new TtlCache(60_000);
     await assert.rejects(() =>

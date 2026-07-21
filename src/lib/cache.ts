@@ -20,6 +20,8 @@
  * region) was silently left out of a key and one request's response leaked
  * into another's cache slot.
  */
+import type { Logger } from "./logger.js";
+
 export function cacheKey(
   resource: string,
   dims: Record<string, string | number | boolean | undefined> = {},
@@ -38,6 +40,7 @@ interface Entry {
 export class TtlCache {
   readonly #ttlMs: number;
   readonly #max: number;
+  readonly #logger?: Logger;
   readonly #map = new Map<string, Entry>();
   // In-flight compute() promises, keyed like #map. Without this, two callers
   // racing on the same cold/expired key (e.g. two tools reading the same
@@ -45,9 +48,10 @@ export class TtlCache {
   // the second now shares the first's promise instead.
   readonly #pending = new Map<string, Promise<unknown>>();
 
-  constructor(ttlMs: number, max = 500) {
+  constructor(ttlMs: number, max = 500, logger?: Logger) {
     this.#ttlMs = ttlMs;
     this.#max = max;
+    this.#logger = logger;
   }
 
   /** Fresh (non-expired) value, or undefined. */
@@ -81,16 +85,31 @@ export class TtlCache {
   /**
    * Like wrap, but if `compute` throws and a previously-cached (possibly stale)
    * value exists, serve that instead of failing. Lets reads degrade gracefully
-   * when the upstream is temporarily down.
+   * when the upstream is temporarily down. `onStale`, if given, fires
+   * synchronously right before a stale value is returned — callers use it to
+   * surface staleness to the caller (e.g. a `_meta` flag on the tool result)
+   * without this generic cache layer knowing anything about that shape.
    */
-  async wrapStaleOnError<T>(key: string, compute: () => Promise<T>): Promise<T> {
+  async wrapStaleOnError<T>(
+    key: string,
+    compute: () => Promise<T>,
+    onStale?: () => void,
+  ): Promise<T> {
     const fresh = this.get<T>(key);
     if (fresh !== undefined) return fresh;
     try {
       return await this.#dedupe(key, compute);
     } catch (err) {
       const stale = this.getStale<T>(key);
-      if (stale !== undefined) return stale;
+      if (stale !== undefined) {
+        const reason = err instanceof Error ? err.message : String(err);
+        this.#logger?.warn(
+          `serving stale cached value for "${key}" — upstream refresh failed`,
+          reason,
+        );
+        onStale?.();
+        return stale;
+      }
       throw err;
     }
   }

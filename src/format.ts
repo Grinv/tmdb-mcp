@@ -630,6 +630,26 @@ function creditYear(e: CombinedCreditEntry): number | null {
   return year(e.release_date ?? e.first_air_date);
 }
 
+// TMDB's per-credit `popularity` is the linked title's own entity-level score,
+// not a measure of the role — a long-running talk show accumulates a far
+// higher popularity than any single film, so unfiltered "Self" guest spots
+// (Letterman, Kimmel, awards-show cameos, …) crowd out an actor's actual,
+// much more relevant film/TV roles. Excluded so the ranked list is about roles.
+const isSelfAppearance = (e: CombinedCreditEntry): boolean => /^self\b/i.test(e.character ?? "");
+
+// Repeat guest spots (or a title credited under more than one character/job)
+// otherwise waste multiple of the capped slots on the same title.
+function dedupeByKey<T>(entries: T[], key: (e: T) => string | undefined): T[] {
+  const seen = new Set<string>();
+  return entries.filter((e) => {
+    const k = key(e);
+    if (k === undefined) return true;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
 // A prolific person can have hundreds of credits; cap to the most popular so the
 // result stays useful and token-bounded.
 export function summarizePersonCredits(
@@ -638,9 +658,10 @@ export function summarizePersonCredits(
 ): z.infer<typeof personCreditsSchema> {
   const byPopularity = (a: CombinedCreditEntry, b: CombinedCreditEntry): number =>
     (b.popularity ?? 0) - (a.popularity ?? 0);
-  const cast = (c.cast ?? [])
-    .slice()
-    .sort(byPopularity)
+  const cast = dedupeByKey(
+    (c.cast ?? []).filter((e) => !isSelfAppearance(e)).sort(byPopularity),
+    (e) => e.id?.toString(),
+  )
     .slice(0, limit)
     .map((e) => ({
       id: e.id,
@@ -650,9 +671,9 @@ export function summarizePersonCredits(
       character: e.character || null,
       vote_average: e.vote_average ?? null,
     }));
-  const crew = (c.crew ?? [])
-    .slice()
-    .sort(byPopularity)
+  const crew = dedupeByKey((c.crew ?? []).slice().sort(byPopularity), (e) =>
+    e.id !== undefined && e.job ? `${e.id}:${e.job}` : undefined,
+  )
     .slice(0, limit)
     .map((e) => ({
       id: e.id,
@@ -739,15 +760,20 @@ export interface TmdbSeason {
   episodes?: RawEpisode[];
 }
 
-export function summarizeSeason(s: TmdbSeason): z.infer<typeof seasonSchema> {
+// `episodeLimit` caps "Specials" seasons that accumulate hundreds of bonus/promo
+// clips over a long-running show's lifetime (e.g. 300+ for some long-running
+// series) and would otherwise blow well past a reasonable response size.
+// `episode_count` still reports the true total; `episodes` is the capped list.
+export function summarizeSeason(s: TmdbSeason, episodeLimit = 50): z.infer<typeof seasonSchema> {
+  const episodes = s.episodes ?? [];
   return seasonSchema.parse({
     season_number: s.season_number ?? null,
     name: s.name || null,
     air_date: s.air_date || null,
     overview: s.overview || null,
     poster_url: imageUrl(s.poster_path),
-    episode_count: s.episodes?.length ?? 0,
-    episodes: (s.episodes ?? []).map((e) => ({
+    episode_count: episodes.length,
+    episodes: episodes.slice(0, episodeLimit).map((e) => ({
       episode_number: e.episode_number ?? null,
       name: e.name || null,
       air_date: e.air_date || null,

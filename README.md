@@ -155,6 +155,11 @@ exposed in Claude Desktop's install form, so CLI/Docker users set them directly.
 | `CACHE_TTL_MS`         | `300000`                       | How long cached responses stay fresh               |
 | `LOG_LEVEL`            | `info`                         | `debug` \| `info` \| `warn` \| `error` \| `silent` |
 
+If TMDB/OMDb is briefly down and a tool falls back to a cached-but-expired
+response rather than failing, the result carries
+`_meta: {"tmdb-mcp/stale": true}` alongside the normal data, so a client can
+tell a degraded answer from a fresh one.
+
 ## Develop
 
 ```sh

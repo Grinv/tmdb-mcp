@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/server";
 import type { OmdbClient } from "../clients/omdb.js";
 import { ratingsSchema } from "../format.schemas.js";
-import { READ_ONLY, requireConfigured } from "./shared.js";
+import { READ_ONLY, requireConfigured, trackStale } from "./shared.js";
 
 export function registerOmdbTools(server: McpServer, omdb: OmdbClient): void {
   server.registerTool(
@@ -18,33 +18,41 @@ export function registerOmdbTools(server: McpServer, omdb: OmdbClient): void {
         "TMDB id — they already include these ratings. Requires OMDB_API_KEY. One of imdb_id or " +
         "title is required; omitting both returns an error. A no-match lookup is not an error: it " +
         "returns `{found:false, reason}`.",
-      inputSchema: z.object({
-        imdb_id: z
-          .string()
-          .regex(/^tt\d+$/, "IMDb ids look like 'tt0133093'.")
-          .describe("IMDb title id. Takes precedence over title when both are given.")
-          .optional(),
-        title: z
-          .string()
-          .min(1)
-          .describe("Movie/show title (used when imdb_id is absent).")
-          .optional(),
-        year: z
-          .number()
-          .int()
-          .min(1870)
-          .max(2100)
-          .describe("Year, to disambiguate a title.")
-          .optional(),
-      }),
+      inputSchema: z
+        .object({
+          imdb_id: z
+            .string()
+            .regex(/^tt\d+$/, "IMDb ids look like 'tt0133093'.")
+            .describe("IMDb title id. Takes precedence over title when both are given.")
+            .optional(),
+          title: z
+            .string()
+            .min(1)
+            .describe("Movie/show title (used when imdb_id is absent).")
+            .optional(),
+          year: z
+            .number()
+            .int()
+            .min(1870)
+            .max(2100)
+            .describe("Year, to disambiguate a title.")
+            .optional(),
+        })
+        .strict(),
       outputSchema: ratingsSchema,
       annotations: READ_ONLY,
     },
-    ({ imdb_id, title, year }) =>
-      requireConfigured(
+    ({ imdb_id, title, year }) => {
+      const stale = trackStale();
+      return requireConfigured(
         omdb,
-        () => (imdb_id ? omdb.ratingsByImdbId(imdb_id) : omdb.ratingsByTitle(title!, year)),
+        () =>
+          imdb_id
+            ? omdb.ratingsByImdbId(imdb_id, stale.onStale)
+            : omdb.ratingsByTitle(title!, year, stale.onStale),
         () => (!imdb_id && !title ? "Provide either imdb_id or title." : undefined),
-      ),
+        stale.meta,
+      );
+    },
   );
 }

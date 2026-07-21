@@ -43,6 +43,39 @@ describe("get_ratings", () => {
     assert.equal(s.metascore, "73");
   });
 
+  test("carries a tmdb-mcp/stale _meta flag when serving a stale cached rating", async (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
+    let calls = 0;
+    installFetch(
+      t,
+      mockFetch(() => {
+        calls += 1;
+        if (calls > 1) return jsonResponse({ error: "boom" }, { status: 500 });
+        return jsonResponse(OMDB_OK);
+      }),
+    );
+    const { client, close } = await connectServer({ ...ENV, HTTP_RETRIES: "0", CACHE_TTL_MS: "1" });
+    t.after(close);
+
+    const first = await client.callTool({
+      name: "get_ratings",
+      arguments: { imdb_id: "tt0133093" },
+    });
+    assert.equal((first as { _meta?: unknown })._meta, undefined);
+
+    t.mock.timers.tick(5);
+
+    const second = await client.callTool({
+      name: "get_ratings",
+      arguments: { imdb_id: "tt0133093" },
+    });
+    const s = second.structuredContent as { found: boolean };
+    assert.equal(s.found, true); // still served, from the stale cache
+    assert.deepEqual((second as { _meta?: Record<string, unknown> })._meta, {
+      "tmdb-mcp/stale": true,
+    });
+  });
+
   test("looks up ratings by title and year, not imdb_id", async (t) => {
     const mock = mockFetch(() => jsonResponse(OMDB_OK));
     installFetch(t, mock);

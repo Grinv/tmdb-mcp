@@ -28,6 +28,23 @@ TMDB endpoints/fields were verified against the official reference
 `200` with `{ Response: "False", Error }` for misses, so the client maps that
 to a soft `{ found: false }` instead of throwing.
 
+## Stale-cache visibility
+
+`TtlCache.wrapStaleOnError` degrades gracefully when an upstream is briefly
+down: it serves a previously-cached (possibly expired) value instead of
+failing the call. That's the right default, but a caller has no way to tell
+"fresh" from "the upstream was down 20 minutes ago and this is what we had" —
+the two look identical in `structuredContent`. Putting a `stale` field inside
+the domain shape (`format.ts`) would mean touching every cached endpoint's
+schema for a rare edge case, and would conflate a caching concern with the
+"shape of a movie". Instead, the signal travels out-of-band: an `onStale`
+callback threaded from `wrapStaleOnError` up through the client method up to
+the tool handler (see the AGENTS.md convention), which attaches
+`_meta: {"tmdb-mcp/stale": true}` — a sibling of `structuredContent`, per the
+MCP spec's `_meta` mechanism, not a field inside it. `search_*`/`discover_*`/
+`get_similar`/`get_recommendations`/`get_reviews` are never cached in the
+first place (see `clients/tmdb.ts`), so they can never go stale.
+
 ## Reuse / shared architecture
 
 This server was generated from the **`mcp-server-template`** repository: a

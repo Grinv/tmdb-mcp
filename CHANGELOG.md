@@ -6,6 +6,21 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-22
+
+### Added
+
+- Surface `_meta: {"tmdb-mcp/stale": true}` on a tool result when the upstream (TMDB/OMDb) was down and the response was served from a stale cache entry, so a caller can tell degraded data from a fresh answer instead of it looking identical.
+
+### Fixed
+
+- Fix every tool silently dropping unknown/misspelled parameters (e.g. a typo'd filter name in `discover_movies`/`discover_tv`) instead of raising a validation error — all `inputSchema`s are now `.strict()`.
+- Fix `get_tv`'s `expand_episodes` failing outright on shows with more than 20 seasons (e.g. long-running sitcoms) by chunking the bulk season request under TMDB's 20-remote-call `append_to_response` limit.
+- Cap a season's episode list (`get_tv_season`, `get_tv`'s `seasons_detail`) at 50 so a "Specials" season with hundreds of bonus clips can't blow past a usable response size; `episode_count` still reports the true total.
+- Fix `get_person_credits` burying an actor's actual film/TV roles under talk-show guest spots and repeat same-show appearances — "Self"-credited cast entries are now excluded and same-title duplicates deduped before ranking.
+- Reject `discover_movies`/`discover_tv` calls where `certification`/`with_watch_providers` are set without their required `certification_country`/`watch_region` pair, and where `min_rating` exceeds `max_rating` — TMDB previously ignored these incomplete filters without any error.
+- Reject a `page` above TMDB's hard cap of 500 up front instead of surfacing TMDB's raw error.
+
 ## [0.6.0] - 2026-07-21
 
 ### Added

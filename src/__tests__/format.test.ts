@@ -304,6 +304,43 @@ describe("summarizePersonCredits", () => {
       [2, 3],
     );
   });
+
+  test("self-appearance cast entries (talk-show guest spots) are excluded", () => {
+    // A long-running talk show accrues a far higher entity-level `popularity`
+    // than any single film, so without filtering this would outrank Movie Role.
+    const s = summarizePersonCredits({
+      cast: [
+        { id: 1, title: "Late Show", character: "Self - Guest", popularity: 200 },
+        { id: 2, title: "Self Storage", character: "Owner", popularity: 3 },
+        { id: 3, title: "Movie Role", character: "Hero", popularity: 30 },
+      ],
+    });
+    const cast = s.cast as { id: number; title?: string }[];
+    assert.deepEqual(
+      cast.map((x) => x.id),
+      [3, 2],
+    );
+  });
+
+  test("repeat guest spots on the same title are deduped to one cast entry", () => {
+    const s = summarizePersonCredits({
+      cast: [
+        { id: 1, title: "Kimmel", character: "Guest Star", popularity: 50 },
+        { id: 1, title: "Kimmel", character: "Guest Host", popularity: 50 },
+      ],
+    });
+    assert.equal(s.cast.length, 1);
+  });
+
+  test("crew entries are deduped by id+job, not id alone", () => {
+    const s = summarizePersonCredits({
+      crew: [
+        { id: 1, title: "Movie", job: "Writer", popularity: 10 },
+        { id: 1, title: "Movie", job: "Director", popularity: 10 },
+      ],
+    });
+    assert.equal(s.crew.length, 2);
+  });
 });
 
 describe("summarizeVideos", () => {
@@ -368,6 +405,16 @@ describe("summarizeSeason", () => {
     const [ep] = s.episodes as { name: string | null; air_date: string | null }[];
     assert.equal(ep!.name, null);
     assert.equal(ep!.air_date, null);
+  });
+
+  test("episodes list is capped but episode_count still reports the true total", () => {
+    // "Specials" seasons on long-running shows can carry hundreds of bonus
+    // clips; the episode list must stay bounded without under-reporting the count.
+    const episodes = Array.from({ length: 300 }, (_, i) => ({ episode_number: i + 1 }));
+    const s = summarizeSeason({ episodes }, 50);
+    assert.equal(s.episode_count, 300);
+    assert.equal(s.episodes.length, 50);
+    assert.equal(s.episodes[0]!.episode_number, 1);
   });
 });
 

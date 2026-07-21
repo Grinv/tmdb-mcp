@@ -126,6 +126,41 @@ describe("TmdbClient: getTv(expand_episodes) on a show with zero seasons", () =>
   });
 });
 
+describe("TmdbClient: getTv(expand_episodes) on a show with more than 20 seasons", () => {
+  test("chunks append_to_response into batches of 20 instead of one unbounded request", async (t) => {
+    // TMDB hard-caps append_to_response at 20 remote calls per request; a
+    // single unbounded append for a 25-season show would be rejected outright.
+    const seasons = Array.from({ length: 25 }, (_, i) => ({
+      season_number: i + 1,
+      name: `Season ${i + 1}`,
+      episode_count: 10,
+    }));
+    const mock = mockFetch((url) => {
+      // getTv's own base-detail request also carries an append_to_response
+      // (external_ids,content_ratings) — only a season/... append is the bulk call.
+      if (!url.includes("append_to_response=season")) {
+        return jsonResponse({ id: 1, name: "Long Runner", seasons });
+      }
+      const requested = decodeURIComponent(/append_to_response=([^&]+)/.exec(url)![1]!).split(",");
+      const body: Record<string, unknown> = {};
+      for (const key of requested) {
+        const n = Number(key.split("/")[1]);
+        body[key] = { season_number: n, name: `Season ${n}`, episodes: [] };
+      }
+      return jsonResponse(body);
+    });
+    installFetch(t, mock);
+    const s = await client().getTv(1, "US", undefined, true);
+    const bulkCalls = mock.calls.filter((c) => c.url.includes("append_to_response=season"));
+    assert.equal(bulkCalls.length, 2, "expected two chunked append_to_response requests");
+    assert.equal(s.seasons_detail?.length, 25);
+    assert.deepEqual(
+      s.seasons_detail?.map((x) => x.season_number),
+      seasons.map((x) => x.season_number),
+    );
+  });
+});
+
 describe("TmdbClient: getReviews hits the right sub-resource per media type", () => {
   test("movie reviews vs tv reviews use distinct paths", async (t) => {
     const mock = mockFetch(() => jsonResponse(EMPTY_PAGE));
