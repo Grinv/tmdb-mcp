@@ -107,7 +107,7 @@ const COMBINED_CREDITS = {
       id: 1,
       media_type: "tv",
       name: "Some Show",
-      character: "Himself",
+      character: "Detective Jones",
       first_air_date: "2010-01-01",
       popularity: 10,
     },

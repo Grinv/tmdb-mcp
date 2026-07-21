@@ -6,6 +6,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Cap the combined episode count across all seasons at 500 in `get_tv`'s `expand_episodes`, since a 30+ season show (e.g. long-running sitcoms) could still blow past a usable response size even with each season's own 50-episode cap.
+- Widen `get_person_credits`' self-appearance filter to also exclude `Himself`/`Herself`-credited cast entries, not just `Self`-prefixed ones.
+
 ## [0.7.0] - 2026-07-22
 
 ### Added

@@ -635,7 +635,8 @@ function creditYear(e: CombinedCreditEntry): number | null {
 // higher popularity than any single film, so unfiltered "Self" guest spots
 // (Letterman, Kimmel, awards-show cameos, …) crowd out an actor's actual,
 // much more relevant film/TV roles. Excluded so the ranked list is about roles.
-const isSelfAppearance = (e: CombinedCreditEntry): boolean => /^self\b/i.test(e.character ?? "");
+const isSelfAppearance = (e: CombinedCreditEntry): boolean =>
+  /^(self|himself|herself)\b/i.test(e.character ?? "");
 
 // Repeat guest spots (or a title credited under more than one character/job)
 // otherwise waste multiple of the capped slots on the same title.

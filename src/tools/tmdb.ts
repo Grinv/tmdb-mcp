@@ -62,7 +62,9 @@ const expandEpisodes = z
       "`seasons_detail`, in one extra request — use this instead of calling get_tv_season once per " +
       "season when you need all episodes of a multi-season show. Each season's episode list is " +
       "capped at 50 (season 0 'Specials' in particular can otherwise run to hundreds of bonus " +
-      "clips); `episode_count` still reports the true total. Defaults to false.",
+      "clips), and the combined episode count across every season is capped at 500 (a 30+ season " +
+      "show can still exceed that even with the per-season cap); `episode_count` on each season " +
+      "still reports that season's true total. Defaults to false.",
   )
   .optional();
 
@@ -726,7 +728,7 @@ export function registerTmdbTools(
       description:
         "List the movies and TV shows a person is known for (cast roles and crew jobs), most " +
         "popular first, capped to the top 25 of each; talk-show/awards-show guest appearances " +
-        "('Self') and repeat entries for the same title are excluded so the list stays about " +
+        "('Self'/'Himself'/'Herself') and repeat entries for the same title are excluded so the list stays about " +
         "actual roles. Cast entries include a vote_average; crew entries (director, writer, …) " +
         "do not — call get_movie/get_tv on the id for a crew credit's rating. Use for 'what has " +
         "this actor/director been in'. Get the id from search_people.",

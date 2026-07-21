@@ -159,6 +159,49 @@ describe("TmdbClient: getTv(expand_episodes) on a show with more than 20 seasons
       seasons.map((x) => x.season_number),
     );
   });
+
+  test("caps the combined episode count across all seasons at 500, even though each season is individually under its own 50-episode cap", async (t) => {
+    // 25 seasons x 30 episodes = 750 total episodes, each season well under
+    // the per-season 50 cap on its own — only the aggregate needs capping.
+    const EPISODES_PER_SEASON = 30;
+    const seasons = Array.from({ length: 25 }, (_, i) => ({
+      season_number: i + 1,
+      name: `Season ${i + 1}`,
+      episode_count: EPISODES_PER_SEASON,
+    }));
+    const mock = mockFetch((url) => {
+      if (!url.includes("append_to_response=season")) {
+        return jsonResponse({ id: 1, name: "Long Runner", seasons });
+      }
+      const requested = decodeURIComponent(/append_to_response=([^&]+)/.exec(url)![1]!).split(",");
+      const body: Record<string, unknown> = {};
+      for (const key of requested) {
+        const n = Number(key.split("/")[1]);
+        body[key] = {
+          season_number: n,
+          name: `Season ${n}`,
+          episodes: Array.from({ length: EPISODES_PER_SEASON }, (_, i) => ({
+            episode_number: i + 1,
+          })),
+        };
+      }
+      return jsonResponse(body);
+    });
+    installFetch(t, mock);
+    const s = await client().getTv(1, "US", undefined, true);
+    const seasonsDetail = s.seasons_detail!;
+    const totalReturnedEpisodes = seasonsDetail.reduce((sum, x) => sum + x.episodes.length, 0);
+    assert.ok(
+      totalReturnedEpisodes <= 500,
+      `expected <=500 episodes, got ${totalReturnedEpisodes}`,
+    );
+    // Every season still reports its true per-season count, capping notwithstanding.
+    assert.ok(seasonsDetail.every((x) => x.episode_count === EPISODES_PER_SEASON));
+    // Earlier seasons are kept in full before the budget runs out.
+    assert.equal(seasonsDetail[0]!.episodes.length, EPISODES_PER_SEASON);
+    // Some later season must have been truncated (25 * 30 = 750 > 500).
+    assert.ok(seasonsDetail.some((x) => x.episodes.length < EPISODES_PER_SEASON));
+  });
 });
 
 describe("TmdbClient: getReviews hits the right sub-resource per media type", () => {

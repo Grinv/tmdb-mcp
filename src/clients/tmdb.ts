@@ -55,10 +55,35 @@ type Query = Record<string, string | number | boolean | undefined>;
 // TMDB's hard cap on remote calls per append_to_response request.
 const MAX_APPEND_TO_RESPONSE = 20;
 
+// A show can have 30+ seasons, each already under its own 50-episode cap
+// (see summarizeSeason) — but the SUM across every season in an
+// expand_episodes bulk fetch can still reach into the hundreds and blow past
+// a usable response size. Cap the combined episode count across all seasons
+// in one getTvSeasonsBulk result; episode_count on each season still reports
+// that season's true total even once its episodes are truncated to fit.
+const MAX_EXPANDED_EPISODES = 500;
+
 function chunk<T>(items: T[], size: number): T[][] {
   const chunks: T[][] = [];
   for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
   return chunks;
+}
+
+function capTotalEpisodes(
+  seasons: ReturnType<typeof summarizeSeason>[],
+  limit: number,
+): ReturnType<typeof summarizeSeason>[] {
+  let remaining = limit;
+  return seasons.map((s) => {
+    if (remaining <= 0) return { ...s, episodes: [] };
+    if (s.episodes.length <= remaining) {
+      remaining -= s.episodes.length;
+      return s;
+    }
+    const capped = { ...s, episodes: s.episodes.slice(0, remaining) };
+    remaining = 0;
+    return capped;
+  });
 }
 
 export interface SearchParams {
@@ -308,7 +333,7 @@ export class TmdbClient {
             return numbers.map((n) => summarizeSeason(res[`season/${n}`] ?? {}));
           }),
         );
-        return { seasons: chunkResults.flat() };
+        return { seasons: capTotalEpisodes(chunkResults.flat(), MAX_EXPANDED_EPISODES) };
       },
       onStale,
     );

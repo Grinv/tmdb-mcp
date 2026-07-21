@@ -322,6 +322,21 @@ describe("summarizePersonCredits", () => {
     );
   });
 
+  test("'Himself'/'Herself'-credited cast entries are excluded, same as 'Self'", () => {
+    const s = summarizePersonCredits({
+      cast: [
+        { id: 1, title: "Late Night Show", character: "Himself", popularity: 200 },
+        { id: 2, title: "Daytime Talk", character: "Herself", popularity: 150 },
+        { id: 3, title: "Movie Role", character: "Hero", popularity: 30 },
+      ],
+    });
+    const cast = s.cast as { id: number }[];
+    assert.deepEqual(
+      cast.map((x) => x.id),
+      [3],
+    );
+  });
+
   test("repeat guest spots on the same title are deduped to one cast entry", () => {
     const s = summarizePersonCredits({
       cast: [
