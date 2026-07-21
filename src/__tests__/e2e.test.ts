@@ -150,7 +150,14 @@ function spawnServer(): {
     child.stderr!.on("data", () => {
       if (stderr.includes("ready")) {
         clearTimeout(timeout);
-        resolve();
+        // A real MCP host never signals a server within microseconds of
+        // spawning it (there's at least a protocol handshake first). Under
+        // heavy CPU contention a signal sent that fast can occasionally hit
+        // Node's default disposition before its handler is actually
+        // scheduled, independent of the stdin fix above — reproduced with a
+        // signal-only repro under artificial load. A short, realistic grace
+        // period avoids that race without weakening what this test verifies.
+        setTimeout(resolve, 100);
       }
     });
   });
