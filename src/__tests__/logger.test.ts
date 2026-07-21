@@ -1,44 +1,6 @@
-import { test } from "node:test";
+import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { LoggingMessageNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
-import { createLogger, type LogLevel, type LogSink } from "../lib/logger.js";
-import { buildServer, mcpLoggingSink, activateClientLoggingOnInitialize } from "../server.js";
-import { loadConfig } from "../config.js";
-import { connectServer, silentLogger } from "./helpers.js";
-
-/** Connect an in-memory client to a fresh server and collect logging
- *  notifications. Returns the server (so a sink can target it), the captured
- *  params, a promise that resolves on the next notification, and a teardown. */
-async function connectWithLogCapture() {
-  const server = buildServer(loadConfig({}), silentLogger());
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const client = new Client({ name: "test", version: "0" });
-
-  const received: { level: string; data: unknown; logger?: string }[] = [];
-  let signal!: () => void;
-  let next = new Promise<void>((r) => (signal = r));
-  client.setNotificationHandler(LoggingMessageNotificationSchema, (n) => {
-    received.push(n.params);
-    signal();
-    next = new Promise<void>((r) => (signal = r));
-  });
-
-  await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
-  return {
-    server,
-    client,
-    received,
-    nextNotification: () => next,
-    close: async () => {
-      await client.close();
-      await server.close();
-    },
-  };
-}
-
-type SinkCall = { level: Exclude<LogLevel, "silent">; message: string };
+import { createLogger } from "../lib/logger.js";
 
 function captureStderr<T>(fn: () => T): { result: T; lines: string[] } {
   const lines: string[] = [];
@@ -53,169 +15,65 @@ function captureStderr<T>(fn: () => T): { result: T; lines: string[] } {
   }
 }
 
-test("sink mirrors every emitted line with its level", () => {
-  const calls: SinkCall[] = [];
-  captureStderr(() => {
-    const log = createLogger("debug", (level, message) => calls.push({ level, message }));
-    log.debug("d");
-    log.info("i");
-    log.warn("w");
-    log.error("e");
-  });
-  assert.deepEqual(calls, [
-    { level: "debug", message: "d" },
-    { level: "info", message: "i" },
-    { level: "warn", message: "w" },
-    { level: "error", message: "e" },
-  ]);
-});
-
-test("sink is gated by the same threshold as stderr", () => {
-  const calls: SinkCall[] = [];
-  captureStderr(() => {
-    const log = createLogger("warn", (level, message) => calls.push({ level, message }));
-    log.debug("d");
-    log.info("i");
-    log.warn("w");
-    log.error("e");
-  });
-  assert.deepEqual(
-    calls.map((c) => c.level),
-    ["warn", "error"],
-  );
-});
-
-test("silent level emits to neither stderr nor sink", () => {
-  const calls: SinkCall[] = [];
-  const { lines } = captureStderr(() => {
-    const log = createLogger("silent", (level, message) => calls.push({ level, message }));
-    log.error("e");
-  });
-  assert.equal(calls.length, 0);
-  assert.equal(lines.length, 0);
-});
-
-test("messages reach the sink already redacted", () => {
-  const calls: SinkCall[] = [];
-  captureStderr(() => {
-    const log = createLogger("info", (level, message) => calls.push({ level, message }));
-    log.info("calling https://api.example.test/x?access_token=supersecret&v=1");
-  });
-  assert.equal(calls.length, 1);
-  assert.match(calls[0]!.message, /access_token=\*\*\*/);
-  assert.doesNotMatch(calls[0]!.message, /supersecret/);
-});
-
-test("extra Error/object/circular arguments are stringified safely (as used by server.ts's process handlers)", () => {
-  const calls: SinkCall[] = [];
-  captureStderr(() => {
-    const log = createLogger("info", (level, message) => calls.push({ level, message }));
-    log.error("unhandled rejection", new Error("boom"));
-    log.error("uncaught exception", { code: "E_FAIL", detail: "x" });
-    const circular: Record<string, unknown> = { a: 1 };
-    circular.self = circular;
-    log.error("circular payload", circular);
-  });
-  assert.equal(calls.length, 3);
-  assert.match(calls[0]!.message, /unhandled rejection boom/); // Error → .message
-  assert.match(calls[1]!.message, /"code":"E_FAIL"/); // plain object → JSON.stringify
-  // JSON.stringify throws on a circular structure; must fall back to String(value)
-  // instead of throwing and breaking the caller (server.ts's own error handler).
-  assert.match(calls[2]!.message, /circular payload \[object Object\]/);
-});
-
-test("a throwing sink never breaks logging", () => {
-  const { lines } = captureStderr(() => {
-    const log = createLogger("info", () => {
-      throw new Error("sink blew up");
+describe("createLogger", () => {
+  test("every level writes to stderr", () => {
+    const { lines } = captureStderr(() => {
+      const log = createLogger("debug");
+      log.debug("d");
+      log.info("i");
+      log.warn("w");
+      log.error("e");
     });
-    assert.doesNotThrow(() => log.info("still logs"));
+    assert.equal(lines.length, 4);
+    assert.match(lines[0]!, /debug: d/);
+    assert.match(lines[1]!, /info: i/);
+    assert.match(lines[2]!, /warn: w/);
+    assert.match(lines[3]!, /error: e/);
   });
-  assert.equal(lines.length, 1);
-  assert.match(lines[0]!, /still logs/);
-});
 
-test("server advertises the logging capability and accepts setLevel", async () => {
-  const { client, close } = await connectServer();
-  try {
-    assert.ok(client.getServerCapabilities()?.logging, "logging capability advertised");
-    // setLevel only resolves if the server registered the handler (it does so
-    // only when the capability is declared).
-    await assert.doesNotReject(client.setLoggingLevel("warning"));
-  } finally {
-    await close();
-  }
-});
-
-test("mcpLoggingSink delivers a notifications/message with the mapped MCP level", async () => {
-  const cap = await connectWithLogCapture();
-  try {
-    const log = createLogger("info", mcpLoggingSink(cap.server));
-    captureStderr(() => log.warn("disk almost full")); // sink still fires; just mute stderr noise
-    await cap.nextNotification();
-    assert.equal(cap.received.length, 1);
-    assert.equal(cap.received[0]!.level, "warning"); // internal warn → syslog "warning"
-    assert.equal(cap.received[0]!.logger, "tmdb-mcp");
-    assert.equal(cap.received[0]!.data, "disk almost full");
-  } finally {
-    await cap.close();
-  }
-});
-
-test("mcpLoggingSink silently drops a failed send instead of throwing (logging must never break the server)", async () => {
-  const cap = await connectWithLogCapture();
-  await cap.close(); // disconnects the transport; sendLoggingMessage now rejects with "Not connected"
-  const log = createLogger("info", mcpLoggingSink(cap.server));
-  assert.doesNotThrow(() => captureStderr(() => log.error("server closing down")));
-  // Let the rejected sendLoggingMessage promise's .catch settle before the test exits,
-  // so a regression that removed the .catch would surface as an unhandled rejection.
-  await new Promise((r) => setImmediate(r));
-});
-
-test("logs are NOT mirrored to the client before initialize, only after", async () => {
-  // Regression: sending notifications/message before the client's `initialized`
-  // violates the MCP lifecycle and strict clients (Claude Desktop) disconnect.
-  const ref: { sink?: LogSink } = {};
-  const logger = createLogger("info", (level, message) => ref.sink?.(level, message));
-  const server = buildServer(loadConfig({}), logger);
-  activateClientLoggingOnInitialize(server, ref);
-
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const notes: unknown[] = [];
-  clientTransport.onmessage = (m) => {
-    const msg = m as { method?: string; params?: { data?: unknown } };
-    if (msg.method === "notifications/message") notes.push(msg.params?.data);
-  };
-  await clientTransport.start();
-  await server.connect(serverTransport);
-
-  // Before initialize: must go to stderr only, never to the client.
-  captureStderr(() => logger.info("before init"));
-  await new Promise((r) => setImmediate(r));
-  assert.deepEqual(notes, [], "no client log notification before initialize");
-
-  // Simulate the client's `initialized` (what the SDK invokes on receipt).
-  server.server.oninitialized?.();
-  captureStderr(() => logger.info("after init"));
-  await new Promise((r) => setImmediate(r));
-  assert.deepEqual(notes, ["after init"], "logs mirrored once initialized");
-
-  await server.close();
-});
-
-test("a client setLevel filters lower-severity logs before they reach it", async () => {
-  const cap = await connectWithLogCapture();
-  try {
-    await cap.client.setLoggingLevel("error"); // only error+ should arrive
-    const log = createLogger("debug", mcpLoggingSink(cap.server));
-    captureStderr(() => {
-      log.warn("dropped by the client level");
-      log.error("kept");
+  test("lines below the threshold are dropped", () => {
+    const { lines } = captureStderr(() => {
+      const log = createLogger("warn");
+      log.debug("d");
+      log.info("i");
+      log.warn("w");
+      log.error("e");
     });
-    await cap.nextNotification();
-    assert.equal(cap.received.length, 1);
-    assert.equal(cap.received[0]!.data, "kept");
-  } finally {
-    await cap.close();
-  }
+    assert.equal(lines.length, 2);
+  });
+
+  test("silent level emits nothing", () => {
+    const { lines } = captureStderr(() => {
+      const log = createLogger("silent");
+      log.error("e");
+    });
+    assert.equal(lines.length, 0);
+  });
+
+  test("messages are redacted before reaching stderr", () => {
+    const { lines } = captureStderr(() => {
+      const log = createLogger("info");
+      log.info("calling https://api.example.test/x?access_token=supersecret&v=1");
+    });
+    assert.equal(lines.length, 1);
+    assert.match(lines[0]!, /access_token=\*\*\*/);
+    assert.doesNotMatch(lines[0]!, /supersecret/);
+  });
+
+  test("extra Error/object/circular arguments are stringified safely (as used by server.ts's process handlers)", () => {
+    const { lines } = captureStderr(() => {
+      const log = createLogger("info");
+      log.error("unhandled rejection", new Error("boom"));
+      log.error("uncaught exception", { code: "E_FAIL", detail: "x" });
+      const circular: Record<string, unknown> = { a: 1 };
+      circular.self = circular;
+      log.error("circular payload", circular);
+    });
+    assert.equal(lines.length, 3);
+    assert.match(lines[0]!, /unhandled rejection boom/); // Error → .message
+    assert.match(lines[1]!, /"code":"E_FAIL"/); // plain object → JSON.stringify
+    // JSON.stringify throws on a circular structure; must fall back to String(value)
+    // instead of throwing and breaking the caller (server.ts's own error handler).
+    assert.match(lines[2]!, /circular payload \[object Object\]/);
+  });
 });

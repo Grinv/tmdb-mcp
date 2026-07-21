@@ -30,22 +30,25 @@ import {
   summarizeVideos,
   summarizeWatchProviders,
   type CombinedCredits,
-  type FindResponse,
   type KeywordsResponse,
-  type TmdbCollection,
+  type Page,
   type TmdbCredits,
   type TmdbReview,
   type TmdbMovie,
   type TmdbMultiItem,
   type TmdbPage,
-  type TmdbPerson,
   type TmdbSeason,
   type TmdbTv,
-  type VideosResponse,
   type WatchProvidersResponse,
 } from "../format.js";
 import type { Logger } from "../lib/logger.js";
 import type { Config } from "../config.js";
+// Type-only: DiscoverParams' source of truth is the input zod schema in
+// tools/tmdb.ts (per-field descriptions/validation belong there), z.infer'd
+// and re-exported for client code — see discoverParamsSchema in tools/tmdb.ts.
+// `import type` is fully erased at build, so this doesn't create a runtime
+// circular import even though tools/tmdb.ts also imports TmdbClient from here.
+import type { DiscoverParams } from "../tools/tmdb.js";
 
 type Query = Record<string, string | number | boolean | undefined>;
 
@@ -62,42 +65,25 @@ export interface SearchParams {
 export type TrendingMediaType = "all" | "movie" | "tv" | "person";
 export type TrendingWindow = "day" | "week";
 
-// Friendly discover params; mapped to TMDB's query keys in the client so callers
-// (and the tool schema) avoid awkward names like "vote_average.gte". `year` and
-// the date range map to the movie- or tv-specific keys per endpoint.
-export interface DiscoverParams {
-  sort_by?: string;
-  with_genres?: string;
-  without_genres?: string;
-  year?: number;
-  release_date_gte?: string;
-  release_date_lte?: string;
-  min_rating?: number;
-  max_rating?: number;
-  min_votes?: number;
-  min_runtime?: number;
-  max_runtime?: number;
-  with_original_language?: string;
-  with_cast?: string;
-  with_crew?: string;
-  with_people?: string;
-  with_companies?: string;
-  with_keywords?: string;
-  without_keywords?: string;
-  with_watch_providers?: string;
-  watch_region?: string;
-  with_networks?: string; // tv only
-  certification?: string; // movie only
-  certification_country?: string; // movie only
-  language?: string;
-  page?: number;
-}
+export type { DiscoverParams };
 
 export type ExternalSource = "imdb_id" | "tvdb_id" | "wikidata_id";
 
+// Shared by every method that dispatches on a runtime "movie" | "tv" media
+// kind and returns a page of the corresponding summary — the return type is
+// a real union (which branch you get depends on the `mediaType` argument,
+// not on anything visible in the static type), not a cop-out to `unknown`.
+type MovieOrTvPage = Page<ReturnType<typeof summarizeMovie>> | Page<ReturnType<typeof summarizeTv>>;
+
+// getTv's return shape: detailTv's fields, plus the optional per-season
+// episode expansion (only populated when a caller passes expandEpisodes).
+type TvDetail = ReturnType<typeof detailTv> & {
+  seasons_detail?: ReturnType<typeof summarizeSeason>[];
+};
+
 export class TmdbClient {
   readonly #http: HttpClient;
-  readonly #cache: TtlCache<Record<string, unknown>>;
+  readonly #cache: TtlCache;
   readonly #language: string;
   readonly #region: string;
   /** True when a TMDB token is configured; tools short-circuit otherwise. */
@@ -143,7 +129,10 @@ export class TmdbClient {
   // detail getters below), so they accept the caller's AbortSignal and can be
   // genuinely cancelled mid-flight when the MCP client cancels the tool call.
 
-  async searchMovies(p: SearchParams, signal?: AbortSignal): Promise<Record<string, unknown>> {
+  async searchMovies(
+    p: SearchParams,
+    signal?: AbortSignal,
+  ): Promise<Page<ReturnType<typeof summarizeMovie>>> {
     const res = await this.#get<TmdbPage<TmdbMovie>>(
       "search/movie",
       {
@@ -159,7 +148,10 @@ export class TmdbClient {
     return page(res, summarizeMovie);
   }
 
-  async searchTv(p: SearchParams, signal?: AbortSignal): Promise<Record<string, unknown>> {
+  async searchTv(
+    p: SearchParams,
+    signal?: AbortSignal,
+  ): Promise<Page<ReturnType<typeof summarizeTv>>> {
     const res = await this.#get<TmdbPage<TmdbTv>>(
       "search/tv",
       {
@@ -174,7 +166,10 @@ export class TmdbClient {
     return page(res, summarizeTv);
   }
 
-  async searchMulti(p: SearchParams, signal?: AbortSignal): Promise<Record<string, unknown>> {
+  async searchMulti(
+    p: SearchParams,
+    signal?: AbortSignal,
+  ): Promise<Page<ReturnType<typeof summarizeMultiItem>>> {
     const res = await this.#get<TmdbPage<TmdbMultiItem>>(
       "search/multi",
       { query: p.query, page: p.page, include_adult: p.include_adult },
@@ -184,7 +179,10 @@ export class TmdbClient {
     return page(res, summarizeMultiItem);
   }
 
-  async searchPeople(p: SearchParams, signal?: AbortSignal): Promise<Record<string, unknown>> {
+  async searchPeople(
+    p: SearchParams,
+    signal?: AbortSignal,
+  ): Promise<Page<ReturnType<typeof summarizePerson>>> {
     const res = await this.#get<TmdbPage<TmdbMultiItem>>(
       "search/person",
       { query: p.query, page: p.page, include_adult: p.include_adult },
@@ -201,7 +199,7 @@ export class TmdbClient {
     query: string,
     pg?: number,
     signal?: AbortSignal,
-  ): Promise<Record<string, unknown>> {
+  ): Promise<ReturnType<typeof summarizeKeywords>> {
     const res = await this.#get<KeywordsResponse>(
       "search/keyword",
       { query, page: pg },
@@ -217,7 +215,7 @@ export class TmdbClient {
     id: number,
     region = this.#region,
     language?: string,
-  ): Promise<Record<string, unknown>> {
+  ): Promise<ReturnType<typeof detailMovie>> {
     // region + language are dims because the headline `certification` and the
     // localized text fields vary by them.
     return this.#cache.wrapStaleOnError(
@@ -239,7 +237,7 @@ export class TmdbClient {
     region = this.#region,
     language?: string,
     expandEpisodes = false,
-  ): Promise<Record<string, unknown>> {
+  ): Promise<TvDetail> {
     const shaped = await this.#cache.wrapStaleOnError(
       cacheKey(`tv:${id}`, { region, language: this.#lang(language) }),
       async () => {
@@ -255,7 +253,7 @@ export class TmdbClient {
       },
     );
     if (!expandEpisodes) return shaped;
-    const seasonNumbers = ((shaped.seasons as { season_number: number | null }[]) ?? [])
+    const seasonNumbers = shaped.seasons
       .map((s) => s.season_number)
       .filter((n): n is number => n !== null);
     if (seasonNumbers.length === 0) return shaped;
@@ -270,7 +268,7 @@ export class TmdbClient {
     id: number,
     seasonNumbers: number[],
     language?: string,
-  ): Promise<Record<string, unknown>[]> {
+  ): Promise<ReturnType<typeof summarizeSeason>[]> {
     const key = cacheKey(`tv-seasons-bulk:${id}`, {
       seasons: seasonNumbers.join(","),
       language: this.#lang(language),
@@ -286,7 +284,7 @@ export class TmdbClient {
         seasons: seasonNumbers.map((n) => summarizeSeason(res[`season/${n}`] ?? {})),
       };
     });
-    return bulk.seasons as Record<string, unknown>[];
+    return bulk.seasons;
   }
 
   /** Like getMovie/getTv but also returns the raw imdb_id for OMDb enrichment. */
@@ -296,16 +294,19 @@ export class TmdbClient {
     region = this.#region,
     language?: string,
     expandEpisodes = false,
-  ): Promise<{ shaped: Record<string, unknown>; imdbId: string | null }> {
+  ): Promise<{
+    shaped: ReturnType<typeof detailMovie> | TvDetail;
+    imdbId: string | null;
+  }> {
     const shaped =
       mediaType === "tv"
         ? await this.getTv(id, region, language, expandEpisodes)
         : await this.getMovie(id, region, language);
-    return { shaped, imdbId: (shaped.imdb_id as string | null) ?? null };
+    return { shaped, imdbId: shaped.imdb_id };
   }
 
-  async getPerson(id: number, language?: string): Promise<Record<string, unknown>> {
-    return this.#cached<TmdbPerson>(
+  async getPerson(id: number, language?: string): Promise<ReturnType<typeof detailPerson>> {
+    return this.#cached(
       cacheKey(`person:${id}`, { language: this.#lang(language) }),
       `person/${id}`,
       detailPerson,
@@ -314,7 +315,10 @@ export class TmdbClient {
     );
   }
 
-  async getMovieCredits(id: number, language?: string): Promise<Record<string, unknown>> {
+  async getMovieCredits(
+    id: number,
+    language?: string,
+  ): Promise<ReturnType<typeof summarizeCredits>> {
     return this.#cached(
       cacheKey(`movie-credits:${id}`, { language: this.#lang(language) }),
       `movie/${id}/credits`,
@@ -324,7 +328,7 @@ export class TmdbClient {
     );
   }
 
-  async getTvCredits(id: number, language?: string): Promise<Record<string, unknown>> {
+  async getTvCredits(id: number, language?: string): Promise<ReturnType<typeof summarizeCredits>> {
     return this.#cached(
       cacheKey(`tv-credits:${id}`, { language: this.#lang(language) }),
       `tv/${id}/credits`,
@@ -344,7 +348,7 @@ export class TmdbClient {
     pg?: number,
     language?: string,
     signal?: AbortSignal,
-  ): Promise<Record<string, unknown>> {
+  ): Promise<MovieOrTvPage> {
     if (mediaType === "tv") {
       return this.#get<TmdbPage<TmdbTv>>(`tv/${id}/${kind}`, { page: pg }, language, signal).then(
         (res) => page(res, summarizeTv),
@@ -365,7 +369,7 @@ export class TmdbClient {
     pg?: number,
     language?: string,
     signal?: AbortSignal,
-  ): Promise<Record<string, unknown>> {
+  ): Promise<MovieOrTvPage> {
     return this.#pagedTitles(mediaType, id, "recommendations", pg, language, signal);
   }
 
@@ -376,7 +380,7 @@ export class TmdbClient {
     pg?: number,
     language?: string,
     signal?: AbortSignal,
-  ): Promise<Record<string, unknown>> {
+  ): Promise<MovieOrTvPage> {
     return this.#pagedTitles(mediaType, id, "similar", pg, language, signal);
   }
 
@@ -387,7 +391,7 @@ export class TmdbClient {
     pg?: number,
     language?: string,
     signal?: AbortSignal,
-  ): Promise<Record<string, unknown>> {
+  ): Promise<Page<ReturnType<typeof summarizeReview>>> {
     const res = await this.#get<TmdbPage<TmdbReview>>(
       `${mediaType}/${id}/reviews`,
       { page: pg },
@@ -399,8 +403,11 @@ export class TmdbClient {
 
   // A movie collection/franchise (e.g. "The Dark Knight Collection") + its parts.
   // Cached: collections are stable and small.
-  async getCollection(id: number, language?: string): Promise<Record<string, unknown>> {
-    return this.#cached<TmdbCollection>(
+  async getCollection(
+    id: number,
+    language?: string,
+  ): Promise<ReturnType<typeof summarizeCollection>> {
+    return this.#cached(
       cacheKey(`collection:${id}`, { language: this.#lang(language) }),
       `collection/${id}`,
       summarizeCollection,
@@ -416,7 +423,7 @@ export class TmdbClient {
     window: TrendingWindow,
     pg?: number,
     language?: string,
-  ): Promise<Record<string, unknown>> {
+  ): Promise<Page<ReturnType<typeof summarizeMultiItem>>> {
     const res = await this.#get<TmdbPage<TmdbMultiItem>>(
       `trending/${mediaType}/${window}`,
       { page: pg },
@@ -427,11 +434,14 @@ export class TmdbClient {
 
   // Genre lists drive the readable names in search results; very static → cache.
   // Cached per language so localized names are not mixed.
-  async getGenres(mediaType: "movie" | "tv", language?: string): Promise<Record<string, unknown>> {
-    return this.#cached<{ genres: { id?: number; name?: string }[] }>(
+  async getGenres(
+    mediaType: "movie" | "tv",
+    language?: string,
+  ): Promise<ReturnType<typeof summarizeGenres>> {
+    return this.#cached(
       cacheKey(`genres:${mediaType}`, { language: this.#lang(language) }),
       `genre/${mediaType}/list`,
-      (res) => summarizeGenres(res.genres ?? []),
+      (res: { genres: { id?: number; name?: string }[] }) => summarizeGenres(res.genres ?? []),
       {},
       language,
     );
@@ -443,7 +453,7 @@ export class TmdbClient {
     kind: "movie" | "tv",
     p: DiscoverParams,
     signal?: AbortSignal,
-  ): Promise<Record<string, unknown>> {
+  ): Promise<MovieOrTvPage> {
     if (kind === "tv") {
       const res = await this.#get<TmdbPage<TmdbTv>>(
         "discover/tv",
@@ -468,7 +478,7 @@ export class TmdbClient {
     mediaType: "movie" | "tv",
     id: number,
     region = this.#region,
-  ): Promise<Record<string, unknown>> {
+  ): Promise<ReturnType<typeof summarizeWatchProviders>> {
     // region is a dim: summarizeWatchProviders returns a region-specific
     // slice, so caching it under an id-only key would serve one region's
     // providers for another.
@@ -485,11 +495,14 @@ export class TmdbClient {
 
   // ---- person filmography ---------------------------------------------------
 
-  async getPersonCredits(id: number, language?: string): Promise<Record<string, unknown>> {
-    return this.#cached<CombinedCredits>(
+  async getPersonCredits(
+    id: number,
+    language?: string,
+  ): Promise<ReturnType<typeof summarizePersonCredits>> {
+    return this.#cached(
       cacheKey(`person-credits:${id}`, { language: this.#lang(language) }),
       `person/${id}/combined_credits`,
-      (c) => summarizePersonCredits(c),
+      (c: CombinedCredits) => summarizePersonCredits(c),
       {},
       language,
     );
@@ -501,8 +514,8 @@ export class TmdbClient {
     mediaType: "movie" | "tv",
     id: number,
     language?: string,
-  ): Promise<Record<string, unknown>> {
-    return this.#cached<VideosResponse>(
+  ): Promise<ReturnType<typeof summarizeVideos>> {
+    return this.#cached(
       cacheKey(`${mediaType}-videos:${id}`, { language: this.#lang(language) }),
       `${mediaType}/${id}/videos`,
       summarizeVideos,
@@ -516,8 +529,8 @@ export class TmdbClient {
   async findByExternalId(
     externalId: string,
     source: ExternalSource,
-  ): Promise<Record<string, unknown>> {
-    return this.#cached<FindResponse>(
+  ): Promise<ReturnType<typeof summarizeFind>> {
+    return this.#cached(
       cacheKey(`find:${source}:${externalId}`),
       `find/${externalId}`,
       summarizeFind,
@@ -531,8 +544,8 @@ export class TmdbClient {
     id: number,
     season: number,
     language?: string,
-  ): Promise<Record<string, unknown>> {
-    return this.#cached<TmdbSeason>(
+  ): Promise<ReturnType<typeof summarizeSeason>> {
+    return this.#cached(
       cacheKey(`tv-season:${id}:${season}`, { language: this.#lang(language) }),
       `tv/${id}/season/${season}`,
       summarizeSeason,
@@ -546,25 +559,28 @@ export class TmdbClient {
     season: number,
     episode: number,
     language?: string,
-  ): Promise<Record<string, unknown>> {
-    return this.#cached<Parameters<typeof summarizeEpisode>[0]>(
+  ): Promise<ReturnType<typeof summarizeEpisode>> {
+    return this.#cached(
       cacheKey(`tv-episode:${id}:${season}:${episode}`, { language: this.#lang(language) }),
       `tv/${id}/season/${season}/episode/${episode}`,
       // Inject season_number in case the episode payload omits it.
-      (res) => summarizeEpisode({ ...res, season_number: res.season_number ?? season }),
+      (res: Parameters<typeof summarizeEpisode>[0]) =>
+        summarizeEpisode({ ...res, season_number: res.season_number ?? season }),
       {},
       language,
     );
   }
 
   // Cache by `key`, GET `path` (with language injected), then shape the body.
-  async #cached<T>(
+  // R is inferred from `shape`'s own return type at each call site, so every
+  // caller above gets back its real shape instead of a common denominator.
+  async #cached<T, R>(
     key: string,
     path: string,
-    shape: (data: T) => Record<string, unknown>,
+    shape: (data: T) => R,
     query: Query = {},
     language?: string,
-  ): Promise<Record<string, unknown>> {
+  ): Promise<R> {
     return this.#cache.wrapStaleOnError(key, async () => {
       const res = await this.#get<T>(path, query, language);
       return shape(res);
@@ -577,11 +593,11 @@ export class TmdbClient {
 // some differ per kind; some — certification = movie, with_networks = tv —
 // are exclusive to one). The Record type requires every DiscoverParams field
 // (other than `language`, applied separately) to have a row here, so adding a
-// field to the interface without adding its mapping is a compile error
-// instead of a filter that silently never reaches TMDB.
-// Note: this only guards the interface ↔ query-key link; the tool-facing zod
-// schemas in tools/tmdb.ts (whose per-field descriptions are hand-authored
-// for the calling model) still need to be kept in sync with DiscoverParams by hand.
+// field to either tool-facing discover schema in tools/tmdb.ts without adding
+// its mapping here is a compile error instead of a filter that silently never
+// reaches TMDB — DiscoverParams itself is z.infer'd from that schema (see
+// discoverParamsSchema in tools/tmdb.ts), so there's no third hand-kept copy
+// left to drift.
 const DISCOVER_FIELD_MAP: Record<
   Exclude<keyof DiscoverParams, "language">,
   Partial<Record<"movie" | "tv", string>>

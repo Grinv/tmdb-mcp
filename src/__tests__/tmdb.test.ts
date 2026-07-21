@@ -7,6 +7,7 @@ import {
   jsonResponse,
   pageOf,
   toolText,
+  hangingFetch,
   DEFAULT_ENV as ENV,
 } from "./helpers.js";
 
@@ -1091,22 +1092,11 @@ describe("MCP client cancellation reaches non-cached client calls", () => {
     // A never-resolving fetch (only settles if aborted) so there's a window
     // for the client's cancellation to actually reach the server mid-flight.
     let sawAbort = false;
+    let resolveFetchStarted!: () => void;
+    const fetchStarted = new Promise<void>((r) => (resolveFetchStarted = r));
     installFetch(
       t,
-      mockFetch(
-        (_url, init) =>
-          new Promise<Response>((_resolve, reject) => {
-            if (init?.signal?.aborted) {
-              sawAbort = true;
-              reject(new DOMException("aborted", "AbortError"));
-              return;
-            }
-            init?.signal?.addEventListener("abort", () => {
-              sawAbort = true;
-              reject(new DOMException("aborted", "AbortError"));
-            });
-          }),
-      ),
+      hangingFetch({ onStart: resolveFetchStarted, onAbort: () => (sawAbort = true) }),
     );
     const { client, close } = await connectServer(ENV);
     t.after(close);
@@ -1114,12 +1104,15 @@ describe("MCP client cancellation reaches non-cached client calls", () => {
     const controller = new AbortController();
     // client.callTool's own `signal` sends notifications/cancelled to the
     // server when aborted, which the SDK maps onto the tool handler's
-    // `extra.signal` — that's what reaches tmdb.searchMovies(args, signal).
+    // `ctx.mcpReq.signal` — that's what reaches tmdb.searchMovies(args, signal).
     const call = client.callTool(
       { name: "search_movies", arguments: { query: "matrix" } },
-      undefined,
       { signal: controller.signal },
     );
+    // callTool() awaits an output-schema cache lookup before dispatching the
+    // request, so it isn't actually on the wire yet at this point — wait
+    // until the server's fetch is genuinely in flight before aborting.
+    await fetchStarted;
     controller.abort();
     await assert.rejects(() => call);
     // Give the notifications/cancelled round-trip a tick to reach the server.

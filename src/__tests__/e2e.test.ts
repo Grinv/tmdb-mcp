@@ -1,10 +1,11 @@
-import { test } from "node:test";
+import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, copyFileSync, writeFileSync, rmSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { spawn } from "node:child_process";
+import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
+import { Client } from "@modelcontextprotocol/client";
 
 // The unit suite exercises the code via an in-memory transport against src. This
 // e2e instead drives the REAL built bundle the way Claude Desktop does: a spawned
@@ -23,58 +24,162 @@ const manifestToolCount = (
   }
 ).tools.length;
 
-test("e2e: built bundle runs standalone, handshakes, lists all tools, gates TMDB tools", async (t) => {
-  if (!existsSync(distPath)) {
-    t.skip("dist/index.js not built — run `npm run build` first (CI builds before tests)");
-    return;
-  }
+describe("e2e: built bundle", () => {
+  test("runs standalone, handshakes, lists all tools, gates TMDB tools", async (t) => {
+    if (!existsSync(distPath)) {
+      t.skip("dist/index.js not built — run `npm run build` first (CI builds before tests)");
+      return;
+    }
 
-  // Copy the bundle to a dir with no node_modules: if it weren't self-contained,
-  // the child would die with ERR_MODULE_NOT_FOUND and connect() would reject.
-  const sandbox = join(tmpdir(), `tmdb-mcp-e2e-${process.pid}`);
-  mkdirSync(sandbox, { recursive: true });
-  copyFileSync(distPath, join(sandbox, "index.js"));
-  // The bundle is ESM; ship the package.json that flags it as such, exactly as
-  // the real npm/.mcpb artifact does. Without it a bare `.js` is parsed as CJS
-  // on Node < 20.19 (which lacks ESM syntax auto-detection) and the child dies
-  // with "Cannot use import statement outside a module".
-  writeFileSync(join(sandbox, "package.json"), JSON.stringify({ type: "module" }));
+    // Copy the bundle to a dir with no node_modules: if it weren't self-contained,
+    // the child would die with ERR_MODULE_NOT_FOUND and connect() would reject.
+    const sandbox = join(tmpdir(), `tmdb-mcp-e2e-${process.pid}`);
+    mkdirSync(sandbox, { recursive: true });
+    copyFileSync(distPath, join(sandbox, "index.js"));
+    // The bundle is ESM; ship the package.json that flags it as such, exactly as
+    // the real npm/.mcpb artifact does. Without it a bare `.js` is parsed as CJS
+    // on Node < 20.19 (which lacks ESM syntax auto-detection) and the child dies
+    // with "Cannot use import statement outside a module".
+    writeFileSync(join(sandbox, "package.json"), JSON.stringify({ type: "module" }));
 
-  // Inherit env but force the credentials unset, to test the config gate.
-  const env: Record<string, string> = {};
-  for (const [k, v] of Object.entries(process.env))
-    if (v !== undefined && k !== "TMDB_API_TOKEN" && k !== "OMDB_API_KEY") env[k] = v;
+    // Inherit env but force the credentials unset, to test the config gate.
+    const env: Record<string, string> = {};
+    for (const [k, v] of Object.entries(process.env))
+      if (v !== undefined && k !== "TMDB_API_TOKEN" && k !== "OMDB_API_KEY") env[k] = v;
 
-  const client = new Client({ name: "e2e", version: "0" });
-  const transport = new StdioClientTransport({
-    command: process.execPath,
-    args: [join(sandbox, "index.js")],
-    env,
+    const client = new Client({ name: "e2e", version: "0" });
+    const transport = new StdioClientTransport({
+      command: process.execPath,
+      args: [join(sandbox, "index.js")],
+      env,
+    });
+
+    try {
+      await client.connect(transport); // real initialize handshake over a spawned process
+
+      // Paired with version.test.ts's in-memory name check: that one proves
+      // manifest.json's tool names match buildServer()'s (a strictly stronger
+      // check than count, since it also catches a rename/swap); this proves the
+      // real built bundle registers the same *count* — together, built binary
+      // count === manifest.json count === in-memory server names.
+      const { tools } = await client.listTools();
+      assert.equal(
+        tools.length,
+        manifestToolCount,
+        "every tool listed in manifest.json should register in the built bundle",
+      );
+
+      // A TMDB tool without a token must short-circuit with the actionable message
+      // (no network) — proving the config gate works through the real binary.
+      const res = await client.callTool({ name: "get_movie", arguments: { id: 550 } });
+      assert.equal(res.isError, true);
+      const text = (res.content as { type: string; text: string }[])[0]?.text ?? "";
+      assert.match(text, /TMDB is not configured/i);
+    } finally {
+      await client.close();
+      rmSync(sandbox, { recursive: true, force: true });
+    }
   });
 
-  try {
-    await client.connect(transport); // real initialize handshake over a spawned process
+  // The unit suite's InMemoryTransport connects via a bare `server.connect()`,
+  // which — per the SDK's own design (era is instance state, set at construction
+  // by a serving entry point) — only ever binds the legacy 2025-era handshake;
+  // it cannot exercise protocol revision 2026-07-28 no matter what the client
+  // requests. Only `serveStdio` (used by src/server.ts's start(), and thus the
+  // real spawned binary here) marks an instance modern, so this is the one place
+  // that can prove the modern era actually works end to end.
+  test("negotiates protocol revision 2026-07-28 and serves tools under it", async (t) => {
+    if (!existsSync(distPath)) {
+      t.skip("dist/index.js not built — run `npm run build` first (CI builds before tests)");
+      return;
+    }
 
-    // Paired with version.test.ts's in-memory name check: that one proves
-    // manifest.json's tool names match buildServer()'s (a strictly stronger
-    // check than count, since it also catches a rename/swap); this proves the
-    // real built bundle registers the same *count* — together, built binary
-    // count === manifest.json count === in-memory server names.
-    const { tools } = await client.listTools();
-    assert.equal(
-      tools.length,
-      manifestToolCount,
-      "every tool listed in manifest.json should register in the built bundle",
+    const env: Record<string, string> = {};
+    for (const [k, v] of Object.entries(process.env))
+      if (v !== undefined && k !== "TMDB_API_TOKEN" && k !== "OMDB_API_KEY") env[k] = v;
+
+    const client = new Client(
+      { name: "e2e-modern", version: "0" },
+      { versionNegotiation: { mode: "auto" } },
     );
+    const transport = new StdioClientTransport({
+      command: process.execPath,
+      args: [distPath],
+      env,
+    });
 
-    // A TMDB tool without a token must short-circuit with the actionable message
-    // (no network) — proving the config gate works through the real binary.
-    const res = await client.callTool({ name: "get_movie", arguments: { id: 550 } });
-    assert.equal(res.isError, true);
-    const text = (res.content as { type: string; text: string }[])[0]?.text ?? "";
-    assert.match(text, /TMDB is not configured/i);
-  } finally {
-    await client.close();
-    rmSync(sandbox, { recursive: true, force: true });
-  }
+    try {
+      await client.connect(transport);
+      assert.equal(client.getNegotiatedProtocolVersion?.(), "2026-07-28");
+
+      // tools/call still round-trips correctly under the modern wire codec, and
+      // the config gate still fires (no network, same as the legacy-era test above).
+      const res = await client.callTool({ name: "get_movie", arguments: { id: 550 } });
+      assert.equal(res.isError, true);
+      const text = (res.content as { type: string; text: string }[])[0]?.text ?? "";
+      assert.match(text, /TMDB is not configured/i);
+    } finally {
+      await client.close();
+    }
+  });
+});
+
+// start()'s shutdown path (serveStdio's handle.close() on SIGINT/SIGTERM) has
+// no MCP-protocol surface to exercise through a Client — it's process
+// lifecycle, only observable by actually sending the signal to a real spawned
+// process and watching it exit. Spawned directly with child_process (no MCP
+// client/handshake needed — this only cares whether the process starts,
+// logs to stderr, and exits cleanly).
+function spawnServer(): {
+  child: ReturnType<typeof spawn>;
+  ready: Promise<void>;
+  stderr: () => string;
+} {
+  const child = spawn(process.execPath, [distPath], { stdio: ["ignore", "ignore", "pipe"] });
+  let stderr = "";
+  child.stderr!.on("data", (d: Buffer) => (stderr += d.toString()));
+  const ready = new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error("server never printed 'ready'")), 5000);
+    child.stderr!.on("data", () => {
+      if (stderr.includes("ready")) {
+        clearTimeout(timeout);
+        resolve();
+      }
+    });
+  });
+  return { child, ready, stderr: () => stderr };
+}
+
+describe("e2e: process lifecycle (SIGINT/SIGTERM)", () => {
+  test("shuts down cleanly on SIGTERM", async (t) => {
+    if (!existsSync(distPath)) {
+      t.skip("dist/index.js not built — run `npm run build` first (CI builds before tests)");
+      return;
+    }
+    const { child, ready, stderr } = spawnServer();
+    await ready;
+    child.kill("SIGTERM");
+    const [code, signal] = await new Promise<[number | null, NodeJS.Signals | null]>((resolve) =>
+      child.on("exit", (code, signal) => resolve([code, signal])),
+    );
+    assert.equal(code, 0);
+    assert.equal(signal, null); // exited via process.exit(0), not killed by the signal itself
+    assert.match(stderr(), /shutting down/);
+  });
+
+  test("shuts down cleanly on SIGINT", async (t) => {
+    if (!existsSync(distPath)) {
+      t.skip("dist/index.js not built — run `npm run build` first (CI builds before tests)");
+      return;
+    }
+    const { child, ready, stderr } = spawnServer();
+    await ready;
+    child.kill("SIGINT");
+    const [code, signal] = await new Promise<[number | null, NodeJS.Signals | null]>((resolve) =>
+      child.on("exit", (code, signal) => resolve([code, signal])),
+    );
+    assert.equal(code, 0);
+    assert.equal(signal, null);
+    assert.match(stderr(), /shutting down/);
+  });
 });

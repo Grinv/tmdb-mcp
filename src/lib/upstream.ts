@@ -18,7 +18,7 @@ export interface UpstreamOptions {
 
 export interface Upstream {
   http: HttpClient;
-  cache: TtlCache<Record<string, unknown>>;
+  cache: TtlCache;
 }
 
 export function createUpstream(opts: UpstreamOptions): Upstream {
@@ -31,6 +31,6 @@ export function createUpstream(opts: UpstreamOptions): Upstream {
     defaultHeaders: opts.defaultHeaders,
     beforeRequest: () => limiter.acquire(),
   });
-  const cache = new TtlCache<Record<string, unknown>>(opts.cacheTtlMs);
+  const cache = new TtlCache(opts.cacheTtlMs);
   return { http, cache };
 }

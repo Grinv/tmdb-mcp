@@ -6,6 +6,27 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-21
+
+### Added
+
+- Add `outputSchema`/`structuredContent` (MCP SEP-2106) to every tool, describing its exact return shape so clients can validate and consume it as typed data instead of parsing the text-JSON mirror.
+
+### Changed
+
+- Fix `get_movie_recommendations`/`get_tv_recommendations`/`get_similar` descriptions implying `get_similar` gives thematically tighter results than recommendations — in practice TMDB's `/similar` (genre/keyword overlap) is the blunter, noisier heuristic, while `/recommendations` (co-viewing data) is usually more thematically relevant. Descriptions now point the calling model at recommendations first.
+- The `recommend_similar` prompt now tells the model to weigh `get_movie_recommendations` as the stronger signal and use `get_similar` only to fill gaps, matching the description fix above.
+- Migrate to MCP TypeScript SDK v2 (`@modelcontextprotocol/server`) and adopt protocol revision 2026-07-28.
+
+### Fixed
+
+- Fix several `string | null` fields (`imdb_id`, `status`, `known_for_department`, season/episode `name`/`air_date`, and others across movie/TV/person/OMDb results) leaking an empty string instead of `null` when TMDB/OMDb sent `""` rather than omitting the field or sending `null`.
+- An invalid environment variable (e.g. a typo'd `LOG_LEVEL`, a malformed `TMDB_REGION`) now fails startup with a readable message naming the field and constraint, instead of a raw ZodError stack.
+
+### Removed
+
+- Drop MCP log mirroring (`notifications/message`, `logging/setLevel`) — deprecated for stdio servers as of protocol revision 2026-07-28 (SEP-2577) in favor of stderr, which any MCP host spawning this server as a child process already reads. Logs are stderr-only now.
+
 ## [0.5.1] - 2026-07-20
 
 ### Fixed

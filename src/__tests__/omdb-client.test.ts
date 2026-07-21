@@ -15,26 +15,28 @@ function client(): OmdbClient {
 
 const OMDB_OK = { Response: "True", Title: "The Matrix", imdbID: "tt0133093" };
 
-test("ratingsByImdbId sends the id as OMDb's `i` query param", async (t) => {
-  const mock = mockFetch(() => jsonResponse(OMDB_OK));
-  installFetch(t, mock);
-  await client().ratingsByImdbId("tt0133093");
-  assert.match(mock.calls[0]!.url, /[?&]i=tt0133093/);
-});
+describe("OmdbClient: query params", () => {
+  test("ratingsByImdbId sends the id as OMDb's `i` query param", async (t) => {
+    const mock = mockFetch(() => jsonResponse(OMDB_OK));
+    installFetch(t, mock);
+    await client().ratingsByImdbId("tt0133093");
+    assert.match(mock.calls[0]!.url, /[?&]i=tt0133093/);
+  });
 
-test("ratingsByTitle sends `t` and, when given, `y`", async (t) => {
-  const mock = mockFetch(() => jsonResponse(OMDB_OK));
-  installFetch(t, mock);
-  await client().ratingsByTitle("The Matrix", 1999);
-  assert.match(mock.calls[0]!.url, /[?&]t=The\+Matrix/);
-  assert.match(mock.calls[0]!.url, /[?&]y=1999/);
-});
+  test("ratingsByTitle sends `t` and, when given, `y`", async (t) => {
+    const mock = mockFetch(() => jsonResponse(OMDB_OK));
+    installFetch(t, mock);
+    await client().ratingsByTitle("The Matrix", 1999);
+    assert.match(mock.calls[0]!.url, /[?&]t=The\+Matrix/);
+    assert.match(mock.calls[0]!.url, /[?&]y=1999/);
+  });
 
-test("ratingsByTitle omits `y` entirely when no year is given", async (t) => {
-  const mock = mockFetch(() => jsonResponse(OMDB_OK));
-  installFetch(t, mock);
-  await client().ratingsByTitle("The Matrix");
-  assert.ok(!/[?&]y=/.test(mock.calls[0]!.url));
+  test("ratingsByTitle omits `y` entirely when no year is given", async (t) => {
+    const mock = mockFetch(() => jsonResponse(OMDB_OK));
+    installFetch(t, mock);
+    await client().ratingsByTitle("The Matrix");
+    assert.ok(!/[?&]y=/.test(mock.calls[0]!.url));
+  });
 });
 
 describe("OmdbClient: cache is wired through the real client, not just TtlCache in isolation", () => {

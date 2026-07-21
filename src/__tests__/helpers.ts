@@ -1,8 +1,7 @@
 // Shared test helpers. Not a test file (no *.test suffix) so the runner skips it.
 import type { TestContext } from "node:test";
+import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import assert from "node:assert/strict";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createLogger, type Logger } from "../lib/logger.js";
 import { buildServer } from "../server.js";
 import { loadConfig } from "../config.js";
@@ -81,6 +80,33 @@ export function installFetch(t: TestContext, mock: FetchMock): void {
   t.mock.method(globalThis, "fetch", mock.fn);
 }
 
+/** A fetch mock that never resolves on its own — only settles when its
+ *  AbortSignal fires — so a test can abort mid-flight and observe the
+ *  caller-cancellation path specifically, distinct from a timeout. Mirrors
+ *  real fetch(): rejects immediately if the signal is already aborted by the
+ *  time fetch() is called, not just on a future 'abort' event.
+ *  `onStart` (if given) fires on every invocation, before the aborted-check —
+ *  useful to synchronize a test's abort() call with the request genuinely
+ *  being in flight. `onAbort` (if given) fires exactly when the mock rejects,
+ *  for tests that want to assert the abort was actually observed server-side. */
+export function hangingFetch(opts: { onStart?: () => void; onAbort?: () => void } = {}): FetchMock {
+  return mockFetch(
+    (_url, init) =>
+      new Promise<Response>((_resolve, reject) => {
+        opts.onStart?.();
+        if (init?.signal?.aborted) {
+          opts.onAbort?.();
+          reject(new DOMException("aborted", "AbortError"));
+          return;
+        }
+        init?.signal?.addEventListener("abort", () => {
+          opts.onAbort?.();
+          reject(new DOMException("aborted", "AbortError"));
+        });
+      }),
+  );
+}
+
 /** Build the server and connect an in-memory client for end-to-end tool tests. */
 export async function connectServer(
   env: NodeJS.ProcessEnv = {},
@@ -89,6 +115,11 @@ export async function connectServer(
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test", version: "0" });
   await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+  // Prime the client's tools/list cache: callTool() only validates a result's
+  // structuredContent against the tool's outputSchema when this cache is
+  // already populated, so every callTool() in the suite doubles as an
+  // outputSchema conformance check instead of silently skipping validation.
+  await client.listTools();
   return {
     client,
     close: async () => {

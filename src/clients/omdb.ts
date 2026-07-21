@@ -15,7 +15,7 @@ import type { Config } from "../config.js";
 
 export class OmdbClient {
   readonly #http: HttpClient;
-  readonly #cache: TtlCache<Record<string, unknown>>;
+  readonly #cache: TtlCache;
   readonly #apiKey: string | undefined;
   /** True when an OMDb key is configured; enrichment/tools skip otherwise. */
   readonly configured: boolean;
@@ -39,7 +39,7 @@ export class OmdbClient {
   }
 
   /** Ratings for an IMDb title id (e.g. "tt0133093"). */
-  async ratingsByImdbId(imdbId: string): Promise<Record<string, unknown>> {
+  async ratingsByImdbId(imdbId: string): Promise<ReturnType<typeof summarizeRatings>> {
     return this.#cache.wrapStaleOnError(cacheKey(`omdb:i:${imdbId}`), async () => {
       const res = await this.#http.getJson<OmdbResponse>("", {
         query: { apikey: this.#apiKey, i: imdbId },
@@ -49,7 +49,7 @@ export class OmdbClient {
   }
 
   /** Ratings looked up by title (+ optional year to disambiguate). */
-  async ratingsByTitle(title: string, year?: number): Promise<Record<string, unknown>> {
+  async ratingsByTitle(title: string, year?: number): Promise<ReturnType<typeof summarizeRatings>> {
     return this.#cache.wrapStaleOnError(cacheKey(`omdb:t:${title}`, { year }), async () => {
       const res = await this.#http.getJson<OmdbResponse>("", {
         query: { apikey: this.#apiKey, t: title, y: year },

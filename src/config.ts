@@ -74,7 +74,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       ([, v]) => v !== undefined && v !== "" && !UNSUBSTITUTED_PLACEHOLDER.test(v),
     ),
   );
-  const parsed = EnvSchema.parse(cleaned);
+  const result = EnvSchema.safeParse(cleaned);
+  if (!result.success) {
+    const issues = result.error.issues
+      .map((i) => `${i.path.join(".") || "(unknown field)"}: ${i.message}`)
+      .join("; ");
+    throw new Error(`Invalid configuration — ${issues}`);
+  }
+  const parsed = result.data;
 
   return {
     tmdbBaseUrl: parsed.TMDB_BASE_URL,

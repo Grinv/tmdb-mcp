@@ -1,8 +1,7 @@
 # Client configuration
 
-This is a standard stdio MCP server. After `npm ci && npm run build`, point any
-MCP client at `node /ABS/PATH/tmdb-mcp/dist/index.js`. Replace `/ABS/PATH/tmdb-mcp`
-with the absolute path to your clone.
+This is a standard stdio MCP server, published on npm as `tmdb-mcp`. Point any
+MCP client at it via `npx -y tmdb-mcp` — no clone or local build needed.
 
 Credentials:
 
@@ -11,16 +10,14 @@ Credentials:
 - `OMDB_API_KEY` (optional) — free OMDb key
   (<https://www.omdbapi.com/apikey.aspx>); enables IMDb/RT/Metacritic ratings.
 
-> Once published to npm, the command becomes `npx -y tmdb-mcp` with no path.
-
 ## Claude Desktop / Claude Code
 
 ```json
 {
   "mcpServers": {
     "tmdb": {
-      "command": "node",
-      "args": ["/ABS/PATH/tmdb-mcp/dist/index.js"],
+      "command": "npx",
+      "args": ["-y", "tmdb-mcp"],
       "env": {
         "TMDB_API_TOKEN": "your-tmdb-v4-read-access-token",
         "OMDB_API_KEY": "your-omdb-key",
@@ -36,9 +33,17 @@ Credentials:
 
 Use the same stdio pattern:
 
-- command: `node`
-- args: `["/ABS/PATH/tmdb-mcp/dist/index.js"]`
+- command: `npx`
+- args: `["-y", "tmdb-mcp"]`
 - env: `TMDB_API_TOKEN` (required), `OMDB_API_KEY` (optional).
+
+## From source
+
+Prefer working against a local clone (e.g. to test an unreleased change):
+`git clone`, then `npm ci && npm run build`, and point the client at
+`"command": "node"`, `"args": ["/ABS/PATH/tmdb-mcp/dist/index.js"]` (replace
+`/ABS/PATH/tmdb-mcp` with your clone's absolute path) with the same `env` as
+above.
 
 ## Tunables (optional env)
 

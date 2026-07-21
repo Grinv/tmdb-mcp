@@ -2,6 +2,36 @@
 // keeping tool responses token-efficient. List endpoints get compact summaries;
 // the get_* detail shapers keep the longer fields (overview, credits, etc.).
 // Clients fetch + cache; all raw→agent-facing shaping lives here.
+//
+// Schema-first: each shaper below builds its result then runs it through the
+// matching Zod schema of the same name (+ `Schema`) from ./format.schemas.ts
+// via `.parse()` — the same schema used as the tool's `outputSchema` (MCP
+// structured content, SEP-2106). A shaper that starts returning a field its
+// schema doesn't know about (or drops one it promised) throws immediately,
+// right here, instead of only surfacing as silent drift between two
+// independently-maintained files.
+import type { z } from "zod";
+import {
+  collectionSchema,
+  creditsSchema,
+  personDetailSchema,
+  episodeSchema,
+  findSchema,
+  genresSchema,
+  keywordsSchema,
+  movieDetailSchema,
+  movieSummarySchema,
+  multiItemSchema,
+  personCreditsSchema,
+  personSummarySchema,
+  ratingsSchema,
+  reviewSchema,
+  seasonSchema,
+  tvDetailSchema,
+  tvSummarySchema,
+  videosSchema,
+  watchProvidersSchema,
+} from "./format.schemas.js";
 
 // TMDB returns image fields as bare paths ("/abc.jpg"); the CDN base + a size
 // segment make them usable URLs. w500 is a good poster/profile default.
@@ -44,6 +74,9 @@ function clip(text: string | null | undefined, max: number): string | null {
 
 // Compact form of a TV show's next_/last_episode_to_air — the handful of fields
 // worth surfacing ("when does the next episode air", which one was last).
+// Validated as part of the enclosing detailTv's tvDetailSchema.parse(), not
+// separately — it's a nested piece, not one of format.schemas.ts's top-level
+// per-tool schemas.
 function episodeBrief(e: TmdbEpisodeBrief | null | undefined): Record<string, unknown> | null {
   if (!e) return null;
   return {
@@ -224,8 +257,8 @@ export interface TmdbPage<T> {
 
 // ---- shapers ----------------------------------------------------------------
 
-export function summarizeMovie(m: TmdbMovie): Record<string, unknown> {
-  return {
+export function summarizeMovie(m: TmdbMovie): z.infer<typeof movieSummarySchema> {
+  return movieSummarySchema.parse({
     id: m.id,
     media_type: "movie",
     title: m.title,
@@ -236,17 +269,17 @@ export function summarizeMovie(m: TmdbMovie): Record<string, unknown> {
     vote_count: m.vote_count ?? null,
     overview: m.overview || null,
     poster_url: imageUrl(m.poster_path),
-  };
+  });
 }
 
-export function detailMovie(m: TmdbMovie, region: string): Record<string, unknown> {
+export function detailMovie(m: TmdbMovie, region: string): z.infer<typeof movieDetailSchema> {
   const certifications = movieCertifications(m);
   // Age/content rating for `region` (e.g. MPAA "PG-13"), falling back to US
   // then any available country when `region` has no data; full map below.
   const { certification, certification_region } = resolveCertification(certifications, region);
-  return {
+  return movieDetailSchema.parse({
     id: m.id,
-    imdb_id: m.imdb_id ?? null,
+    imdb_id: m.imdb_id || null,
     media_type: "movie",
     certification,
     certification_region,
@@ -258,12 +291,12 @@ export function detailMovie(m: TmdbMovie, region: string): Record<string, unknow
     year: year(m.release_date),
     release_date: m.release_date || null,
     runtime_minutes: m.runtime ?? null,
-    status: m.status ?? null,
+    status: m.status || null,
     genres: names(m.genres),
     vote_average: m.vote_average ?? null,
     vote_count: m.vote_count ?? null,
     popularity: m.popularity ?? null,
-    original_language: m.original_language ?? null,
+    original_language: m.original_language || null,
     spoken_languages: (m.spoken_languages ?? [])
       .map((l) => l.english_name || l.name)
       .filter(Boolean),
@@ -285,11 +318,11 @@ export function detailMovie(m: TmdbMovie, region: string): Record<string, unknow
     // tmdb_url is handy for users who want the canonical web page.
     tmdb_url: `https://www.themoviedb.org/movie/${m.id}`,
     imdb_url: m.imdb_id ? `https://www.imdb.com/title/${m.imdb_id}/` : null,
-  };
+  });
 }
 
-export function summarizeTv(t: TmdbTv): Record<string, unknown> {
-  return {
+export function summarizeTv(t: TmdbTv): z.infer<typeof tvSummarySchema> {
+  return tvSummarySchema.parse({
     id: t.id,
     media_type: "tv",
     name: t.name,
@@ -300,17 +333,17 @@ export function summarizeTv(t: TmdbTv): Record<string, unknown> {
     vote_count: t.vote_count ?? null,
     overview: t.overview || null,
     poster_url: imageUrl(t.poster_path),
-  };
+  });
 }
 
-export function detailTv(t: TmdbTv, region: string): Record<string, unknown> {
+export function detailTv(t: TmdbTv, region: string): z.infer<typeof tvDetailSchema> {
   const certifications = tvCertifications(t);
   // Age/content rating for `region` (e.g. "TV-MA"), falling back to US then
   // any available country when `region` has no data; full map below.
   const { certification, certification_region } = resolveCertification(certifications, region);
-  return {
+  return tvDetailSchema.parse({
     id: t.id,
-    imdb_id: t.external_ids?.imdb_id ?? null,
+    imdb_id: t.external_ids?.imdb_id || null,
     media_type: "tv",
     certification,
     certification_region,
@@ -319,10 +352,10 @@ export function detailTv(t: TmdbTv, region: string): Record<string, unknown> {
     original_name: t.original_name,
     tagline: t.tagline || null,
     overview: t.overview || null,
-    type: t.type ?? null,
+    type: t.type || null,
     first_air_date: t.first_air_date || null,
     last_air_date: t.last_air_date || null,
-    status: t.status ?? null,
+    status: t.status || null,
     in_production: t.in_production ?? null,
     // For airing shows, when the next episode drops (null once ended); plus the
     // most recently aired one.
@@ -342,7 +375,7 @@ export function detailTv(t: TmdbTv, region: string): Record<string, unknown> {
     vote_average: t.vote_average ?? null,
     vote_count: t.vote_count ?? null,
     popularity: t.popularity ?? null,
-    original_language: t.original_language ?? null,
+    original_language: t.original_language || null,
     networks: names(t.networks),
     created_by: names(t.created_by),
     homepage: t.homepage || null,
@@ -351,31 +384,31 @@ export function detailTv(t: TmdbTv, region: string): Record<string, unknown> {
     imdb_url: t.external_ids?.imdb_id
       ? `https://www.imdb.com/title/${t.external_ids.imdb_id}/`
       : null,
-  };
+  });
 }
 
-export function detailPerson(p: TmdbPerson): Record<string, unknown> {
-  return {
+export function detailPerson(p: TmdbPerson): z.infer<typeof personDetailSchema> {
+  return personDetailSchema.parse({
     id: p.id,
-    imdb_id: p.imdb_id ?? null,
+    imdb_id: p.imdb_id || null,
     name: p.name,
     also_known_as: p.also_known_as ?? [],
-    known_for_department: p.known_for_department ?? null,
+    known_for_department: p.known_for_department || null,
     gender: genderLabel(p.gender),
     biography: p.biography || null,
-    birthday: p.birthday ?? null,
-    deathday: p.deathday ?? null,
-    place_of_birth: p.place_of_birth ?? null,
+    birthday: p.birthday || null,
+    deathday: p.deathday || null,
+    place_of_birth: p.place_of_birth || null,
     popularity: p.popularity ?? null,
     homepage: p.homepage || null,
     profile_url: imageUrl(p.profile_path),
     tmdb_url: `https://www.themoviedb.org/person/${p.id}`,
     imdb_url: p.imdb_id ? `https://www.imdb.com/name/${p.imdb_id}/` : null,
-  };
+  });
 }
 
 // `castLimit` caps the long tail of bit-part actors that bloats credits.
-export function summarizeCredits(c: TmdbCredits, castLimit = 20): Record<string, unknown> {
+export function summarizeCredits(c: TmdbCredits, castLimit = 20): z.infer<typeof creditsSchema> {
   const cast = (c.cast ?? [])
     .slice()
     .sort((a, b) => (a.order ?? 999) - (b.order ?? 999))
@@ -395,28 +428,30 @@ export function summarizeCredits(c: TmdbCredits, castLimit = 20): Record<string,
   const crew = (c.crew ?? [])
     .filter((x) => x.job && KEY_JOBS.has(x.job))
     .map((x) => ({ id: x.id, name: x.name, job: x.job, department: x.department }));
-  return { cast, crew };
+  return creditsSchema.parse({ cast, crew });
 }
 
 // Used directly by search_people (whose /search/person response carries no
 // media_type at all) and by summarizeMultiItem's "person" case below.
-export function summarizePerson(item: TmdbMultiItem): Record<string, unknown> {
-  return {
+export function summarizePerson(item: TmdbMultiItem): z.infer<typeof personSummarySchema> {
+  return personSummarySchema.parse({
     id: item.id,
     media_type: "person",
     name: item.name,
-    known_for_department: item.known_for_department ?? null,
+    known_for_department: item.known_for_department || null,
     popularity: item.popularity ?? null,
     profile_url: imageUrl(item.profile_path),
     known_for: (item.known_for ?? [])
       .map((k) => k.title || k.name)
       .filter(Boolean)
       .slice(0, 5),
-  };
+  });
 }
 
 // Trending / multi-search dispatch by media_type; people carry known_for titles.
-export function summarizeMultiItem(item: TmdbMultiItem): Record<string, unknown> {
+// Each branch delegates to a shaper that already validates its own output, so
+// there's no separate schema for the dispatcher itself.
+export function summarizeMultiItem(item: TmdbMultiItem): z.infer<typeof multiItemSchema> {
   switch (item.media_type) {
     case "tv":
       return summarizeTv(item);
@@ -429,7 +464,24 @@ export function summarizeMultiItem(item: TmdbMultiItem): Record<string, unknown>
   }
 }
 
-export function page<T, S>(res: TmdbPage<T>, summarize: (item: T) => S): Record<string, unknown> {
+// A type alias (not an interface): TS only synthesizes an index signature for
+// assignability against `Record<string, unknown>` — the shape tools/*.ts's
+// jsonResult() wire-serialization boundary expects — on anonymous object
+// types, not named interfaces. Confirmed empirically; see the fix that
+// replaced this interface with the identical-shape alias below.
+export type Page<S> = {
+  results: S[];
+  page: number;
+  total_pages: number;
+  total_results: number;
+};
+
+// Generic page wrapper reused by every list endpoint; not tied to one shaper,
+// so not schema-validated here — `summarize` already validates each item, and
+// the wrapper's own shape (results/page/total_pages/total_results) is simple
+// enough that the tool-registration-site `pageSchema(itemSchema)` plus the
+// real MCP client-side outputSchema check are sufficient coverage for it.
+export function page<T, S>(res: TmdbPage<T>, summarize: (item: T) => S): Page<S> {
   return {
     results: (res.results ?? []).map(summarize),
     page: res.page ?? 1,
@@ -438,8 +490,8 @@ export function page<T, S>(res: TmdbPage<T>, summarize: (item: T) => S): Record<
   };
 }
 
-export function summarizeGenres(genres: NamedRef[]): Record<string, unknown> {
-  return { genres: genres.map((g) => ({ id: g.id, name: g.name })) };
+export function summarizeGenres(genres: NamedRef[]): z.infer<typeof genresSchema> {
+  return genresSchema.parse({ genres: genres.map((g) => ({ id: g.id, name: g.name })) });
 }
 
 export interface TmdbReview {
@@ -452,14 +504,14 @@ export interface TmdbReview {
 
 // A user review — author, their 0–10 rating (if any), date, and the body
 // (clipped; full reviews can run very long).
-export function summarizeReview(r: TmdbReview): Record<string, unknown> {
-  return {
+export function summarizeReview(r: TmdbReview): z.infer<typeof reviewSchema> {
+  return reviewSchema.parse({
     author: r.author || r.author_details?.username || null,
     rating: r.author_details?.rating ?? null,
     created_at: r.created_at || null,
     content: clip(r.content, 1500),
     url: r.url || null,
-  };
+  });
 }
 
 export interface TmdbCollection {
@@ -471,17 +523,17 @@ export interface TmdbCollection {
 }
 
 // A movie collection/franchise and its parts, ordered chronologically.
-export function summarizeCollection(c: TmdbCollection): Record<string, unknown> {
+export function summarizeCollection(c: TmdbCollection): z.infer<typeof collectionSchema> {
   const parts = (c.parts ?? [])
     .slice()
     .sort((a, b) => (a.release_date || "").localeCompare(b.release_date || ""));
-  return {
+  return collectionSchema.parse({
     id: c.id,
     name: c.name,
     overview: c.overview || null,
     poster_url: imageUrl(c.poster_path),
     parts: parts.map(summarizeMovie),
-  };
+  });
 }
 
 export interface KeywordsResponse {
@@ -492,13 +544,13 @@ export interface KeywordsResponse {
 }
 
 // Keyword ids feed discover_*'s `with_keywords`/`without_keywords` filters.
-export function summarizeKeywords(r: KeywordsResponse): Record<string, unknown> {
-  return {
+export function summarizeKeywords(r: KeywordsResponse): z.infer<typeof keywordsSchema> {
+  return keywordsSchema.parse({
     results: (r.results ?? []).map((k) => ({ id: k.id, name: k.name })),
     page: r.page ?? 1,
     total_pages: r.total_pages ?? 1,
     total_results: r.total_results ?? r.results?.length ?? 0,
-  };
+  });
 }
 
 // ---- watch providers --------------------------------------------------------
@@ -531,24 +583,24 @@ function providerNames(list: ProviderEntry[] | undefined): string[] {
 export function summarizeWatchProviders(
   r: WatchProvidersResponse,
   region: string,
-): Record<string, unknown> {
+): z.infer<typeof watchProvidersSchema> {
   const all = r.results ?? {};
   const regions = Object.keys(all).sort();
   const here = all[region];
   if (!here) {
-    return { region, available: false, available_regions: regions };
+    return watchProvidersSchema.parse({ region, available: false, available_regions: regions });
   }
-  return {
+  return watchProvidersSchema.parse({
     region,
     available: true,
-    link: here.link ?? null,
+    link: here.link || null,
     streaming: providerNames(here.flatrate),
     free: providerNames(here.free),
     ads: providerNames(here.ads),
     rent: providerNames(here.rent),
     buy: providerNames(here.buy),
     available_regions: regions,
-  };
+  });
 }
 
 // ---- person combined credits ------------------------------------------------
@@ -580,7 +632,10 @@ function creditYear(e: CombinedCreditEntry): number | null {
 
 // A prolific person can have hundreds of credits; cap to the most popular so the
 // result stays useful and token-bounded.
-export function summarizePersonCredits(c: CombinedCredits, limit = 25): Record<string, unknown> {
+export function summarizePersonCredits(
+  c: CombinedCredits,
+  limit = 25,
+): z.infer<typeof personCreditsSchema> {
   const byPopularity = (a: CombinedCreditEntry, b: CombinedCreditEntry): number =>
     (b.popularity ?? 0) - (a.popularity ?? 0);
   const cast = (c.cast ?? [])
@@ -607,7 +662,7 @@ export function summarizePersonCredits(c: CombinedCredits, limit = 25): Record<s
       job: e.job || null,
       department: e.department || null,
     }));
-  return { cast, crew };
+  return personCreditsSchema.parse({ cast, crew });
 }
 
 // ---- videos -----------------------------------------------------------------
@@ -625,16 +680,16 @@ export interface VideosResponse {
 }
 
 // Only YouTube videos get a usable watch URL; others are returned without one.
-export function summarizeVideos(r: VideosResponse): Record<string, unknown> {
+export function summarizeVideos(r: VideosResponse): z.infer<typeof videosSchema> {
   const results = (r.results ?? []).map((v) => ({
     name: v.name,
-    type: v.type ?? null,
-    site: v.site ?? null,
+    type: v.type || null,
+    site: v.site || null,
     official: v.official ?? null,
     url: v.site === "YouTube" && v.key ? `https://www.youtube.com/watch?v=${v.key}` : null,
-    published_at: v.published_at ?? null,
+    published_at: v.published_at || null,
   }));
-  return { results };
+  return videosSchema.parse({ results });
 }
 
 // ---- find by external id ----------------------------------------------------
@@ -647,18 +702,18 @@ export interface FindResponse {
   tv_season_results?: unknown[];
 }
 
-export function summarizeFind(r: FindResponse): Record<string, unknown> {
-  return {
+export function summarizeFind(r: FindResponse): z.infer<typeof findSchema> {
+  return findSchema.parse({
     movie_results: (r.movie_results ?? []).map(summarizeMovie),
     tv_results: (r.tv_results ?? []).map(summarizeTv),
     person_results: (r.person_results ?? []).map((p) => ({
       id: p.id,
       media_type: "person",
       name: p.name,
-      known_for_department: p.known_for_department ?? null,
+      known_for_department: p.known_for_department || null,
       profile_url: imageUrl(p.profile_path),
     })),
-  };
+  });
 }
 
 // ---- TV season & episode ----------------------------------------------------
@@ -684,33 +739,33 @@ export interface TmdbSeason {
   episodes?: RawEpisode[];
 }
 
-export function summarizeSeason(s: TmdbSeason): Record<string, unknown> {
-  return {
+export function summarizeSeason(s: TmdbSeason): z.infer<typeof seasonSchema> {
+  return seasonSchema.parse({
     season_number: s.season_number ?? null,
-    name: s.name ?? null,
-    air_date: s.air_date ?? null,
+    name: s.name || null,
+    air_date: s.air_date || null,
     overview: s.overview || null,
     poster_url: imageUrl(s.poster_path),
     episode_count: s.episodes?.length ?? 0,
     episodes: (s.episodes ?? []).map((e) => ({
       episode_number: e.episode_number ?? null,
-      name: e.name ?? null,
-      air_date: e.air_date ?? null,
+      name: e.name || null,
+      air_date: e.air_date || null,
       runtime_minutes: e.runtime ?? null,
       vote_average: e.vote_average ?? null,
       overview: e.overview || null,
     })),
-  };
+  });
 }
 
 export function summarizeEpisode(
   e: RawEpisode & { season_number?: number },
-): Record<string, unknown> {
-  return {
+): z.infer<typeof episodeSchema> {
+  return episodeSchema.parse({
     season_number: e.season_number ?? null,
     episode_number: e.episode_number ?? null,
-    name: e.name ?? null,
-    air_date: e.air_date ?? null,
+    name: e.name || null,
+    air_date: e.air_date || null,
     runtime_minutes: e.runtime ?? null,
     vote_average: e.vote_average ?? null,
     overview: e.overview || null,
@@ -721,7 +776,7 @@ export function summarizeEpisode(
     crew: (e.crew ?? [])
       .filter((x) => x.job === "Director" || x.job === "Writer")
       .map((x) => ({ id: x.id, name: x.name, job: x.job })),
-  };
+  });
 }
 
 // ---- OMDb -------------------------------------------------------------------
@@ -753,17 +808,17 @@ export interface OmdbResponse {
 
 // `notFoundOk: true` (the default) returns a soft { found: false } object
 // instead of throwing, so enrichment never fails a TMDB lookup.
-export function summarizeRatings(r: OmdbResponse): Record<string, unknown> {
+export function summarizeRatings(r: OmdbResponse): z.infer<typeof ratingsSchema> {
   if (r.Response === "False") {
-    return { found: false, reason: r.Error ?? "No OMDb match" };
+    return ratingsSchema.parse({ found: false, reason: r.Error || "No OMDb match" });
   }
   const ratings = (r.Ratings ?? []).map((x) => ({ source: x.Source, value: x.Value }));
-  const rt = ratings.find((x) => x.source === "Rotten Tomatoes")?.value ?? null;
-  return {
+  const rt = ratings.find((x) => x.source === "Rotten Tomatoes")?.value || null;
+  return ratingsSchema.parse({
     found: true,
-    imdb_id: r.imdbID ?? null,
-    title: r.Title ?? null,
-    year: r.Year ?? null,
+    imdb_id: r.imdbID || null,
+    title: r.Title || null,
+    year: r.Year || null,
     rated: r.Rated && r.Rated !== "N/A" ? r.Rated : null,
     runtime: r.Runtime && r.Runtime !== "N/A" ? r.Runtime : null,
     imdb_rating: r.imdbRating && r.imdbRating !== "N/A" ? r.imdbRating : null,
@@ -772,5 +827,5 @@ export function summarizeRatings(r: OmdbResponse): Record<string, unknown> {
     rotten_tomatoes: rt,
     awards: r.Awards && r.Awards !== "N/A" ? r.Awards : null,
     ratings,
-  };
+  });
 }

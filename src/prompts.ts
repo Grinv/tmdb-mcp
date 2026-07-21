@@ -4,7 +4,7 @@
 // tools/tmdb.ts (search/get_similar/discover/...) — it doesn't call any
 // upstream itself.
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 
 // Prompt arguments always arrive as strings over MCP (there's no argument
 // JSON-Schema, only name/description/required) — z.string()/z.enum() only.
@@ -21,7 +21,7 @@ export function registerPrompts(server: McpServer): void {
         "model's own knowledge. Use this instead of calling get_similar/get_movie_recommendations " +
         "yourself when you want the merged, ranked shortlist in one step; call those tools " +
         "directly only if you already have a specific TMDB id and just need its raw candidate list.",
-      argsSchema: {
+      argsSchema: z.object({
         title: z.string().min(1).describe("A movie or TV show title the user liked."),
         media_type: z
           .enum(["movie", "tv"])
@@ -34,7 +34,7 @@ export function registerPrompts(server: McpServer): void {
           .regex(/^\d+$/, "count must be a whole number, e.g. '5'.")
           .describe(`How many recommendations to return (default ${COUNT_DEFAULT}).`)
           .optional(),
-      },
+      }),
     },
     ({ title, media_type, count }) => {
       const n = count ?? COUNT_DEFAULT;
@@ -52,7 +52,9 @@ export function registerPrompts(server: McpServer): void {
                 `1. Resolve "${title}" to a TMDB id: use search_multi (or search_movies/search_tv if the ` +
                 `media type is already known) and pick the best match.\n` +
                 `2. Call get_similar and get_movie_recommendations/get_tv_recommendations for that id and ` +
-                `merge the candidates.\n` +
+                `merge the candidates — weigh get_movie_recommendations as the stronger signal (it's ` +
+                `behavioral/co-viewing data), and use get_similar's genre/keyword matches mainly to fill ` +
+                `gaps, discarding any that don't actually fit thematically.\n` +
                 `3. If that pool has fewer than ${n} good candidates, broaden with discover_movies/` +
                 `discover_tv filtered to the same genres.\n` +
                 `4. Return the best ${n}: title, year, and a one-line reason it fits — include ratings ` +

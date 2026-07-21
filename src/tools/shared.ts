@@ -16,14 +16,21 @@ export interface ConfigurableClient {
 }
 
 /** Short-circuits with `client.notConfiguredMessage` when `client.configured`
- *  is false; otherwise runs `fn`, wraps its result via jsonResult, and
- *  converts any thrown error into a tool result instead of letting it
- *  propagate — the common shape of every tool handler here. */
+ *  is false; otherwise, if `validate` returns a message, short-circuits with
+ *  that (checked in this order — after configured, before calling `fn` — so a
+ *  handler needing both checks doesn't have to repeat the configured check
+ *  itself just to get the ordering right); otherwise runs `fn`, wraps its
+ *  result via jsonResult, and converts any thrown error into a tool result
+ *  instead of letting it propagate — the common shape of every tool handler
+ *  here. */
 export async function requireConfigured(
   client: ConfigurableClient,
   fn: () => Promise<Record<string, unknown>>,
+  validate?: () => string | undefined,
 ): Promise<ToolResult> {
   if (!client.configured) return errorResult(client.notConfiguredMessage);
+  const validationError = validate?.();
+  if (validationError) return errorResult(validationError);
   try {
     return jsonResult(await fn());
   } catch (err) {

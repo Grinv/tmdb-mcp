@@ -19,6 +19,9 @@ src/
   server.ts       # buildServer() + start(); registers everything
   config.ts       # env → validated Config (zod)
   format.ts       # raw TMDB/OMDb payloads → trimmed, agent-facing shapes
+  format.schemas.ts # Zod schemas mirroring format.ts's shapers 1:1; each tool's outputSchema
+                    # AND the shaper itself parses its result through the matching schema
+                    # before returning, so shaper/schema drift throws immediately
   prompts.ts      # MCP Prompts: multi-step plans that guide the model through the tools
   lib/            # GENERIC carcass: http, rateLimit, cache, upstream, errors, logger, result
   clients/        # tmdb.ts (backbone reads), omdb.ts (ratings enrichment)
@@ -51,11 +54,36 @@ npm run inspector      # run under the MCP Inspector
   it redacts credentials.
 - Tool failures return `{ isError: true }` results (via `requireConfigured()` /
   `result.ts`), never thrown — the agent should get an actionable message.
+  `requireConfigured(client, fn, validate?)`'s optional `validate` callback is
+  checked after the configured-check but before `fn` — use it (instead of a
+  manual duplicate configured-check) when a tool needs both checks in that
+  specific order, e.g. `get_ratings` in `tools/omdb.ts`.
 - Mocked-`fetch` test fixtures must mirror the real upstream response shape
   for that exact endpoint, not just whatever fields make the current code
   pass — see [docs/testing.md](docs/testing.md).
 - Keep clients fetch+cache only; all raw→agent-facing shaping lives in
   `src/format.ts`. Trim responses for token efficiency.
+- Every shaper in `format.ts` returns `z.infer<typeof <name>Schema>` (the
+  matching schema from `format.schemas.ts`), built via that schema's
+  `.parse()` — not `Record<string, unknown>`. Client methods in `clients/*.ts`
+  mirror this precision (`ReturnType<typeof shaperFn>` / `Page<...>`) instead
+  of widening back to `Record<string, unknown>`; that widening is only correct
+  at the actual wire-serialization boundary (`tools/shared.ts`'s
+  `requireConfigured()` / `lib/result.ts`'s `jsonResult()`).
+- `Page<S>` (`format.ts`) must stay a `type` alias, never an `interface`: TS
+  only synthesizes an index signature — required for assignability to
+  `Record<string, unknown>`, which the `jsonResult()` boundary above needs —
+  on anonymous/aliased object types, never on named interfaces. Changing it to
+  an `interface` compiles fine in isolation but breaks every call site that
+  passes a `Page<...>` through that boundary.
+- Every schema in `format.schemas.ts` must be `.strict()` — a non-strict
+  schema silently drops unknown keys instead of failing, which defeats the
+  shaper/schema drift check above.
+- `clients/tmdb.ts` `import type`s `DiscoverParams` from `tools/tmdb.ts` (its
+  `z.infer` source of truth, alongside the hand-authored discover input
+  schemas) — a lower-layer file type-importing from a higher-layer one. This
+  is intentional and fully erased at build (no runtime circular import,
+  verified via `tsc`/`tsup`); don't invert the import direction to "fix" it.
 - Write tool `description`s and per-field `.describe()` text for the calling
   model: explain when to use a tool and what each parameter means. Check new
   or edited descriptions against [docs/tool-descriptions.md](docs/tool-descriptions.md)

@@ -3,7 +3,14 @@ import assert from "node:assert/strict";
 import { TmdbClient } from "../clients/tmdb.js";
 import { ApiError } from "../lib/errors.js";
 import { loadConfig } from "../config.js";
-import { silentLogger, installFetch, mockFetch, jsonResponse, pageOf } from "./helpers.js";
+import {
+  silentLogger,
+  installFetch,
+  mockFetch,
+  jsonResponse,
+  pageOf,
+  hangingFetch,
+} from "./helpers.js";
 
 // Direct tests against TmdbClient's own interface — no MCP transport, no zod
 // validation, no JSON-RPC round-trip. Covers behavior the tool-layer e2e tests
@@ -64,6 +71,7 @@ describe("TmdbClient: region/language resolve from config when not overridden pe
     installFetch(t, mock);
     const s = await client({ TMDB_REGION: "RU" }).getWatchProviders("movie", 603);
     assert.equal(s.region, "RU");
+    assert.ok(s.available);
     assert.deepEqual(s.streaming, ["Kion"]);
   });
 
@@ -77,35 +85,15 @@ describe("TmdbClient: region/language resolve from config when not overridden pe
 });
 
 describe("TmdbClient: non-cached methods honor a caller AbortSignal", () => {
-  // A never-resolving fetch (only settles if its signal is aborted), so
-  // aborting mid-flight is the only thing that can end the request. Mirrors
-  // real fetch(): rejects immediately if the signal is already aborted by
-  // the time fetch() is called (which it may be here — the caller's abort()
-  // runs synchronously right after searchMovies/discover suspend on their
-  // first internal await, before their code reaches the actual fetch call).
-  function hangingFetch(onAbort: () => void) {
-    return mockFetch(
-      (_url, init) =>
-        new Promise<Response>((_resolve, reject) => {
-          if (init?.signal?.aborted) {
-            onAbort();
-            reject(new DOMException("aborted", "AbortError"));
-            return;
-          }
-          init?.signal?.addEventListener("abort", () => {
-            onAbort();
-            reject(new DOMException("aborted", "AbortError"));
-          });
-        }),
-    );
-  }
+  // Aborting mid-flight is the only thing that can end a hangingFetch()
+  // request. The caller's abort() may fire before the mock even sees the
+  // request (searchMovies/discover suspend on an internal await first,
+  // before reaching the actual fetch call) — hangingFetch's already-aborted
+  // check (mirroring real fetch()) covers that ordering too.
 
   test("searchMovies aborts the underlying fetch when the signal fires mid-flight", async (t) => {
     let sawAbort = false;
-    installFetch(
-      t,
-      hangingFetch(() => (sawAbort = true)),
-    );
+    installFetch(t, hangingFetch({ onAbort: () => (sawAbort = true) }));
     const controller = new AbortController();
     const call = client().searchMovies({ query: "matrix" }, controller.signal);
     controller.abort();
@@ -118,15 +106,23 @@ describe("TmdbClient: non-cached methods honor a caller AbortSignal", () => {
 
   test("discover aborts the underlying fetch when the signal fires mid-flight", async (t) => {
     let sawAbort = false;
-    installFetch(
-      t,
-      hangingFetch(() => (sawAbort = true)),
-    );
+    installFetch(t, hangingFetch({ onAbort: () => (sawAbort = true) }));
     const controller = new AbortController();
     const call = client().discover("movie", { min_rating: 7 }, controller.signal);
     controller.abort();
     await assert.rejects(() => call);
     assert.equal(sawAbort, true);
+  });
+});
+
+describe("TmdbClient: getTv(expand_episodes) on a show with zero seasons", () => {
+  test("skips the seasons-bulk request entirely and returns no seasons_detail", async (t) => {
+    const mock = mockFetch(() => jsonResponse({ id: 1, name: "No Seasons Yet", seasons: [] }));
+    installFetch(t, mock);
+    const s = await client().getTv(1, "US", undefined, true);
+    assert.equal(s.seasons_detail, undefined);
+    // Only the base detail request — no append_to_response=season/... bulk call.
+    assert.equal(mock.calls.length, 1);
   });
 });
 

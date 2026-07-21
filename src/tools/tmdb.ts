@@ -5,10 +5,33 @@
 // per-field .describe() text are written for the calling model: when to use a
 // tool and the meaning of every parameter.
 import { z } from "zod";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import type { TmdbClient } from "../clients/tmdb.js";
 import type { OmdbClient } from "../clients/omdb.js";
 import type { Config } from "../config.js";
+import { summarizeRatings } from "../format.js";
+import {
+  collectionSchema,
+  creditsSchema,
+  episodeSchema,
+  findSchema,
+  genresSchema,
+  keywordsSchema,
+  movieDetailEnrichedSchema,
+  movieOrTvSchema,
+  movieSummarySchema,
+  multiItemSchema,
+  pageSchema,
+  personCreditsSchema,
+  personDetailSchema,
+  personSummarySchema,
+  reviewSchema,
+  seasonSchema,
+  tvDetailEnrichedSchema,
+  tvSummarySchema,
+  videosSchema,
+  watchProvidersSchema,
+} from "../format.schemas.js";
 import { READ_ONLY, requireConfigured } from "./shared.js";
 
 const page = z
@@ -96,9 +119,18 @@ const discoverShared = {
     .describe("ISO-639-1 original-language code, e.g. 'en', 'ja'.")
     .optional(),
   with_companies: idList("production company"),
-  with_keywords: idList("keyword (use search_keywords to resolve names → ids)"),
+  with_keywords: z
+    .string()
+    .describe("Comma-separated TMDB keyword ids (use search_keywords to resolve names → ids).")
+    .optional(),
   without_keywords: idList("keyword to exclude"),
-  with_watch_providers: idList("watch-provider (e.g. Netflix); requires watch_region"),
+  with_watch_providers: z
+    .string()
+    .describe(
+      "Comma-separated TMDB watch-provider ids (e.g. Netflix's numeric id); requires " +
+        "watch_region to also be set.",
+    )
+    .optional(),
   watch_region: z
     .string()
     .regex(/^[A-Z]{2}$/, "Two-letter ISO-3166-1 country code.")
@@ -131,6 +163,13 @@ const discoverTvSchema = {
   with_networks: idList("TV network, e.g. HBO or Netflix"),
 };
 
+// clients/tmdb.ts's DiscoverParams is z.infer'd from this merged shape
+// instead of a hand-duplicated interface, so adding a field to either variant
+// above automatically extends it — DISCOVER_FIELD_MAP (clients/tmdb.ts)
+// still forces a compile error if the new field has no TMDB query-key mapping.
+export const discoverParamsSchema = z.object({ ...discoverMovieSchema, ...discoverTvSchema });
+export type DiscoverParams = z.infer<typeof discoverParamsSchema>;
+
 export function registerTmdbTools(
   server: McpServer,
   tmdb: TmdbClient,
@@ -139,7 +178,8 @@ export function registerTmdbTools(
 ): void {
   // Every TMDB tool needs the token; short-circuit with one clear message
   // instead of letting each call round-trip to a 401.
-  const requireTmdb = (fn: () => Promise<Record<string, unknown>>) => requireConfigured(tmdb, fn);
+  const requireTmdb = <T extends Record<string, unknown>>(fn: () => Promise<T>) =>
+    requireConfigured(tmdb, fn);
   const region = regionSchema(config.tmdbRegion);
 
   // ---- search ---------------------------------------------------------------
@@ -152,17 +192,18 @@ export function registerTmdbTools(
         "Search TMDB movies by title; returns compact summaries with the TMDB id that the other " +
         "movie tools (get_movie, get_movie_credits, …) require, plus pagination info. Use this over " +
         "search_multi when you already know the result is a movie.",
-      inputSchema: {
+      inputSchema: z.object({
         query: z.string().min(1).describe("Movie title to search for."),
         year: z.number().int().min(1870).max(2100).describe("Filter by release year.").optional(),
         include_adult: includeAdult,
         language,
         region,
         page: page.optional(),
-      },
+      }),
+      outputSchema: pageSchema(movieSummarySchema),
       annotations: READ_ONLY,
     },
-    (args, { signal }) => requireTmdb(() => tmdb.searchMovies(args, signal)),
+    (args, ctx) => requireTmdb(() => tmdb.searchMovies(args, ctx.mcpReq.signal)),
   );
 
   server.registerTool(
@@ -173,7 +214,7 @@ export function registerTmdbTools(
         "Search TMDB TV shows by name; returns compact summaries with the TMDB id that get_tv and " +
         "the other TV tools require. Use this over search_multi when you already know the result is " +
         "a TV show.",
-      inputSchema: {
+      inputSchema: z.object({
         query: z.string().min(1).describe("TV show name to search for."),
         year: z
           .number()
@@ -185,10 +226,11 @@ export function registerTmdbTools(
         include_adult: includeAdult,
         language,
         page: page.optional(),
-      },
+      }),
+      outputSchema: pageSchema(tvSummarySchema),
       annotations: READ_ONLY,
     },
-    (args, { signal }) => requireTmdb(() => tmdb.searchTv(args, signal)),
+    (args, ctx) => requireTmdb(() => tmdb.searchTv(args, ctx.mcpReq.signal)),
   );
 
   server.registerTool(
@@ -200,15 +242,16 @@ export function registerTmdbTools(
         "('movie' | 'tv' | 'person') so you can route to the right get_* tool. Use when the user's " +
         "query could be any of these; if you already know the type, search_movies/search_tv/" +
         "search_people are more precise.",
-      inputSchema: {
+      inputSchema: z.object({
         query: z.string().min(1).describe("Free-text query."),
         include_adult: includeAdult,
         language,
         page: page.optional(),
-      },
+      }),
+      outputSchema: pageSchema(multiItemSchema),
       annotations: READ_ONLY,
     },
-    (args, { signal }) => requireTmdb(() => tmdb.searchMulti(args, signal)),
+    (args, ctx) => requireTmdb(() => tmdb.searchMulti(args, ctx.mcpReq.signal)),
   );
 
   server.registerTool(
@@ -219,15 +262,16 @@ export function registerTmdbTools(
         "Search TMDB people (actors, directors, crew) by name; returns the TMDB id needed by " +
         "get_person plus their top 5 best-known titles (known_for). Use this over search_multi when " +
         "you already know the result is a person.",
-      inputSchema: {
+      inputSchema: z.object({
         query: z.string().min(1).describe("Person name to search for."),
         include_adult: includeAdult,
         language,
         page: page.optional(),
-      },
+      }),
+      outputSchema: pageSchema(personSummarySchema),
       annotations: READ_ONLY,
     },
-    (args, { signal }) => requireTmdb(() => tmdb.searchPeople(args, signal)),
+    (args, ctx) => requireTmdb(() => tmdb.searchPeople(args, ctx.mcpReq.signal)),
   );
 
   server.registerTool(
@@ -237,13 +281,15 @@ export function registerTmdbTools(
       description:
         "Resolve keyword names to TMDB keyword ids (e.g. 'time travel', 'based on true story'). " +
         "Feed the ids into discover_movies/discover_tv via with_keywords / without_keywords.",
-      inputSchema: {
+      inputSchema: z.object({
         query: z.string().min(1).describe("Keyword text to look up."),
         page: page.optional(),
-      },
+      }),
+      outputSchema: keywordsSchema,
       annotations: READ_ONLY,
     },
-    ({ query, page: pg }, { signal }) => requireTmdb(() => tmdb.searchKeywords(query, pg, signal)),
+    ({ query, page: pg }, ctx) =>
+      requireTmdb(() => tmdb.searchKeywords(query, pg, ctx.mcpReq.signal)),
   );
 
   // ---- details --------------------------------------------------------------
@@ -261,7 +307,8 @@ export function registerTmdbTools(
         "(set include_ratings=false to skip); if unavailable (no OMDB_API_KEY, no imdb_id, or the " +
         "OMDb lookup fails), `ratings` degrades to `{found:false, reason}` instead of failing the " +
         "call. Get the id from search_movies.",
-      inputSchema: { id: tmdbId, region, language, include_ratings: includeRatings },
+      inputSchema: z.object({ id: tmdbId, region, language, include_ratings: includeRatings }),
+      outputSchema: movieDetailEnrichedSchema,
       annotations: READ_ONLY,
     },
     ({ id, region: r, language: lang, include_ratings }) =>
@@ -284,13 +331,14 @@ export function registerTmdbTools(
         "OMDb lookup fails), `ratings` degrades to `{found:false, reason}` instead of failing the " +
         "call. Set expand_episodes=true to also pull every season's episode list in one extra " +
         "request instead of calling get_tv_season per season. Get the id from search_tv.",
-      inputSchema: {
+      inputSchema: z.object({
         id: tmdbId,
         region,
         language,
         include_ratings: includeRatings,
         expand_episodes: expandEpisodes,
-      },
+      }),
+      outputSchema: tvDetailEnrichedSchema,
       annotations: READ_ONLY,
     },
     ({ id, region: r, language: lang, include_ratings, expand_episodes }) =>
@@ -316,7 +364,8 @@ export function registerTmdbTools(
         "Get full details for one person by TMDB id: biography, birthday/deathday, department, and " +
         "links (TMDB + IMDb). Does not include filmography — use get_person_credits for that. Get " +
         "the id from search_people or a credits list.",
-      inputSchema: { id: tmdbId, language },
+      inputSchema: z.object({ id: tmdbId, language }),
+      outputSchema: personDetailSchema,
       annotations: READ_ONLY,
     },
     ({ id, language: lang }) => requireTmdb(() => tmdb.getPerson(id, lang)),
@@ -329,7 +378,8 @@ export function registerTmdbTools(
       description:
         "List the top-billed cast (up to 20) and the headline crew (director, writers, composer, " +
         "DoP, …) of a movie by TMDB id. Get the id from search_movies.",
-      inputSchema: { id: tmdbId },
+      inputSchema: z.object({ id: tmdbId }),
+      outputSchema: creditsSchema,
       annotations: READ_ONLY,
     },
     ({ id }) => requireTmdb(() => tmdb.getMovieCredits(id)),
@@ -342,7 +392,8 @@ export function registerTmdbTools(
       description:
         "List the main cast (up to 20) and headline crew (creators, writers, …) of a TV show by " +
         "TMDB id. Get the id from search_tv.",
-      inputSchema: { id: tmdbId },
+      inputSchema: z.object({ id: tmdbId }),
+      outputSchema: creditsSchema,
       annotations: READ_ONLY,
     },
     ({ id }) => requireTmdb(() => tmdb.getTvCredits(id)),
@@ -353,14 +404,17 @@ export function registerTmdbTools(
     {
       title: "Get movie recommendations",
       description:
-        "Get movies TMDB recommends for the given movie id (its personalization/co-viewing " +
-        "algorithm). Distinct from get_similar, which uses content-similarity instead — try that " +
-        "one if these feel too loosely related. Get the id from search_movies.",
-      inputSchema: { id: tmdbId, page: page.optional() },
+        "Get movies TMDB recommends for the given movie id, based on co-viewing/personalization " +
+        "data (what users who liked this also liked) — usually the more thematically relevant " +
+        "list. Prefer this over get_similar as the default choice; get_similar matches on shared " +
+        "genres/keywords, a blunter heuristic that can surface tonally unrelated titles. Get the " +
+        "id from search_movies.",
+      inputSchema: z.object({ id: tmdbId, page: page.optional() }),
+      outputSchema: pageSchema(movieSummarySchema),
       annotations: READ_ONLY,
     },
-    ({ id, page: pg }, { signal }) =>
-      requireTmdb(() => tmdb.getRecommendations("movie", id, pg, undefined, signal)),
+    ({ id, page: pg }, ctx) =>
+      requireTmdb(() => tmdb.getRecommendations("movie", id, pg, undefined, ctx.mcpReq.signal)),
   );
 
   server.registerTool(
@@ -368,14 +422,17 @@ export function registerTmdbTools(
     {
       title: "Get TV recommendations",
       description:
-        "Get TV shows TMDB recommends for the given show id (its personalization/co-viewing " +
-        "algorithm). Distinct from get_similar, which uses content-similarity instead — try that " +
-        "one if these feel too loosely related. Get the id from search_tv.",
-      inputSchema: { id: tmdbId, page: page.optional() },
+        "Get TV shows TMDB recommends for the given show id, based on co-viewing/personalization " +
+        "data (what users who liked this also liked) — usually the more thematically relevant " +
+        "list. Prefer this over get_similar as the default choice; get_similar matches on shared " +
+        "genres/keywords, a blunter heuristic that can surface tonally unrelated titles. Get the " +
+        "id from search_tv.",
+      inputSchema: z.object({ id: tmdbId, page: page.optional() }),
+      outputSchema: pageSchema(tvSummarySchema),
       annotations: READ_ONLY,
     },
-    ({ id, page: pg }, { signal }) =>
-      requireTmdb(() => tmdb.getRecommendations("tv", id, pg, undefined, signal)),
+    ({ id, page: pg }, ctx) =>
+      requireTmdb(() => tmdb.getRecommendations("tv", id, pg, undefined, ctx.mcpReq.signal)),
   );
 
   server.registerTool(
@@ -383,13 +440,18 @@ export function registerTmdbTools(
     {
       title: "Get similar titles",
       description:
-        "Get titles TMDB considers similar to a given movie or TV show (its algorithmic " +
-        "'similar' list, distinct from get_movie_recommendations). Get the id from search_movies/search_tv.",
-      inputSchema: { media_type: mediaKind, id: tmdbId, page: page.optional() },
+        "Get titles TMDB considers similar to a given movie or TV show, based on shared genres " +
+        "and keywords — a blunter heuristic than get_movie_recommendations'/get_tv_recommendations' " +
+        "behavioral (co-viewing) data, so results can be thematically noisy (matching on a shared " +
+        "keyword despite an unrelated tone or plot). Try recommendations first for thematically " +
+        "closer picks; use this when you specifically want genre/keyword-adjacent titles. Get the " +
+        "id from search_movies/search_tv.",
+      inputSchema: z.object({ media_type: mediaKind, id: tmdbId, page: page.optional() }),
+      outputSchema: pageSchema(movieOrTvSchema),
       annotations: READ_ONLY,
     },
-    ({ media_type, id, page: pg }, { signal }) =>
-      requireTmdb(() => tmdb.getSimilar(media_type, id, pg, undefined, signal)),
+    ({ media_type, id, page: pg }, ctx) =>
+      requireTmdb(() => tmdb.getSimilar(media_type, id, pg, undefined, ctx.mcpReq.signal)),
   );
 
   server.registerTool(
@@ -399,11 +461,12 @@ export function registerTmdbTools(
       description:
         "Get user reviews for a movie or TV show (author, their rating, and the review text, " +
         "clipped to ~1500 characters). Get the id from search_movies/search_tv.",
-      inputSchema: { media_type: mediaKind, id: tmdbId, page: page.optional() },
+      inputSchema: z.object({ media_type: mediaKind, id: tmdbId, page: page.optional() }),
+      outputSchema: pageSchema(reviewSchema),
       annotations: READ_ONLY,
     },
-    ({ media_type, id, page: pg }, { signal }) =>
-      requireTmdb(() => tmdb.getReviews(media_type, id, pg, undefined, signal)),
+    ({ media_type, id, page: pg }, ctx) =>
+      requireTmdb(() => tmdb.getReviews(media_type, id, pg, undefined, ctx.mcpReq.signal)),
   );
 
   server.registerTool(
@@ -413,7 +476,8 @@ export function registerTmdbTools(
       description:
         "Get a movie collection/franchise and all its parts in release order (e.g. the whole " +
         "'The Dark Knight Collection'). Get the collection id from a movie's `collection` field in get_movie.",
-      inputSchema: { id: tmdbId, language: language.optional() },
+      inputSchema: z.object({ id: tmdbId, language: language.optional() }),
+      outputSchema: collectionSchema,
       annotations: READ_ONLY,
     },
     ({ id, language: lang }) => requireTmdb(() => tmdb.getCollection(id, lang)),
@@ -428,7 +492,7 @@ export function registerTmdbTools(
       description:
         "Get what's trending on TMDB. media_type selects movies, TV, people, or all; time_window " +
         "is the trending period (today vs this week). Good for 'what's popular right now'.",
-      inputSchema: {
+      inputSchema: z.object({
         media_type: z
           .enum(["all", "movie", "tv", "person"])
           .describe("Which kind of entity to rank. Defaults to 'all'.")
@@ -438,7 +502,8 @@ export function registerTmdbTools(
           .describe("Trending period: 'day' or 'week'. Defaults to 'week'.")
           .optional(),
         page: page.optional(),
-      },
+      }),
+      outputSchema: pageSchema(multiItemSchema),
       annotations: READ_ONLY,
     },
     ({ media_type, time_window, page: pg }) =>
@@ -451,7 +516,8 @@ export function registerTmdbTools(
       title: "List movie genres",
       description:
         "List TMDB movie genres with their numeric ids and names (reference data; rarely changes).",
-      inputSchema: {},
+      inputSchema: z.object({}),
+      outputSchema: genresSchema,
       annotations: READ_ONLY,
     },
     () => requireTmdb(() => tmdb.getGenres("movie")),
@@ -463,7 +529,8 @@ export function registerTmdbTools(
       title: "List TV genres",
       description:
         "List TMDB TV genres with their numeric ids and names (reference data; rarely changes).",
-      inputSchema: {},
+      inputSchema: z.object({}),
+      outputSchema: genresSchema,
       annotations: READ_ONLY,
     },
     () => requireTmdb(() => tmdb.getGenres("tv")),
@@ -481,10 +548,11 @@ export function registerTmdbTools(
         "cast/crew/people, companies, keywords, watch providers, certification, and sort order. " +
         "Use for 'popular sci-fi from the 1990s rated above 7 available on Netflix'. Resolve ids " +
         "with get_movie_genres, search_people, search_keywords.",
-      inputSchema: discoverMovieSchema,
+      inputSchema: z.object(discoverMovieSchema),
+      outputSchema: pageSchema(movieSummarySchema),
       annotations: READ_ONLY,
     },
-    (args, { signal }) => requireTmdb(() => tmdb.discover("movie", args, signal)),
+    (args, ctx) => requireTmdb(() => tmdb.discover("movie", args, ctx.mcpReq.signal)),
   );
 
   server.registerTool(
@@ -495,10 +563,11 @@ export function registerTmdbTools(
         "Find TV shows by structured filters (genres, first-air year or date range, rating range, " +
         "vote count, runtime, language, companies, networks, keywords, watch providers, sort). " +
         "The TV counterpart of discover_movies; use with_networks for 'HBO shows', etc.",
-      inputSchema: discoverTvSchema,
+      inputSchema: z.object(discoverTvSchema),
+      outputSchema: pageSchema(tvSummarySchema),
       annotations: READ_ONLY,
     },
-    (args, { signal }) => requireTmdb(() => tmdb.discover("tv", args, signal)),
+    (args, ctx) => requireTmdb(() => tmdb.discover("tv", args, ctx.mcpReq.signal)),
   );
 
   // ---- watch providers ------------------------------------------------------
@@ -512,11 +581,12 @@ export function registerTmdbTools(
         "(JustWatch data via TMDB). Returns provider names per access type for that country; if it " +
         "has no data, returns `available:false` plus `available_regions` to retry with. Get the id " +
         "from search_movies/search_tv.",
-      inputSchema: {
+      inputSchema: z.object({
         media_type: mediaType,
         id: tmdbId,
         region,
-      },
+      }),
+      outputSchema: watchProvidersSchema,
       annotations: READ_ONLY,
     },
     ({ media_type, id, region: r }) => requireTmdb(() => tmdb.getWatchProviders(media_type, id, r)),
@@ -533,7 +603,8 @@ export function registerTmdbTools(
         "popular first, capped to the top 25 of each. Cast entries include a vote_average; crew " +
         "entries (director, writer, …) do not — call get_movie/get_tv on the id for a crew credit's " +
         "rating. Use for 'what has this actor/director been in'. Get the id from search_people.",
-      inputSchema: { id: tmdbId },
+      inputSchema: z.object({ id: tmdbId }),
+      outputSchema: personCreditsSchema,
       annotations: READ_ONLY,
     },
     ({ id }) => requireTmdb(() => tmdb.getPersonCredits(id)),
@@ -548,7 +619,8 @@ export function registerTmdbTools(
       description:
         "List trailers, teasers and clips for a movie or TV show; YouTube entries include a " +
         "watch URL. Get the id from search_movies/search_tv.",
-      inputSchema: { media_type: mediaType, id: tmdbId },
+      inputSchema: z.object({ media_type: mediaType, id: tmdbId }),
+      outputSchema: videosSchema,
       annotations: READ_ONLY,
     },
     ({ media_type, id }) => requireTmdb(() => tmdb.getVideos(media_type, id)),
@@ -563,12 +635,13 @@ export function registerTmdbTools(
       description:
         "Resolve an IMDb id (e.g. 'tt0133093') to TMDB entities — returns matching movie, TV and " +
         "person results. Use when you only have an IMDb id and need the TMDB id for the other tools.",
-      inputSchema: {
+      inputSchema: z.object({
         imdb_id: z
           .string()
           .regex(/^(tt|nm)\d+$/, "IMDb ids look like 'tt0133093' or 'nm0000206'.")
           .describe("IMDb title (tt…) or name (nm…) id."),
-      },
+      }),
+      outputSchema: findSchema,
       annotations: READ_ONLY,
     },
     ({ imdb_id }) => requireTmdb(() => tmdb.findByExternalId(imdb_id, "imdb_id")),
@@ -585,10 +658,11 @@ export function registerTmdbTools(
         "with air dates, runtimes and ratings. Season 0 is usually specials. Use get_tv with " +
         "expand_episodes=true instead if you need every season's episodes in one call. Get the " +
         "show id from search_tv.",
-      inputSchema: {
+      inputSchema: z.object({
         id: tmdbId,
         season_number: z.number().int().min(0).describe("Season number (0 = specials)."),
-      },
+      }),
+      outputSchema: seasonSchema,
       annotations: READ_ONLY,
     },
     ({ id, season_number }) => requireTmdb(() => tmdb.getTvSeason(id, season_number)),
@@ -602,11 +676,12 @@ export function registerTmdbTools(
         "Get one episode of a TV show by show id + season number + episode number: overview, air " +
         "date, runtime, rating, guest stars (up to 15) and director/writer. Get the show id from " +
         "search_tv.",
-      inputSchema: {
+      inputSchema: z.object({
         id: tmdbId,
         season_number: z.number().int().min(0).describe("Season number (0 = specials)."),
         episode_number: z.number().int().min(1).describe("Episode number within the season."),
-      },
+      }),
+      outputSchema: episodeSchema,
       annotations: READ_ONLY,
     },
     ({ id, season_number, episode_number }) =>
@@ -624,7 +699,11 @@ async function getEnrichedDetail(
   tmdb: TmdbClient,
   omdb: OmdbClient,
   expandEpisodes = false,
-): Promise<Record<string, unknown>> {
+): Promise<
+  Awaited<ReturnType<TmdbClient["getDetailWithImdb"]>>["shaped"] & {
+    ratings?: ReturnType<typeof summarizeRatings>;
+  }
+> {
   const { shaped, imdbId } = await tmdb.getDetailWithImdb(
     mediaType,
     id,
@@ -636,12 +715,12 @@ async function getEnrichedDetail(
 }
 
 /** Attach OMDb ratings to a TMDB detail object when requested and possible. */
-export async function maybeEnrich(
-  shaped: Record<string, unknown>,
+export async function maybeEnrich<T extends Record<string, unknown>>(
+  shaped: T,
   imdbId: string | null,
   wantRatings: boolean,
   omdb: OmdbClient,
-): Promise<Record<string, unknown>> {
+): Promise<T & { ratings?: ReturnType<typeof summarizeRatings> }> {
   if (!wantRatings) return shaped;
   if (!omdb.configured) {
     return { ...shaped, ratings: { found: false, reason: "OMDB_API_KEY not configured" } };
