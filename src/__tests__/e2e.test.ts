@@ -135,7 +135,14 @@ function spawnServer(): {
   ready: Promise<void>;
   stderr: () => string;
 } {
-  const child = spawn(process.execPath, [distPath], { stdio: ["ignore", "ignore", "pipe"] });
+  // stdin must stay open ("pipe", never ended) rather than "ignore": "ignore"
+  // connects it to /dev/null, which is immediately at EOF — serveStdio() then
+  // reads that as the client having disconnected and shuts the process down
+  // on its own within milliseconds, before this test ever gets to send a
+  // signal. A real MCP host keeps the child's stdin open for the connection's
+  // whole lifetime, so this only closes an artifact of the test's own spawn
+  // config, not a real one.
+  const child = spawn(process.execPath, [distPath], { stdio: ["pipe", "ignore", "pipe"] });
   let stderr = "";
   child.stderr!.on("data", (d: Buffer) => (stderr += d.toString()));
   const ready = new Promise<void>((resolve, reject) => {
