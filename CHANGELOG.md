@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Reject a malformed `language`/`TMDB_LANGUAGE` up front instead of letting TMDB silently return null overview/title fields for a well-formed-looking but nonexistent code, with no signal anything went wrong ([90e0b96](https://github.com/Grinv/tmdb-mcp/commit/90e0b96)).
+- Drop each episode's `overview` from `get_tv`'s `expand_episodes` aggregate — the 500-episode combined cap alone didn't keep the response usable, since a long-running show's full `seasons_detail` (e.g. 38 seasons/802 episodes) still ran to tens of thousands of tokens once every episode carried its own overview; `get_tv_season` (single season) is unaffected ([b971897](https://github.com/Grinv/tmdb-mcp/commit/b971897)).
+
 ## [0.8.0] - 2026-07-22
 
 ### Added
