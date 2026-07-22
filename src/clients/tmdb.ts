@@ -814,9 +814,33 @@ const DISCOVER_FIELD_MAP: Record<
   with_watch_providers: { movie: "with_watch_providers", tv: "with_watch_providers" },
   watch_region: { movie: "watch_region", tv: "watch_region" },
   with_networks: { tv: "with_networks" },
+  with_type: { tv: "with_type" },
+  with_status: { tv: "with_status" },
   certification: { movie: "certification" },
   certification_country: { movie: "certification_country" },
   page: { movie: "page", tv: "page" },
+};
+
+// TMDB's actual with_type/with_status query values are numeric codes, not the
+// human-readable names tools/tmdb.ts's schema asks callers for (TV_TYPES/
+// TV_STATUSES there) — verified live against /discover/tv. Translated here,
+// after DISCOVER_FIELD_MAP's generic pass-through copies the raw string in.
+const TV_TYPE_IDS: Record<string, number> = {
+  Documentary: 0,
+  News: 1,
+  Miniseries: 2,
+  Reality: 3,
+  Scripted: 4,
+  "Talk Show": 5,
+  Video: 6,
+};
+const TV_STATUS_IDS: Record<string, number> = {
+  "Returning Series": 0,
+  Planned: 1,
+  "In Production": 2,
+  Ended: 3,
+  Cancelled: 4,
+  Pilot: 5,
 };
 
 export function discoverQuery(p: DiscoverParams, kind: "movie" | "tv"): Query {
@@ -824,6 +848,10 @@ export function discoverQuery(p: DiscoverParams, kind: "movie" | "tv"): Query {
   for (const field of Object.keys(DISCOVER_FIELD_MAP) as (keyof typeof DISCOVER_FIELD_MAP)[]) {
     const tmdbKey = DISCOVER_FIELD_MAP[field][kind];
     if (tmdbKey) query[tmdbKey] = p[field];
+  }
+  if (kind === "tv") {
+    if (p.with_type !== undefined) query.with_type = TV_TYPE_IDS[p.with_type];
+    if (p.with_status !== undefined) query.with_status = TV_STATUS_IDS[p.with_status];
   }
   return query;
 }

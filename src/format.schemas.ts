@@ -529,7 +529,15 @@ export const movieCardSchema = z.discriminatedUnion("found", [
 // this can't inherit and must declare directly.
 export const tvCardSchema = z.discriminatedUnion("found", [
   tvDetailSchema
-    .pick({ id: true, name: true, genres: true, vote_average: true, vote_count: true })
+    .pick({
+      id: true,
+      name: true,
+      genres: true,
+      vote_average: true,
+      vote_count: true,
+      number_of_seasons: true,
+      number_of_episodes: true,
+    })
     .extend({
       found: z.literal(true),
       year: z.number().nullable(),

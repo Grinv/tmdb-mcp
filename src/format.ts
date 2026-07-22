@@ -439,6 +439,8 @@ export function tvCard(
     genres: t.genres,
     vote_average: t.vote_average,
     vote_count: t.vote_count,
+    number_of_seasons: t.number_of_seasons,
+    number_of_episodes: t.number_of_episodes,
     ratings: compactRatings(t.ratings),
   });
 }

@@ -29,6 +29,8 @@ const ALL_PARAMS: DiscoverParams = {
   with_watch_providers: "8",
   watch_region: "US",
   with_networks: "49",
+  with_type: "Miniseries",
+  with_status: "Ended",
   certification: "PG-13",
   certification_country: "US",
   language: "en-US",
@@ -72,9 +74,11 @@ describe("discoverQuery", () => {
     assert.equal(q.certification_country, undefined);
   });
 
-  test("tv-only filter (with_networks) is dropped for movie", () => {
+  test("tv-only filters (with_networks/with_type/with_status) are dropped for movie", () => {
     const q = discoverQuery(ALL_PARAMS, "movie");
     assert.equal(q.with_networks, undefined);
+    assert.equal(q.with_type, undefined);
+    assert.equal(q.with_status, undefined);
   });
 
   test("movie-only filters pass through for movie, with_networks passes through for tv", () => {
@@ -84,6 +88,14 @@ describe("discoverQuery", () => {
 
     const tv = discoverQuery(ALL_PARAMS, "tv");
     assert.equal(tv.with_networks, "49");
+  });
+
+  // TMDB's with_type/with_status take numeric codes; the schema's own field
+  // (and this test's ALL_PARAMS) uses the human-readable name instead.
+  test("tv's with_type/with_status translate the human-readable name to TMDB's numeric code", () => {
+    const tv = discoverQuery(ALL_PARAMS, "tv");
+    assert.equal(tv.with_type, 2); // Miniseries
+    assert.equal(tv.with_status, 3); // Ended
   });
 
   test("shared filters and page pass through unchanged for both kinds", () => {

@@ -11,6 +11,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Add `get_movies`/`get_tv_shows`: a compact card (title/name, year, genres, vote average, opt-in ratings) for 1-20 ids in one call, instead of one `get_movie`/`get_tv` call per title.
 - Add `search_companies`, resolving a production company name (e.g. "A24") to the id `with_companies` needs.
 - Add `department` and `limit` params to `get_person_credits`, so a prolific multi-hyphenate's filmography in one role isn't crowded out by their other credits or the default 25-credit cap.
+- Add `with_type`/`with_status` to `discover_tv` (e.g. `with_type: "Miniseries"`), and `number_of_seasons`/`number_of_episodes` to `get_tv_shows`' card.
 
 ### Changed
 

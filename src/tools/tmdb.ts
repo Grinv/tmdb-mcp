@@ -242,10 +242,47 @@ const discoverMovieSchema = {
     .optional(),
 };
 
-// TV discover adds network filtering.
+// TMDB's own fixed vocabularies for a TV show's type/status (verified live
+// against the real /discover/tv query values — not something tmdb-mcp
+// invents). Exported so clients/tmdb.ts's discoverQuery can translate the
+// human-readable name this schema asks for into the numeric code TMDB's
+// query actually expects.
+export const TV_TYPES = [
+  "Documentary",
+  "News",
+  "Miniseries",
+  "Reality",
+  "Scripted",
+  "Talk Show",
+  "Video",
+] as const;
+export const TV_STATUSES = [
+  "Returning Series",
+  "Planned",
+  "In Production",
+  "Ended",
+  "Cancelled",
+  "Pilot",
+] as const;
+
+// TV discover adds network/type/status filtering.
 const discoverTvSchema = {
   ...discoverShared,
   with_networks: idList("TV network, e.g. HBO or Netflix"),
+  with_type: z
+    .enum(TV_TYPES)
+    .describe(
+      "Restrict to this TV type — e.g. 'Miniseries' for short/limited series, excluding " +
+        "documentaries/reality/talk shows/etc. that would otherwise mix into a genre/rating search.",
+    )
+    .optional(),
+  with_status: z
+    .enum(TV_STATUSES)
+    .describe(
+      "Restrict to this production status, e.g. 'Ended' to exclude shows still airing (a still-" +
+        "airing show's later seasons could still be mediocre or unfinished).",
+    )
+    .optional(),
 };
 
 // clients/tmdb.ts's DiscoverParams is z.infer'd from this merged shape
@@ -605,8 +642,10 @@ export function registerTmdbTools(
     {
       title: "Get compact TV show card(s)",
       description:
-        "Get a compact card — name, year, genres, vote average, and (opt-in) ratings — for 1-20 TV " +
-        "shows by TMDB id in one call. Deliberately trimmed (no overview, seasons/episodes, networks, " +
+        "Get a compact card — name, year, genres, vote average, season/episode counts, and (opt-in) " +
+        "ratings — for 1-20 TV shows by TMDB id in one call. A quick way to spot short/miniseries " +
+        "shows (low episode count) across many candidates without a per-title get_tv call. " +
+        "Deliberately trimmed otherwise (no overview, the actual episode list, networks, " +
         "certifications, etc.): use this for a single id too when you only need that headline info " +
         "and not the full get_tv payload, not just for checking many at once. Call get_tv instead " +
         "when you need the full details for a title. A bad/unknown id never fails the whole call — " +
@@ -883,9 +922,11 @@ export function registerTmdbTools(
       title: "Discover TV shows (filters)",
       description:
         "Find TV shows by structured filters (genres, first-air year or date range, rating range, " +
-        "vote count, runtime, language, companies, networks, keywords, watch providers, sort). " +
-        "with_watch_providers errors if given without watch_region instead of silently applying " +
-        "no filter. The TV counterpart of discover_movies; use with_networks for 'HBO shows', etc.",
+        "vote count, runtime, language, companies, networks, keywords, watch providers, type, " +
+        "status, sort). with_watch_providers errors if given without watch_region instead of " +
+        "silently applying no filter. The TV counterpart of discover_movies; use with_networks for " +
+        "'HBO shows', with_type='Miniseries' for short/limited series (e.g. 'best miniseries to " +
+        "binge in a weekend'), with_status='Ended' to exclude shows still airing.",
       inputSchema: discoverTvInputSchema,
       outputSchema: pageSchema(tvSummarySchema),
       annotations: READ_ONLY,
