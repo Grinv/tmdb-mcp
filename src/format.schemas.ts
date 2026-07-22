@@ -279,6 +279,21 @@ export const collectionSchema = z
 
 export const keywordsSchema = pageSchema(idNameSchema);
 
+// ---- summarizeCompany -------------------------------------------------------------
+
+// Company names aren't unique (TMDB has multiple unrelated companies sharing
+// the same name) — origin_country/logo_url are kept so a caller can tell them
+// apart, not dropped the way a "just resolve name → id" shaper normally would.
+export const companySchema = z
+  .object({
+    id: z.number(),
+    name: z.string().optional(),
+    origin_country: z.string().nullable(),
+    logo_url: z.string().nullable(),
+  })
+  .strict();
+export const companiesSchema = pageSchema(companySchema);
+
 // ---- summarizeWatchProviders -------------------------------------------------------
 
 export const watchProvidersSchema = z.discriminatedUnion("available", [

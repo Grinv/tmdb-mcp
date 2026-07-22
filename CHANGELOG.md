@@ -9,6 +9,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - Add `get_movies`/`get_tv_shows`, returning a compact card (title/name, year, genres, vote average, opt-in ratings) for 1-20 ids in one call instead of one `get_movie`/`get_tv` call per title. A bad/unknown id never fails the whole call — that entry comes back `{id, found:false, reason}` instead, in the same order as given.
+- Add `search_companies`, resolving a production company's name (e.g. "A24") to the TMDB id `discover_movies`/`discover_tv`'s `with_companies` needs. Keeps `origin_country`/`logo_url` per result since company names aren't unique — TMDB has multiple unrelated companies sharing the same name.
 
 ### Changed
 

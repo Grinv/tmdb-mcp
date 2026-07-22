@@ -101,6 +101,7 @@ See [docs/clients.md](docs/clients.md) for per-client details and all tunables.
 | `find_by_imdb_id`                                      | Resolve an IMDb id → TMDB movie/TV/person                                                  |
 | `get_tv_season` / `get_tv_episode`                     | Season episode list / single-episode details                                               |
 | `search_keywords`                                      | Resolve keyword names → ids for `discover_*`                                               |
+| `search_companies`                                     | Resolve a production company name → id for `discover_*`'s `with_companies`                 |
 | `get_ratings`                                          | IMDb/RT/Metacritic ratings by IMDb id or title (standalone)                                |
 
 **Prompts.** Alongside the tools above, the server exposes one MCP prompt:

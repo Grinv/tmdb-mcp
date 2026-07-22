@@ -15,6 +15,7 @@ import {
   cardNotFoundSchema,
   cardRatingsSchema,
   collectionSchema,
+  companySchema,
   creditsSchema,
   personDetailSchema,
   episodeSchema,
@@ -612,6 +613,23 @@ export function summarizeKeywords(r: KeywordsResponse): z.infer<typeof keywordsS
     page: r.page ?? 1,
     total_pages: r.total_pages ?? 1,
     total_results: r.total_results ?? r.results?.length ?? 0,
+  });
+}
+
+export interface TmdbCompany {
+  id: number;
+  name?: string;
+  origin_country?: string;
+  logo_path?: string | null;
+}
+
+// Company ids feed discover_*'s `with_companies` filter.
+export function summarizeCompany(c: TmdbCompany): z.infer<typeof companySchema> {
+  return companySchema.parse({
+    id: c.id,
+    name: c.name,
+    origin_country: c.origin_country || null,
+    logo_url: imageUrl(c.logo_path),
   });
 }
 

@@ -15,6 +15,7 @@ import {
   detailTv,
   page,
   summarizeCollection,
+  summarizeCompany,
   summarizeCredits,
   summarizeEpisode,
   summarizeFind,
@@ -32,6 +33,7 @@ import {
   type CombinedCredits,
   type KeywordsResponse,
   type Page,
+  type TmdbCompany,
   type TmdbCredits,
   type TmdbReview,
   type TmdbMovie,
@@ -279,6 +281,23 @@ export class TmdbClient {
       signal,
     );
     return summarizeKeywords(res);
+  }
+
+  // Company ids feed discover_*'s with_companies; this resolves names → ids.
+  // Names aren't unique (e.g. TMDB has two unrelated "A24"s) — origin_country
+  // is kept in the shaped result so a caller can tell rows apart.
+  async searchCompanies(
+    query: string,
+    pg?: number,
+    signal?: AbortSignal,
+  ): Promise<Page<ReturnType<typeof summarizeCompany>>> {
+    const res = await this.#get<TmdbPage<TmdbCompany>>(
+      "search/company",
+      { query, page: pg },
+      undefined,
+      signal,
+    );
+    return page(res, summarizeCompany);
   }
 
   // ---- details (cached: stable, frequently re-requested) --------------------

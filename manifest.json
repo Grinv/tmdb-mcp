@@ -59,6 +59,7 @@
     },
     { "name": "discover_tv", "description": "Find TV shows by filters." },
     { "name": "search_keywords", "description": "Resolve keyword names to ids for discover." },
+    { "name": "search_companies", "description": "Resolve a production company name to its id." },
     { "name": "get_watch_providers", "description": "Where to stream/rent/buy, by region." },
     { "name": "get_person_credits", "description": "A person's filmography (cast & crew)." },
     { "name": "get_videos", "description": "Trailers/teasers/clips (YouTube links)." },

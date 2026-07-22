@@ -187,6 +187,14 @@ const TV_LIST_ITEM = {
 
 const KEYWORDS = pageOf([{ id: 4379, name: "time travel" }]);
 
+// Two unrelated companies sharing the same name — the real-world case
+// search_companies' description warns callers to disambiguate via
+// origin_country/logo_path.
+const COMPANIES = pageOf([
+  { id: 293354, name: "A24", origin_country: "GB", logo_path: null },
+  { id: 41077, name: "A24", origin_country: "US", logo_path: "/a24.png" },
+]);
+
 const REVIEWS = pageOf([
   {
     author: "Reviewer",
@@ -277,6 +285,7 @@ const MULTI_SEARCH = pageOf([
  *  sub-resource routes must precede the /movie/{id} and /tv/{id} catch-alls. */
 function router(url: string) {
   if (url.includes("/search/keyword")) return jsonResponse(KEYWORDS);
+  if (url.includes("/search/company")) return jsonResponse(COMPANIES);
   if (url.includes("/search/movie")) {
     return jsonResponse(pageOf([MOVIE_DETAIL]));
   }
@@ -998,6 +1007,31 @@ describe("search keywords & language", () => {
     const s = res.structuredContent as { results: { id: number; name: string }[] };
     assert.equal(s.results[0]!.id, 4379);
     assert.equal(s.results[0]!.name, "time travel");
+  });
+
+  test("search_companies resolves names to ids and keeps origin_country to disambiguate", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({
+      name: "search_companies",
+      arguments: { query: "A24" },
+    });
+    const s = res.structuredContent as {
+      results: {
+        id: number;
+        name: string;
+        origin_country: string | null;
+        logo_url: string | null;
+      }[];
+    };
+    assert.equal(s.results.length, 2);
+    assert.equal(s.results[0]!.id, 293354);
+    assert.equal(s.results[0]!.origin_country, "GB");
+    assert.equal(s.results[0]!.logo_url, null);
+    assert.equal(s.results[1]!.id, 41077);
+    assert.equal(s.results[1]!.origin_country, "US");
+    assert.match(s.results[1]!.logo_url!, /a24\.png$/);
   });
 
   test("language: TMDB_LANGUAGE default is applied, and a per-call override wins", async (t) => {

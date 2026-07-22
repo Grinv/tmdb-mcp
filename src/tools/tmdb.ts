@@ -12,6 +12,7 @@ import type { Config } from "../config.js";
 import { movieCard, notFoundCard, summarizeRatings, tvCard } from "../format.js";
 import {
   collectionSchema,
+  companySchema,
   creditsSchema,
   episodeSchema,
   findSchema,
@@ -161,7 +162,12 @@ const discoverShared = {
     .string()
     .describe("ISO-639-1 original-language code, e.g. 'en', 'ja'.")
     .optional(),
-  with_companies: idList("production company"),
+  with_companies: z
+    .string()
+    .describe(
+      "Comma-separated TMDB production company ids (use search_companies to resolve names → ids).",
+    )
+    .optional(),
   with_keywords: z
     .string()
     .describe("Comma-separated TMDB keyword ids (use search_keywords to resolve names → ids).")
@@ -395,6 +401,29 @@ export function registerTmdbTools(
     },
     ({ query, page: pg }, ctx) =>
       requireTmdb(() => tmdb.searchKeywords(query, pg, ctx.mcpReq.signal)),
+  );
+
+  server.registerTool(
+    "search_companies",
+    {
+      title: "Search production companies",
+      description:
+        "Resolve a production company's name to its TMDB numeric id (e.g. 'A24', 'Pixar'). Feed the " +
+        "id into discover_movies/discover_tv via with_companies. Company names aren't unique — TMDB " +
+        "can have several unrelated companies sharing the same name (e.g. two different 'A24's, one " +
+        "US and one GB) — check origin_country and logo_url to tell rows apart when a name matches " +
+        "more than one.",
+      inputSchema: z
+        .object({
+          query: z.string().min(1).describe("Company name to look up."),
+          page: page.optional(),
+        })
+        .strict(),
+      outputSchema: pageSchema(companySchema),
+      annotations: READ_ONLY,
+    },
+    ({ query, page: pg }, ctx) =>
+      requireTmdb(() => tmdb.searchCompanies(query, pg, ctx.mcpReq.signal)),
   );
 
   // ---- details --------------------------------------------------------------
@@ -801,7 +830,7 @@ export function registerTmdbTools(
         "certification and with_watch_providers each error if given without their required pair " +
         "(certification_country, watch_region) instead of silently applying no filter. Use for " +
         "'popular sci-fi from the 1990s rated above 7 available on Netflix'. Resolve ids with " +
-        "get_movie_genres, search_people, search_keywords.",
+        "get_movie_genres, search_people, search_keywords, search_companies.",
       inputSchema: discoverMovieInputSchema,
       outputSchema: pageSchema(movieSummarySchema),
       annotations: READ_ONLY,
