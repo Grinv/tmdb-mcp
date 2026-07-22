@@ -60,15 +60,23 @@ const MAX_APPEND_TO_RESPONSE = 20;
 // A show can have 30+ seasons, each already under its own 50-episode cap
 // (see summarizeSeason) — but the SUM across every season in an
 // expand_episodes bulk fetch can still reach into the hundreds and blow past
-// a usable response size. Cap the combined episode count across all seasons
-// in one getTvSeasonsBulk result; episode_count on each season still reports
-// that season's true total even once its episodes are truncated to fit.
-// 500 was tried first but, even with each episode's overview already dropped
-// (see summarizeSeason's includeEpisodeOverview), a real 500-episode
-// seasons_detail (e.g. The Simpsons, 802 episodes) still runs to ~75-80K
-// characters — large enough to blow past several real MCP clients' own
-// tool-output size limits. 250 keeps the same aggregate well under 40K chars.
+// a usable response size. This is the cheap, pre-fetch budget: getTvSeasonsBulk
+// uses each season's already-known episode_count (from the show's own season
+// list — no extra request needed) to skip fetching seasons that fall entirely
+// beyond it, and capTotalEpisodes applies it again to the fetched data as a
+// fallback in case that metadata undercounts a season's real episodes.
+// episode_count on each season still reports that season's true total even
+// once its episodes are truncated to fit.
 export const MAX_EXPANDED_EPISODES = 250;
+
+// The actual constraint MAX_EXPANDED_EPISODES approximates is serialized
+// response SIZE, not episode count — an episode count alone doesn't bound
+// size if `name` runs unusually long. 500 (then 250) episodes were tried as a
+// count-only cap, but a real 500-episode seasons_detail (The Simpsons, 802
+// episodes) still ran ~75-80K characters. This is the authoritative backstop:
+// capTotalEpisodesBySize measures the actual serialized bytes and trims
+// further if needed, regardless of how verbose episode names turn out to be.
+export const MAX_EXPANDED_EPISODES_CHARS = 40_000;
 
 function chunk<T>(items: T[], size: number): T[][] {
   const chunks: T[][] = [];
@@ -128,6 +136,28 @@ function capTotalEpisodes(
     const capped = { ...s, episodes: s.episodes.slice(0, remaining) };
     remaining = 0;
     return capped;
+  });
+}
+
+// Authoritative backstop on serialized size (see MAX_EXPANDED_EPISODES_CHARS)
+// — walks episodes in order, measuring each one's actual serialized bytes,
+// and stops adding episodes (for this and every later season) once the
+// running total would exceed maxChars. A single pass, no repeated
+// full-array JSON.stringify.
+function capTotalEpisodesBySize(
+  seasons: ReturnType<typeof summarizeSeason>[],
+  maxChars: number,
+): ReturnType<typeof summarizeSeason>[] {
+  let used = JSON.stringify(seasons.map((s) => ({ ...s, episodes: [] }))).length;
+  return seasons.map((s) => {
+    const episodes: typeof s.episodes = [];
+    for (const ep of s.episodes) {
+      const epSize = JSON.stringify(ep).length + 1; // +1 for the array separator
+      if (used + epSize > maxChars) break;
+      used += epSize;
+      episodes.push(ep);
+    }
+    return episodes.length === s.episodes.length ? s : { ...s, episodes };
   });
 }
 
@@ -353,13 +383,13 @@ export class TmdbClient {
       onStale,
     );
     if (!expandEpisodes) return shaped;
-    const seasonNumbers = shaped.seasons
-      .map((s) => s.season_number)
-      .filter((n): n is number => n !== null);
-    if (seasonNumbers.length === 0) return shaped;
+    const seasons = shaped.seasons.filter(
+      (s): s is typeof s & { season_number: number } => s.season_number !== null,
+    );
+    if (seasons.length === 0) return shaped;
     return {
       ...shaped,
-      seasons_detail: await this.getTvSeasonsBulk(id, seasonNumbers, language, onStale),
+      seasons_detail: await this.getTvSeasonsBulk(id, seasons, language, onStale),
     };
   }
 
@@ -372,18 +402,43 @@ export class TmdbClient {
   // fetched when a caller opts in via expandEpisodes.
   async getTvSeasonsBulk(
     id: number,
-    seasonNumbers: number[],
+    seasons: {
+      season_number: number;
+      name: string | null;
+      episode_count: number | null;
+      air_date: string | null;
+    }[],
     language?: string,
     onStale?: () => void,
   ): Promise<ReturnType<typeof summarizeSeason>[]> {
     const key = cacheKey(`tv-seasons-bulk:${id}`, {
-      seasons: seasonNumbers.join(","),
+      seasons: seasons.map((s) => s.season_number).join(","),
       language: this.#lang(language),
     });
     const bulk = await this.#cache.wrapStaleOnError(
       key,
       async () => {
-        const chunks = chunk(seasonNumbers, MAX_APPEND_TO_RESPONSE);
+        // A season whose true episode_count (already known from getTv's own
+        // season list — no extra request needed) is guaranteed to fall
+        // entirely beyond the aggregate budget doesn't need fetching at all:
+        // pulling its full episode list over the wire just to discard it in
+        // capTotalEpisodes is wasted work. Only fetch up through the season
+        // that actually crosses the budget boundary (to get its partial
+        // truncation); unknown counts (null) are always fetched, to stay
+        // conservative when the metadata can't back the decision.
+        let remaining = MAX_EXPANDED_EPISODES;
+        const toFetch: number[] = [];
+        const skipped: typeof seasons = [];
+        for (const s of seasons) {
+          if (remaining > 0 || s.episode_count == null) {
+            toFetch.push(s.season_number);
+            remaining -= s.episode_count ?? 0;
+          } else {
+            skipped.push(s);
+          }
+        }
+
+        const chunks = chunk(toFetch, MAX_APPEND_TO_RESPONSE);
         const chunkResults = await Promise.all(
           chunks.map(async (numbers) => {
             const append = numbers.map((n) => `season/${n}`).join(",");
@@ -395,7 +450,22 @@ export class TmdbClient {
             return numbers.map((n) => summarizeSeason(res[`season/${n}`] ?? {}, 50, false));
           }),
         );
-        return { seasons: capTotalEpisodes(chunkResults.flat(), MAX_EXPANDED_EPISODES) };
+        const fetched = capTotalEpisodes(chunkResults.flat(), MAX_EXPANDED_EPISODES);
+        const skippedSeasons: ReturnType<typeof summarizeSeason>[] = skipped.map((s) => ({
+          season_number: s.season_number,
+          name: s.name,
+          air_date: s.air_date,
+          overview: null,
+          poster_url: null,
+          episode_count: s.episode_count ?? 0,
+          episodes: [],
+        }));
+        return {
+          seasons: capTotalEpisodesBySize(
+            [...fetched, ...skippedSeasons],
+            MAX_EXPANDED_EPISODES_CHARS,
+          ),
+        };
       },
       onStale,
     );

@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { TmdbClient, MAX_EXPANDED_EPISODES } from "../clients/tmdb.js";
+import { TmdbClient, MAX_EXPANDED_EPISODES, MAX_EXPANDED_EPISODES_CHARS } from "../clients/tmdb.js";
 import { ApiError } from "../lib/errors.js";
 import { loadConfig } from "../config.js";
 import {
@@ -201,6 +201,85 @@ describe("TmdbClient: getTv(expand_episodes) on a show with more than 20 seasons
     assert.equal(seasonsDetail[0]!.episodes.length, EPISODES_PER_SEASON);
     // Some later season must have been truncated (25 * 30 = 750 > MAX_EXPANDED_EPISODES).
     assert.ok(seasonsDetail.some((x) => x.episodes.length < EPISODES_PER_SEASON));
+  });
+
+  test("skips fetching seasons known (via episode_count) to fall entirely beyond the budget", async (t) => {
+    // Same 25x30 show as above: seasons 1-9 cross the 250-episode budget, so
+    // seasons 10-25 should never be requested over the network at all.
+    const EPISODES_PER_SEASON = 30;
+    const seasons = Array.from({ length: 25 }, (_, i) => ({
+      season_number: i + 1,
+      name: `Season ${i + 1}`,
+      episode_count: EPISODES_PER_SEASON,
+    }));
+    const requestedSeasonNumbers: number[] = [];
+    const mock = mockFetch((url) => {
+      if (!url.includes("append_to_response=season")) {
+        return jsonResponse({ id: 1, name: "Long Runner", seasons });
+      }
+      const requested = decodeURIComponent(/append_to_response=([^&]+)/.exec(url)![1]!).split(",");
+      const body: Record<string, unknown> = {};
+      for (const key of requested) {
+        const n = Number(key.split("/")[1]);
+        requestedSeasonNumbers.push(n);
+        body[key] = {
+          season_number: n,
+          name: `Season ${n}`,
+          episodes: Array.from({ length: EPISODES_PER_SEASON }, (_, i) => ({
+            episode_number: i + 1,
+          })),
+        };
+      }
+      return jsonResponse(body);
+    });
+    installFetch(t, mock);
+    const s = await client().getTv(1, "US", undefined, true);
+    assert.deepEqual(
+      requestedSeasonNumbers.sort((a, b) => a - b),
+      [1, 2, 3, 4, 5, 6, 7, 8, 9],
+    );
+    // Skipped seasons still appear in seasons_detail (true episode_count, no
+    // episodes), same contract as a season truncated after being fetched.
+    const seasonsDetail = s.seasons_detail!;
+    assert.equal(seasonsDetail.length, 25);
+    const skippedSeason = seasonsDetail.find((x) => x.season_number === 20)!;
+    assert.equal(skippedSeason.episode_count, EPISODES_PER_SEASON);
+    assert.deepEqual(skippedSeason.episodes, []);
+  });
+
+  test("falls back to a byte-size cap when episode names are unusually verbose, even under the count cap", async (t) => {
+    // A single season, well under MAX_EXPANDED_EPISODES (250) by count, but
+    // with long enough episode names that the serialized aggregate would
+    // still exceed the byte-size backstop if only count were enforced.
+    const EPISODE_COUNT = 100;
+    const LONG_NAME = "A".repeat(300);
+    const seasons = [{ season_number: 1, name: "Season 1", episode_count: EPISODE_COUNT }];
+    const mock = mockFetch((url) => {
+      if (!url.includes("append_to_response=season")) {
+        return jsonResponse({ id: 1, name: "Verbose Show", seasons });
+      }
+      return jsonResponse({
+        "season/1": {
+          season_number: 1,
+          name: "Season 1",
+          episodes: Array.from({ length: EPISODE_COUNT }, (_, i) => ({
+            episode_number: i + 1,
+            name: LONG_NAME,
+          })),
+        },
+      });
+    });
+    installFetch(t, mock);
+    const s = await client().getTv(1, "US", undefined, true);
+    const seasonsDetail = s.seasons_detail!;
+    assert.equal(seasonsDetail.length, 1);
+    // All 100 episodes are well under the 250-episode count cap, but the
+    // byte-size backstop must still trim them well short of 100.
+    assert.ok(
+      seasonsDetail[0]!.episodes.length < EPISODE_COUNT,
+      `expected byte-size cap to trim below ${EPISODE_COUNT}, got ${seasonsDetail[0]!.episodes.length}`,
+    );
+    assert.ok(JSON.stringify(seasonsDetail).length <= MAX_EXPANDED_EPISODES_CHARS + 1000);
   });
 });
 

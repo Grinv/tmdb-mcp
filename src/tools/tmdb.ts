@@ -137,9 +137,10 @@ const expandEpisodes = z
       "here to keep that aggregate response usable — call get_tv_season for one season's full " +
       "detail including overview. Each season's episode list is capped at 50 (season 0 'Specials' " +
       "in particular can otherwise run to hundreds of bonus clips), and the combined count across " +
-      "every season is capped at 250 total, since a 30+ season show could otherwise still exceed a " +
-      "usable response size even with the per-season cap alone; `episode_count` on each season " +
-      "still reports that season's true total. Defaults to false.",
+      "every season is capped at 250 total, and the whole aggregate additionally has a hard size " +
+      "ceiling (trims further if episode names are unusually long) since a 30+ season show could " +
+      "otherwise still exceed a usable response size even with the per-season cap alone; " +
+      "`episode_count` on each season still reports that season's true total. Defaults to false.",
   )
   .optional();
 
