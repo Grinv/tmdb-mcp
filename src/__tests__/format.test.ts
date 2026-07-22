@@ -296,6 +296,7 @@ describe("summarizePersonCredits", () => {
           { id: 3, title: "Mid", popularity: 5 },
         ],
       },
+      undefined,
       2,
     );
     const cast = s.cast as { id: number }[];
@@ -355,6 +356,59 @@ describe("summarizePersonCredits", () => {
       ],
     });
     assert.equal(s.crew.length, 2);
+  });
+
+  // Regression: a prolific writer-director-producer's own films used to get
+  // pushed out of the crew cap entirely — each of their films could cost 2-4
+  // slots (one per job), so 25 slots covered far fewer than 25 actual titles.
+  test("a title with several crew jobs counts once against the crew cap, not once per job", () => {
+    const s = summarizePersonCredits(
+      {
+        crew: [
+          { id: 1, title: "Movie A", job: "Director", popularity: 10 },
+          { id: 1, title: "Movie A", job: "Writer", popularity: 10 },
+          { id: 1, title: "Movie A", job: "Producer", popularity: 10 },
+          { id: 2, title: "Movie B", job: "Director", popularity: 5 },
+          { id: 3, title: "Movie C", job: "Director", popularity: 1 },
+        ],
+      },
+      undefined,
+      2,
+    );
+    const crew = s.crew as { id: number }[];
+    // Movie A's 3 jobs all count as one title slot, Movie B fills the second
+    // slot — Movie C (a 3rd distinct title) is excluded even though the row
+    // count so far (4) is under what a naive row-based limit would allow.
+    assert.deepEqual(
+      crew.map((c) => c.id),
+      [1, 1, 1, 2],
+    );
+  });
+
+  test("department restricts crew to that department before capping", () => {
+    const s = summarizePersonCredits(
+      {
+        crew: [
+          {
+            id: 1,
+            title: "Directed Film",
+            job: "Director",
+            department: "Directing",
+            popularity: 10,
+          },
+          { id: 1, title: "Directed Film", job: "Writer", department: "Writing", popularity: 10 },
+          { id: 2, title: "Written Only", job: "Writer", department: "Writing", popularity: 20 },
+        ],
+      },
+      "Directing",
+    );
+    const crew = s.crew as { id: number; job: string | null }[];
+    // "Written Only" has the higher popularity but isn't in Directing, so it's
+    // excluded; "Directed Film"'s own Writer row is excluded too — only its
+    // Director row survives.
+    assert.equal(crew.length, 1);
+    assert.equal(crew[0]!.id, 1);
+    assert.equal(crew[0]!.job, "Director");
   });
 });
 

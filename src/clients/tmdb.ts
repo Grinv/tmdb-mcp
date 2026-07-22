@@ -670,13 +670,14 @@ export class TmdbClient {
 
   async getPersonCredits(
     id: number,
+    department?: string,
     language?: string,
     onStale?: () => void,
   ): Promise<ReturnType<typeof summarizePersonCredits>> {
     return this.#cached(
-      cacheKey(`person-credits:${id}`, { language: this.#lang(language) }),
+      cacheKey(`person-credits:${id}`, { department, language: this.#lang(language) }),
       `person/${id}/combined_credits`,
-      (c: CombinedCredits) => summarizePersonCredits(c),
+      (c: CombinedCredits) => summarizePersonCredits(c, department),
       {},
       language,
       onStale,

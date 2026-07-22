@@ -1131,6 +1131,53 @@ describe("person", () => {
     assert.equal(s.cast[1]!.year, 2010);
   });
 
+  test("get_person_credits' department filters crew to one department, ignoring higher-popularity titles outside it", async (t) => {
+    const mock = mockFetch((url) => {
+      if (url.includes("combined_credits")) {
+        return jsonResponse({
+          crew: [
+            {
+              id: 1,
+              media_type: "movie",
+              title: "Directed Film",
+              job: "Director",
+              department: "Directing",
+              popularity: 10,
+            },
+            {
+              id: 1,
+              media_type: "movie",
+              title: "Directed Film",
+              job: "Writer",
+              department: "Writing",
+              popularity: 10,
+            },
+            {
+              id: 2,
+              media_type: "movie",
+              title: "Written Only",
+              job: "Writer",
+              department: "Writing",
+              popularity: 20,
+            },
+          ],
+        });
+      }
+      return router(url);
+    });
+    installFetch(t, mock);
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({
+      name: "get_person_credits",
+      arguments: { id: 6384, department: "Directing" },
+    });
+    const s = res.structuredContent as { crew: { id: number; job: string | null }[] };
+    assert.equal(s.crew.length, 1);
+    assert.equal(s.crew[0]!.id, 1);
+    assert.equal(s.crew[0]!.job, "Director");
+  });
+
   test("get_person returns full biography details and a human-readable gender", async (t) => {
     installFetch(t, mockFetch(router));
     const { client, close } = await connectServer(ENV);

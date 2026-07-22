@@ -47,6 +47,31 @@ const page = z
   );
 const tmdbId = z.number().int().positive().describe("TMDB numeric id.");
 const mediaKind = z.enum(["movie", "tv"]).describe("Media type: 'movie' or 'tv'.");
+// TMDB's own fixed department vocabulary for crew jobs (from
+// /configuration/jobs, verified live — stable reference data, not something
+// tmdb-mcp invents). get_person_credits' department filter uses this.
+const PERSON_DEPARTMENTS = [
+  "Directing",
+  "Writing",
+  "Production",
+  "Camera",
+  "Editing",
+  "Sound",
+  "Art",
+  "Costume & Make-Up",
+  "Visual Effects",
+  "Crew",
+  "Lighting",
+  "Actors",
+] as const;
+const personDepartment = z
+  .enum(PERSON_DEPARTMENTS)
+  .describe(
+    "Restrict crew credits to this department (e.g. 'Directing' for a director's filmography). " +
+      "Without it, a multi-hyphenate's OTHER departments (writing, producing, …) compete for the " +
+      "same 25-credit cap and can crowd out titles in the department you actually want.",
+  )
+  .optional();
 const includeAdult = z
   .boolean()
   .describe("Include adult (NSFW) results. Defaults to false.")
@@ -894,16 +919,23 @@ export function registerTmdbTools(
         "List the movies and TV shows a person is known for (cast roles and crew jobs), most " +
         "popular first, capped to the top 25 of each; talk-show/awards-show guest appearances " +
         "('Self'/'Himself'/'Herself') and repeat entries for the same title are excluded so the list stays about " +
-        "actual roles. Cast entries include a vote_average; crew entries (director, writer, …) " +
-        "do not — call get_movie/get_tv on the id for a crew credit's rating. Use for 'what has " +
-        "this actor/director been in'. Get the id from search_people.",
-      inputSchema: z.object({ id: tmdbId }).strict(),
+        "actual roles. A title with several crew jobs (writer AND director AND producer on one " +
+        "film) still only counts once against the 25-credit crew cap. Cast entries include a " +
+        "vote_average; crew entries (director, writer, …) do not — call get_movie/get_tv on the id " +
+        "for a crew credit's rating. Pass department (e.g. 'Directing') to restrict crew to just " +
+        "that role — the reliable way to get someone's complete filmography in one department when " +
+        "their other departments would otherwise compete for the same cap. Use for 'what has this " +
+        "actor/director been in'. Get the id from search_people.",
+      inputSchema: z.object({ id: tmdbId, department: personDepartment }).strict(),
       outputSchema: personCreditsSchema,
       annotations: READ_ONLY,
     },
-    ({ id }) => {
+    ({ id, department }) => {
       const stale = trackStale();
-      return requireTmdb(() => tmdb.getPersonCredits(id, undefined, stale.onStale), stale.meta);
+      return requireTmdb(
+        () => tmdb.getPersonCredits(id, department, undefined, stale.onStale),
+        stale.meta,
+      );
     },
   );
 

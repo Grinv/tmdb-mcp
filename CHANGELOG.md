@@ -10,6 +10,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Add `get_movies`/`get_tv_shows`, returning a compact card (title/name, year, genres, vote average, opt-in ratings) for 1-20 ids in one call instead of one `get_movie`/`get_tv` call per title. A bad/unknown id never fails the whole call — that entry comes back `{id, found:false, reason}` instead, in the same order as given.
 - Add `search_companies`, resolving a production company's name (e.g. "A24") to the TMDB id `discover_movies`/`discover_tv`'s `with_companies` needs. Keeps `origin_country`/`logo_url` per result since company names aren't unique — TMDB has multiple unrelated companies sharing the same name.
+- Add a `department` filter to `get_person_credits` (e.g. `"Directing"`), restricting crew credits to one of TMDB's fixed departments — the reliable way to get a complete filmography for one role when a writer-director-producer's other departments would otherwise compete for the same 25-credit cap.
 
 ### Changed
 
@@ -18,6 +19,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 
 - Filter `get_similar` results down to titles sharing at least half of the source title's genres, since a title with a broad genre (e.g. "Drama") could otherwise surface completely unrelated blockbusters from across TMDB's entire catalog.
+- Fix `get_person_credits` capping crew by row count instead of by distinct title, so a prolific writer-director-producer's own films (each costing 2-4 rows: director, writer, producer, …) could get pushed out of the 25-credit cap entirely instead of the person's actual filmography. A title's rows now all count as a single slot.
 
 ## [0.7.1] - 2026-07-22
 

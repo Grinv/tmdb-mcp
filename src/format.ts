@@ -731,10 +731,35 @@ function dedupeByKey<T>(entries: T[], key: (e: T) => string | undefined): T[] {
   });
 }
 
+// Caps a popularity-sorted list to at most `limit` DISTINCT titles (by id),
+// keeping every already-included title's remaining rows regardless of
+// position — a multi-hyphenate crew credit (writer AND director AND
+// producer on one film) would otherwise burn several of the capped slots on
+// a single title, pushing other, single-job-credit titles out entirely. cast
+// doesn't need this: dedupeByKey(id) already leaves at most one row per
+// title there, so a plain slice is already title-accurate.
+function capByUniqueTitle<T>(entries: T[], limit: number, idOf: (e: T) => string | undefined): T[] {
+  const seenTitles = new Set<string>();
+  const result: T[] = [];
+  for (const e of entries) {
+    const id = idOf(e);
+    const isNewTitle = id !== undefined && !seenTitles.has(id);
+    if (isNewTitle && seenTitles.size >= limit) continue;
+    if (id !== undefined) seenTitles.add(id);
+    result.push(e);
+  }
+  return result;
+}
+
 // A prolific person can have hundreds of credits; cap to the most popular so the
-// result stays useful and token-bounded.
+// result stays useful and token-bounded. `department` restricts crew to just
+// one of TMDB's fixed department values (e.g. "Directing" — the tool-facing
+// PERSON_DEPARTMENTS enum in tools/tmdb.ts lists all of them) before capping —
+// the precise way to get a complete filmography for one role when a person's
+// other departments would otherwise crowd it out of the cap.
 export function summarizePersonCredits(
   c: CombinedCredits,
+  department?: string,
   limit = 25,
 ): z.infer<typeof personCreditsSchema> {
   const byPopularity = (a: CombinedCreditEntry, b: CombinedCreditEntry): number =>
@@ -752,18 +777,23 @@ export function summarizePersonCredits(
       character: e.character || null,
       vote_average: e.vote_average ?? null,
     }));
-  const crew = dedupeByKey((c.crew ?? []).slice().sort(byPopularity), (e) =>
-    e.id !== undefined && e.job ? `${e.id}:${e.job}` : undefined,
-  )
-    .slice(0, limit)
-    .map((e) => ({
-      id: e.id,
-      media_type: e.media_type,
-      title: creditTitle(e),
-      year: creditYear(e),
-      job: e.job || null,
-      department: e.department || null,
-    }));
+  const crewSource = department
+    ? (c.crew ?? []).filter((e) => e.department === department)
+    : (c.crew ?? []);
+  const crew = capByUniqueTitle(
+    dedupeByKey(crewSource.slice().sort(byPopularity), (e) =>
+      e.id !== undefined && e.job ? `${e.id}:${e.job}` : undefined,
+    ),
+    limit,
+    (e) => e.id?.toString(),
+  ).map((e) => ({
+    id: e.id,
+    media_type: e.media_type,
+    title: creditTitle(e),
+    year: creditYear(e),
+    job: e.job || null,
+    department: e.department || null,
+  }));
   return personCreditsSchema.parse({ cast, crew });
 }
 
