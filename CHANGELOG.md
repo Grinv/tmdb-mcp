@@ -10,8 +10,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Reject a malformed `language`/`TMDB_LANGUAGE` up front instead of letting TMDB silently return null overview/title fields for a well-formed-looking but nonexistent code, with no signal anything went wrong ([90e0b96](https://github.com/Grinv/tmdb-mcp/commit/90e0b96)).
 - Drop each episode's `overview` from `get_tv`'s `expand_episodes` aggregate — the 500-episode combined cap alone didn't keep the response usable, since a long-running show's full `seasons_detail` (e.g. 38 seasons/802 episodes) still ran to tens of thousands of tokens once every episode carried its own overview; `get_tv_season` (single season) is unaffected ([b971897](https://github.com/Grinv/tmdb-mcp/commit/b971897)).
-- Lower `get_tv`'s `expand_episodes` combined episode cap from 500 to 250 — even without the overview field, a 500-episode `seasons_detail` on the longest-running shows still ran ~75-80K characters live, large enough to exceed several real MCP clients' own tool-output limits ([489e234](https://github.com/Grinv/tmdb-mcp/commit/489e234)).
-- Make `top_by_entity`'s prompt steps actually honor `media_type`: passing `media_type=movie` (or `tv`) now drops the other branch's instructions instead of restricting only the intro sentence while still walking the model through both ([6906d47](https://github.com/Grinv/tmdb-mcp/commit/6906d47)).
+- Lower `get_tv`'s `expand_episodes` combined episode cap from 500 to 250 — 500 was still too large on the longest-running shows even without per-episode overviews ([489e234](https://github.com/Grinv/tmdb-mcp/commit/489e234)).
+- Fix `top_by_entity`'s prompt to drop the movies/TV branch `media_type` excludes, instead of only wording the intro sentence differently ([6906d47](https://github.com/Grinv/tmdb-mcp/commit/6906d47)).
 
 ## [0.8.0] - 2026-07-22
 
