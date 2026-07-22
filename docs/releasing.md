@@ -24,8 +24,11 @@ catch drift here, and it tends to accumulate silently across several PRs:
 - **Tool/prompt descriptions** (`src/tools/*.ts`, `src/prompts.ts`) — self-check
   against [docs/tool-descriptions.md](tool-descriptions.md)'s TDQS rubric.
 - **`manifest.json`** — its `tools`/`prompts` arrays are a hand-maintained copy
-  of the source; check the tool list and the `recommend_similar` prompt's
-  `description`/`text` haven't drifted from `src/tools/*.ts`/`src/prompts.ts`.
+  of the source; check the tool list and every registered prompt's
+  (`recommend_similar`, `top_by_entity`, …) `description`/`text` haven't
+  drifted from `src/tools/*.ts`/`src/prompts.ts`. `top_by_entity`'s `text`
+  branches on `media_type`/`genre`, so re-check it whenever that branching
+  logic changes, not just when its wording does.
 - **`server.json`** — `packages[].environmentVariables` vs `config.ts` (see
   "Keep config in three places in sync" below) and the top-level `description`
   (≤ 100 chars).
