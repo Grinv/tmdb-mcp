@@ -1017,9 +1017,12 @@ export function registerTmdbTools(
         "department when their other departments would otherwise compete for the same cap; for a " +
         "handful of exceptionally prolific people even that isn't enough (e.g. 50+ directing " +
         "credits), so raise `limit` too when department alone still looks short. Use for 'what has " +
-        "this actor/director been in'. This tool has no genre filter — for 'which of X's films are " +
-        "animated/horror/etc.' use discover_movies/discover_tv instead, combining with_cast/" +
-        "with_crew/with_people with with_genres. Get the id from search_people.",
+        "this actor/director been in'. This tool has no genre filter — for 'which of X's movies are " +
+        "animated/horror/etc.' use discover_movies instead, combining with_cast/with_crew/" +
+        "with_people with with_genres (discover_tv has no equivalent — it can't filter by person at " +
+        "all — so for a person's TV work in one genre, call this tool and check the returned " +
+        "media_type 'tv' entries' genres yourself, e.g. via get_tv_shows). Get the id from " +
+        "search_people.",
       inputSchema: z
         .object({ id: tmdbId, department: personDepartment, limit: personCreditsLimit })
         .strict(),

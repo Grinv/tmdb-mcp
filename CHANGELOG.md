@@ -27,6 +27,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Filter `get_similar` results down to titles sharing at least half the source's genres, since a broad genre (e.g. "Drama") could surface unrelated titles from across TMDB's catalog.
 - Fix `get_person_credits` capping crew by row count instead of distinct title — a multi-hyphenate's own films (2+ rows each) could get pushed out of the cap entirely.
+- Fix `get_person_credits`' description telling the model to combine its filters with `discover_tv` for a person's genre-filtered TV work — `discover_tv` has no person filter at all.
 
 ## [0.7.1] - 2026-07-22
 
