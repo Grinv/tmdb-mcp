@@ -8,26 +8,25 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- Add `get_movies`/`get_tv_shows`: a compact card (title/name, year, genres, vote average, opt-in ratings) for 1-20 ids in one call, instead of one `get_movie`/`get_tv` call per title.
-- Add `search_companies`, resolving a production company name (e.g. "A24") to the id `with_companies` needs.
-- Add `department` and `limit` params to `get_person_credits`, so a prolific multi-hyphenate's filmography in one role isn't crowded out by their other credits or the default 25-credit cap.
-- Add `with_type`/`with_status` to `discover_tv` (e.g. `with_type: "Miniseries"`), and `number_of_seasons`/`number_of_episodes` to `get_tv_shows`' card.
-- Add `certification`/`certification_country` to `discover_tv` (e.g. `certification: "TV-Y7"`) — verified live against the real API, though TMDB's own docs only list this for movies.
-- Add a `top_by_entity` prompt: top titles from a person or company/studio, optionally by genre, falling back to `get_person_credits` for a person's TV work since `discover_tv` can't filter by person.
+- Add `get_movies`/`get_tv_shows`: a compact card (title/name, year, genres, vote average, opt-in ratings) for 1-20 ids in one call, instead of one `get_movie`/`get_tv` call per title ([ebe4d79](https://github.com/Grinv/tmdb-mcp/commit/ebe4d79)).
+- Add `search_companies`, resolving a production company name (e.g. "A24") to the id `with_companies` needs ([913098a](https://github.com/Grinv/tmdb-mcp/commit/913098a)).
+- Add `department` and `limit` params to `get_person_credits`, so a prolific multi-hyphenate's filmography in one role isn't crowded out by their other credits or the default 25-credit cap ([64b2869](https://github.com/Grinv/tmdb-mcp/commit/64b2869), [c99141a](https://github.com/Grinv/tmdb-mcp/commit/c99141a)).
+- Add `with_type`/`with_status` to `discover_tv` (e.g. `with_type: "Miniseries"`), and `number_of_seasons`/`number_of_episodes` to `get_tv_shows`' card ([abddb53](https://github.com/Grinv/tmdb-mcp/commit/abddb53), [48703cf](https://github.com/Grinv/tmdb-mcp/commit/48703cf)).
+- Add `certification`/`certification_country` to `discover_tv` (e.g. `certification: "TV-Y7"`) — verified live against the real API, though TMDB's own docs only list this for movies ([94284b4](https://github.com/Grinv/tmdb-mcp/commit/94284b4)).
+- Add a `top_by_entity` prompt: top titles from a person or company/studio, optionally by genre, falling back to `get_person_credits` for a person's TV work since `discover_tv` can't filter by person ([3b84310](https://github.com/Grinv/tmdb-mcp/commit/3b84310)).
 
 ### Changed
 
-- Sharpen several tool/prompt descriptions per a TDQS audit (`get_movie`/`get_tv` now name `get_movies`/`get_tv_shows`; `get_trending` discloses per-row `media_type`; genre tools point at `discover_*`). `recommend_similar` now fetches its shortlist's ratings via `get_movies`/`get_tv_shows` instead of one call per title.
-- Cross-reference `get_person_credits` (no genre filter) with `discover_movies`'s `with_crew`/`with_cast`/`with_people` + `with_genres` — the right combination for "this person's work in one genre".
-- Disclose `get_movie`/`get_tv`/`get_ratings`' previously-undocumented `awards` and `ratings.rated` fields (both from OMDb), and clarify `awards` isn't Oscar-specific.
-- Document `certification`'s real edge cases (case-sensitive for movies, silently disabled by an unrecognized country, no fallback to another country unlike `get_movie`/`get_tv`) and that `discover_tv` ignores cast/crew/person filters entirely — all verified live.
-- Clarify `discover_tv` rejects cast/crew/person params outright (a validation error), rather than implying it silently no-ops them like upstream TMDB does.
+- Sharpen several tool/prompt descriptions per a TDQS audit (`get_movie`/`get_tv` now name `get_movies`/`get_tv_shows`; `get_trending` discloses per-row `media_type`; genre tools point at `discover_*`; `recommend_similar` now fetches its shortlist's ratings via `get_movies`/`get_tv_shows` instead of one call per title) ([c65d507](https://github.com/Grinv/tmdb-mcp/commit/c65d507)).
+- Cross-reference `get_person_credits` (no genre filter) with `discover_movies`'s `with_crew`/`with_cast`/`with_people` + `with_genres` — the right combination for "this person's work in one genre" ([b46ed60](https://github.com/Grinv/tmdb-mcp/commit/b46ed60)).
+- Disclose `get_movie`/`get_tv`/`get_ratings`' previously-undocumented `awards` and `ratings.rated` fields (both from OMDb), and clarify `awards` isn't Oscar-specific ([ea88dc0](https://github.com/Grinv/tmdb-mcp/commit/ea88dc0)).
+- Document `certification`'s real edge cases (case-sensitive for movies, silently disabled by an unrecognized country, no fallback to another country unlike `get_movie`/`get_tv`), verified live ([94284b4](https://github.com/Grinv/tmdb-mcp/commit/94284b4)).
 
 ### Fixed
 
-- Filter `get_similar` results down to titles sharing at least half the source's genres, since a broad genre (e.g. "Drama") could surface unrelated titles from across TMDB's catalog.
-- Fix `get_person_credits` capping crew by row count instead of distinct title — a multi-hyphenate's own films (2+ rows each) could get pushed out of the cap entirely.
-- Fix `get_person_credits`' description telling the model to combine its filters with `discover_tv` for a person's genre-filtered TV work — `discover_tv` has no person filter at all.
+- Filter `get_similar` results down to titles sharing at least half the source's genres, since a broad genre (e.g. "Drama") could surface unrelated titles from across TMDB's catalog ([ebe4d79](https://github.com/Grinv/tmdb-mcp/commit/ebe4d79)).
+- Fix `get_person_credits` capping crew by row count instead of distinct title — a multi-hyphenate's own films (2+ rows each) could get pushed out of the cap entirely ([64b2869](https://github.com/Grinv/tmdb-mcp/commit/64b2869)).
+- Fix `discover_tv`'s and `get_person_credits`' descriptions implying TV cast/crew/person filters are a silent no-op — they're rejected outright by input validation, and `get_person_credits` wrongly suggested pairing its results with `discover_tv` for a person's genre-filtered TV work, which isn't possible at all ([31215c4](https://github.com/Grinv/tmdb-mcp/commit/31215c4), [e5f97fa](https://github.com/Grinv/tmdb-mcp/commit/e5f97fa)).
 
 ## [0.7.1] - 2026-07-22
 
