@@ -17,6 +17,19 @@ current session (however your harness exposes that — e.g. as `mcp__tmdb__*`
 tools in Claude Code). If it isn't connected, connect it first (see
 `README.md`'s client-setup section) rather than skipping straight to step 1.
 
+**Hard rule — do not skip ahead:** if your harness has a task/todo tool, create
+one task per numbered step below (0-5) plus one per bullet under step 2's
+checklist and step 3's list, before doing anything else, and mark each
+complete only when actually done. The failure mode this guards against is
+real: finding a bug mid-step-2 and immediately jumping to fix it, leaving
+step 3 (docs/metadata consistency) half-done and unreported. Step 3 is not
+optional polish — a real fix from step 2 routinely has stale echoes
+elsewhere (a tool's own `.describe()` text repeating an old constant,
+`manifest.json`'s hand-maintained `tools`/`prompts` copy per
+`docs/releasing.md`, a comment in `docs/*.md`) that step 2 alone will never
+surface. A fix isn't done until every one of its echoes is updated too —
+finish step 3 in full before step 4's report, every single time.
+
 ## 0. Confirm "published" actually means HEAD
 
 ```sh
