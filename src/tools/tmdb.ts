@@ -411,7 +411,9 @@ export function registerTmdbTools(
         "By default also includes IMDb/Rotten Tomatoes/Metacritic ratings from OMDb " +
         "(set include_ratings=false to skip); if unavailable (no OMDB_API_KEY, no imdb_id, or the " +
         "OMDb lookup fails), `ratings` degrades to `{found:false, reason}` instead of failing the " +
-        "call. Get the id from search_movies.",
+        "call. If you only need the headline info (title/year/genres/vote average) — for one id or " +
+        "several — use get_movies instead; it's trimmed on purpose and skips the rest of this " +
+        "payload. Get the id from search_movies.",
       inputSchema: z
         .object({ id: tmdbId, region, language, include_ratings: includeRatings })
         .strict(),
@@ -451,7 +453,9 @@ export function registerTmdbTools(
         "(set include_ratings=false to skip); if unavailable (no OMDB_API_KEY, no imdb_id, or the " +
         "OMDb lookup fails), `ratings` degrades to `{found:false, reason}` instead of failing the " +
         "call. Set expand_episodes=true to also pull every season's episode list in one extra " +
-        "request instead of calling get_tv_season per season. Get the id from search_tv.",
+        "request instead of calling get_tv_season per season. If you only need the headline info " +
+        "(name/year/genres/vote average) — for one id or several — use get_tv_shows instead; it's " +
+        "trimmed on purpose and skips the rest of this payload. Get the id from search_tv.",
       inputSchema: z
         .object({
           id: tmdbId,
@@ -727,7 +731,9 @@ export function registerTmdbTools(
       title: "Get trending titles",
       description:
         "Get what's trending on TMDB. media_type selects movies, TV, people, or all; time_window " +
-        "is the trending period (today vs this week). Good for 'what's popular right now'.",
+        "is the trending period (today vs this week). Good for 'what's popular right now'. Each " +
+        "result row carries its own media_type ('movie' | 'tv' | 'person') — check it to route to " +
+        "the right get_* tool, especially when media_type is left at 'all'.",
       inputSchema: z
         .object({
           media_type: z
@@ -753,7 +759,8 @@ export function registerTmdbTools(
     {
       title: "List movie genres",
       description:
-        "List TMDB movie genres with their numeric ids and names (reference data; rarely changes).",
+        "List TMDB movie genres with their numeric ids and names (reference data; rarely changes). " +
+        "Feed the ids into discover_movies' with_genres/without_genres.",
       inputSchema: z.object({}).strict(),
       outputSchema: genresSchema,
       annotations: READ_ONLY,
@@ -769,7 +776,8 @@ export function registerTmdbTools(
     {
       title: "List TV genres",
       description:
-        "List TMDB TV genres with their numeric ids and names (reference data; rarely changes).",
+        "List TMDB TV genres with their numeric ids and names (reference data; rarely changes). " +
+        "Feed the ids into discover_tv's with_genres/without_genres.",
       inputSchema: z.object({}).strict(),
       outputSchema: genresSchema,
       annotations: READ_ONLY,
