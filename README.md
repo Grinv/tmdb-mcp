@@ -112,9 +112,13 @@ search for titles similar to one the user liked, driving `get_similar` /
 
 **Backbone vs. enrichment.** TMDB is the primary source (search, metadata,
 people, trending). OMDb is optional enrichment: `get_movie`/`get_tv` chain the
-`imdb_id` TMDB returns into an OMDb lookup so ratings come back in one call.
-Without an OMDb key the TMDB data still works; the `ratings` field just reports
-that it is unconfigured.
+`imdb_id` TMDB returns into an OMDb lookup so ratings — plus a free-text
+awards summary (major-award wins/nominations, e.g. Oscars for a film or Emmys
+for a show, for the title as a whole, not attributed to any one person) and
+OMDb's own age rating (`ratings.rated`, separate from this server's own
+`certification`) — come back in one call. Without an OMDb key the TMDB data
+still works; the `ratings` field just
+reports that it is unconfigured.
 
 **Localization.** Set `TMDB_LANGUAGE` (e.g. `ru-RU`) and `TMDB_REGION` (e.g.
 `RU`) to get localized titles/overviews/genre names and region-specific

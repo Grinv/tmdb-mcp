@@ -13,11 +13,13 @@ export function registerOmdbTools(server: McpServer, omdb: OmdbClient): void {
     {
       title: "Get IMDb/RT/Metacritic ratings",
       description:
-        "Look up IMDb, Rotten Tomatoes and Metacritic ratings from OMDb by IMDb id (preferred, " +
-        "e.g. 'tt0133093') or by title (+ optional year). Prefer get_movie/get_tv when you have a " +
-        "TMDB id — they already include these ratings. Requires OMDB_API_KEY. One of imdb_id or " +
-        "title is required; omitting both returns an error. A no-match lookup is not an error: it " +
-        "returns `{found:false, reason}`.",
+        "Look up IMDb, Rotten Tomatoes and Metacritic ratings, an awards summary (major-award " +
+        "wins/nominations — Oscars, Emmys, Golden Globes, etc.; free text, not a structured count, " +
+        "for the whole film/show, not one person), and OMDb's own age rating (`rated`), from OMDb " +
+        "by IMDb id (preferred, e.g. 'tt0133093') or by title (+ optional year). Prefer get_movie/" +
+        "get_tv when you have a TMDB id — they already include this. Requires OMDB_API_KEY. One of " +
+        "imdb_id or title is required; omitting both returns an error. A no-match lookup is not an " +
+        "error: it returns `{found:false, reason}`.",
       inputSchema: z
         .object({
           imdb_id: z

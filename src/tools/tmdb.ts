@@ -90,8 +90,11 @@ const includeAdult = z
 const includeRatings = z
   .boolean()
   .describe(
-    "If true (default), enrich the result with IMDb/Rotten Tomatoes/Metacritic ratings from OMDb " +
-      "(requires OMDB_API_KEY). Set false to skip the extra lookup when ratings are not needed.",
+    "If true (default), enrich the result with IMDb/Rotten Tomatoes/Metacritic ratings plus an " +
+      "awards summary (major-award wins/nominations — Oscars, Emmys, Golden Globes, etc., whatever " +
+      "OMDb aggregates; free text, not a structured count, and describes the whole film/show, not " +
+      "any one person's award) from OMDb (requires OMDB_API_KEY). Set false to skip the extra " +
+      "lookup when ratings are not needed.",
   )
   .optional();
 // get_movies/get_tv_shows: capped well under TMDB's own per-request limits
@@ -510,8 +513,11 @@ export function registerTmdbTools(
         "vote average, the age/content rating (certification) for `region` — falling back to the " +
         "US rating, then any available country, when `region` has none; check `certification_region` " +
         "to see which one was used — and links (TMDB + IMDb). " +
-        "By default also includes IMDb/Rotten Tomatoes/Metacritic ratings from OMDb " +
-        "(set include_ratings=false to skip); if unavailable (no OMDB_API_KEY, no imdb_id, or the " +
+        "By default also includes IMDb/Rotten Tomatoes/Metacritic ratings, an awards summary " +
+        "(major-award wins/nominations — Oscars, Emmys, Golden Globes, etc.; free text, not a " +
+        "structured count, for the whole film/show, not one person), and OMDb's own age rating " +
+        "(`ratings.rated` — separate from this tool's own `certification` above; the two can differ) " +
+        "from OMDb (set include_ratings=false to skip); if unavailable (no OMDB_API_KEY, no imdb_id, or the " +
         "OMDb lookup fails), `ratings` degrades to `{found:false, reason}` instead of failing the " +
         "call. If you only need the headline info (title/year/genres/vote average) — for one id or " +
         "several — use get_movies instead; it's trimmed on purpose and skips the rest of this " +
@@ -551,8 +557,11 @@ export function registerTmdbTools(
         "networks, status, the age/content rating (certification) for `region` — falling back to " +
         "the US rating, then any available country, when `region` has none; check " +
         "`certification_region` to see which one was used — and links. " +
-        "By default also includes IMDb/Rotten Tomatoes/Metacritic ratings from OMDb " +
-        "(set include_ratings=false to skip); if unavailable (no OMDB_API_KEY, no imdb_id, or the " +
+        "By default also includes IMDb/Rotten Tomatoes/Metacritic ratings, an awards summary " +
+        "(major-award wins/nominations — Oscars, Emmys, Golden Globes, etc.; free text, not a " +
+        "structured count, for the whole film/show, not one person), and OMDb's own age rating " +
+        "(`ratings.rated` — separate from this tool's own `certification` above; the two can differ) " +
+        "from OMDb (set include_ratings=false to skip); if unavailable (no OMDB_API_KEY, no imdb_id, or the " +
         "OMDb lookup fails), `ratings` degrades to `{found:false, reason}` instead of failing the " +
         "call. Set expand_episodes=true to also pull every season's episode list in one extra " +
         "request instead of calling get_tv_season per season. If you only need the headline info " +
