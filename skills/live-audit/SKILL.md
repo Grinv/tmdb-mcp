@@ -116,7 +116,15 @@ prompts/get --prompt-name <name> --prompt-args key=value key2=value2`
   (space-separated `key=value` pairs, NOT a JSON blob — the CLI rejects JSON
   with "Invalid parameter format"). For each prompt: no args, only one
   optional arg at a time, and all of them together — an arg that's
-  individually optional can still break when given alone.
+  individually optional can still break when given alone. For an enum-valued
+  arg (e.g. `media_type: "movie" | "tv"`), render **every** value, not just
+  one — each can take a genuinely different branch in the prompt's own
+  step-building logic. Missing this exact gap is how a real bug got past a
+  prior live-audit pass in this repo: `media_type=movie` rendered fine, but
+  `media_type=tv` left a dangling reference to a step ("the equivalent movies
+  filter") that only exists in the movies branch — caught later by a
+  `/code-review` pass, not by live-audit, because only one enum value had
+  actually been rendered here.
 
 For anything that looks like a bug, **don't stop at the symptom** — grep the
 source for the actual mechanism (the const/regex/cap that produced it) before
