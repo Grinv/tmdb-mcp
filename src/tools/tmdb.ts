@@ -556,8 +556,9 @@ export function registerTmdbTools(
         "OMDb lookup fails), `ratings` degrades to `{found:false, reason}` instead of failing the " +
         "call. Set expand_episodes=true to also pull every season's episode list in one extra " +
         "request instead of calling get_tv_season per season. If you only need the headline info " +
-        "(name/year/genres/vote average) — for one id or several — use get_tv_shows instead; it's " +
-        "trimmed on purpose and skips the rest of this payload. Get the id from search_tv.",
+        "(name/year/genres/vote average, season/episode counts) — for one id or several — use " +
+        "get_tv_shows instead; it's trimmed on purpose and skips the rest of this payload. Get the " +
+        "id from search_tv.",
       inputSchema: z
         .object({
           id: tmdbId,
