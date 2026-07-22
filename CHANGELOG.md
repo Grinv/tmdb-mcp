@@ -13,6 +13,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Add `department` and `limit` params to `get_person_credits`, so a prolific multi-hyphenate's filmography in one role isn't crowded out by their other credits or the default 25-credit cap.
 - Add `with_type`/`with_status` to `discover_tv` (e.g. `with_type: "Miniseries"`), and `number_of_seasons`/`number_of_episodes` to `get_tv_shows`' card.
 - Add `certification`/`certification_country` to `discover_tv` (e.g. `certification: "TV-Y7"`) — verified live against the real API, though TMDB's own docs only list this for movies.
+- Add a `top_by_entity` prompt: top titles from a person or company/studio, optionally by genre, falling back to `get_person_credits` for a person's TV work since `discover_tv` can't filter by person.
 
 ### Changed
 

@@ -104,11 +104,16 @@ See [docs/clients.md](docs/clients.md) for per-client details and all tunables.
 | `search_companies`                                     | Resolve a production company name → id for `discover_*`'s `with_companies`                 |
 | `get_ratings`                                          | IMDb/RT/Metacritic ratings by IMDb id or title (standalone)                                |
 
-**Prompts.** Alongside the tools above, the server exposes one MCP prompt:
+**Prompts.** Alongside the tools above, the server exposes two MCP prompts:
 `recommend_similar` (`title`, optional `media_type`, optional `count`) plans a
 search for titles similar to one the user liked, driving `get_similar` /
 `get_movie_recommendations` / `get_tv_recommendations` / `discover_movies` /
-`discover_tv` instead of relying on the model's own knowledge.
+`discover_tv` instead of relying on the model's own knowledge. `top_by_entity`
+(`name`, optional `entity_type`, `genre`, `media_type`, `count`) finds the
+best-regarded titles from a person or a production company/studio — e.g. "A24's
+top movies" or "Tarantino's best crime films" — via `discover_movies`/
+`discover_tv`, and for a person's TV work specifically falls back to
+`get_person_credits` (TMDB's own `/discover/tv` can't filter by person at all).
 
 **Backbone vs. enrichment.** TMDB is the primary source (search, metadata,
 people, trending). OMDb is optional enrichment: `get_movie`/`get_tv` chain the

@@ -66,4 +66,87 @@ export function registerPrompts(server: McpServer): void {
       };
     },
   );
+
+  server.registerPrompt(
+    "top_by_entity",
+    {
+      title: "Top titles from a person or studio",
+      description:
+        "Find the best-regarded movies/TV from a specific person (actor, director, composer, …) " +
+        "or production company/studio, optionally restricted to one genre — 'A24's top movies', " +
+        "'Tarantino's best films', 'which of Joe Hisaishi's scores are for animated films'. " +
+        "Resolves the name to a TMDB id (search_people/search_companies) then ranks with " +
+        "discover_movies/discover_tv, filtering out low-vote noise; for a person's TV work " +
+        "specifically it goes through get_person_credits instead, since discover_tv can't filter " +
+        "by person at all. Use this instead of doing that yourself when you want the ranked " +
+        "shortlist in one step.",
+      argsSchema: z.object({
+        name: z
+          .string()
+          .min(1)
+          .describe(
+            "A person's name (actor/director/composer/…) or a production company/studio name.",
+          ),
+        entity_type: z
+          .enum(["person", "company"])
+          .describe(
+            "Whether `name` is a person or a company/studio. Omit to infer it from search results.",
+          )
+          .optional(),
+        genre: z
+          .string()
+          .describe("Restrict to one genre, e.g. 'Animation', 'Horror'. Omit for all their work.")
+          .optional(),
+        media_type: z
+          .enum(["movie", "tv"])
+          .describe("Restrict to movies or TV shows. Omit to check both.")
+          .optional(),
+        count: z
+          .string()
+          .regex(/^\d+$/, "count must be a whole number, e.g. '5'.")
+          .describe(`How many titles to return (default ${COUNT_DEFAULT}).`)
+          .optional(),
+      }),
+    },
+    ({ name, entity_type, genre, media_type, count }) => {
+      const n = count ?? COUNT_DEFAULT;
+      const typeHint = entity_type ? ` (a ${entity_type})` : "";
+      const genreHint = genre ? ` in the ${genre} genre` : "";
+      const mediaHint = media_type ? ` (${media_type} only)` : " (movies and/or TV)";
+      return {
+        description: `Top ${n} titles from "${name}"${genreHint}`,
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text:
+                `Find the top ${n} best-regarded titles${mediaHint} from "${name}"${typeHint}${genreHint} ` +
+                `using the available tools — don't rely on your own memory for the candidate list or ratings.\n\n` +
+                `1. Resolve "${name}" to a TMDB id: use search_people if it's a person, search_companies if ` +
+                `it's a company/studio (guess from context if entity_type wasn't given). Names aren't always ` +
+                `unique — search_companies in particular can return several unrelated companies sharing the ` +
+                `exact same name in different countries (e.g. "A24" also matches unrelated companies literally ` +
+                `named "A24" elsewhere) — for a person, disambiguate with known_for_department/popularity; for ` +
+                `a company, with origin_country (prefer the one based where the studio actually is).\n` +
+                (genre
+                  ? `2. Resolve "${genre}" to a genre id via get_movie_genres/get_tv_genres.\n`
+                  : "") +
+                `${genre ? "3" : "2"}. For movies: call discover_movies with with_people (person id — ` +
+                `matches cast OR crew) or with_companies (company id)${genre ? ", plus with_genres from step 2" : ""}, ` +
+                `sort_by=vote_average.desc, and a min_votes floor (e.g. 100-1000, higher for a very well-known ` +
+                `entity) to exclude single-vote noise.\n` +
+                `${genre ? "4" : "3"}. For TV: if this is a COMPANY, discover_tv's with_companies works the same ` +
+                `way as step above. If this is a PERSON, discover_tv can NOT filter by person at all (TMDB ` +
+                `silently ignores with_cast/with_crew/with_people there) — instead call get_person_credits for ` +
+                `that id, keep only entries with media_type 'tv', then batch-fetch ratings/genres for those ids ` +
+                `via get_tv_shows in one call and filter to the requested genre yourself if one was given.\n` +
+                `${genre ? "5" : "4"}. Merge whichever of movies/TV apply, sort by rating, and return the top ` +
+                `${n}: title/name, year, media type, and rating.`,
+            },
+          },
+        ],
+      };
+    },
+  );
 }
