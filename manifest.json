@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "tmdb-mcp",
   "display_name": "TMDB MCP Server",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "Search and look up movies, TV shows and people from The Movie Database (TMDB), with IMDb/Rotten Tomatoes/Metacritic ratings via OMDb.",
   "author": {
     "name": "Grinv",
