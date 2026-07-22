@@ -21,6 +21,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Cross-reference `get_person_credits` (no genre filter) with `discover_movies`'s `with_crew`/`with_cast`/`with_people` + `with_genres` — the right combination for "this person's work in one genre".
 - Disclose `get_movie`/`get_tv`/`get_ratings`' previously-undocumented `awards` and `ratings.rated` fields (both from OMDb), and clarify `awards` isn't Oscar-specific.
 - Document `certification`'s real edge cases (case-sensitive for movies, silently disabled by an unrecognized country, no fallback to another country unlike `get_movie`/`get_tv`) and that `discover_tv` ignores cast/crew/person filters entirely — all verified live.
+- Clarify `discover_tv` rejects cast/crew/person params outright (a validation error), rather than implying it silently no-ops them like upstream TMDB does.
 
 ### Fixed
 

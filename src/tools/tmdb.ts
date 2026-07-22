@@ -950,9 +950,11 @@ export function registerTmdbTools(
       description:
         "Find TV shows by structured filters (genres, first-air year or date range, rating range, " +
         "vote count, runtime, language, companies, networks, keywords, watch providers, type, " +
-        "status, certification, sort) — but NOT cast/crew/person (TMDB's own /discover/tv silently " +
-        "ignores those, unlike /discover/movie; to find TV shows featuring someone, call " +
-        "get_person_credits instead and filter its results to media_type 'tv'). certification and " +
+        "status, certification, sort) — but NOT cast/crew/person: this tool doesn't accept those " +
+        "params for TV at all (calling with them is a validation error, not a silent no-op) " +
+        "because TMDB's own /discover/tv would silently ignore them anyway, unlike /discover/movie; " +
+        "to find TV shows featuring someone, call get_person_credits instead and filter its results " +
+        "to media_type 'tv'. certification and " +
         "with_watch_providers each error if given with no certification_country/watch_region at " +
         "all, but an unrecognized certification_country still silently disables the filter instead " +
         "of erroring — see certification's own description. The TV counterpart of discover_movies; " +

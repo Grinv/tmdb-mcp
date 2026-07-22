@@ -137,8 +137,9 @@ export function registerPrompts(server: McpServer): void {
                 `sort_by=vote_average.desc, and a min_votes floor (e.g. 100-1000, higher for a very well-known ` +
                 `entity) to exclude single-vote noise.\n` +
                 `${genre ? "4" : "3"}. For TV: if this is a COMPANY, discover_tv's with_companies works the same ` +
-                `way as step above. If this is a PERSON, discover_tv can NOT filter by person at all (TMDB ` +
-                `silently ignores with_cast/with_crew/with_people there) — instead call get_person_credits for ` +
+                `way as step above. If this is a PERSON, discover_tv can NOT filter by person at all — it ` +
+                `doesn't even accept with_cast/with_crew/with_people as parameters for TV (a validation error, ` +
+                `not a silent no-op) — instead call get_person_credits for ` +
                 `that id, keep only entries with media_type 'tv', then batch-fetch ratings/genres for those ids ` +
                 `via get_tv_shows in one call and filter to the requested genre yourself if one was given.\n` +
                 `${genre ? "5" : "4"}. Merge whichever of movies/TV apply, sort by rating, and return the top ` +
