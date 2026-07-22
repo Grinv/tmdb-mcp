@@ -18,6 +18,7 @@ src/
   index.ts        # bin entry — calls start()
   server.ts       # buildServer() + start(); registers everything
   config.ts       # env → validated Config (zod)
+  version.ts      # VERSION constant kept in sync with package.json by npm version
   format.ts       # raw TMDB/OMDb payloads → trimmed, agent-facing shapes
   format.schemas.ts # Zod schemas mirroring format.ts's shapers 1:1; each tool's outputSchema
                     # AND the shaper itself parses its result through the matching schema
@@ -28,7 +29,8 @@ src/
   tools/          # tmdb.ts (search/details/credits/…, OMDb enrichment), omdb.ts (get_ratings),
                   # shared.ts (READ_ONLY, requireConfigured — try/catch → ToolResult)
   __tests__/      # node:test (*.test.ts) + helpers.ts
-scripts/          # build-tests.mjs, run-tests.mjs (generic), check-api.mjs (domain)
+scripts/          # build-tests.mjs, run-tests.mjs (generic), check-api.mjs (domain),
+                  # sync-version.mjs (npm version hook — see docs/releasing.md)
 ```
 
 ## Commands
@@ -106,6 +108,12 @@ npm run inspector      # run under the MCP Inspector
   scripts (use the Node helper scripts).
 - **Commits:** author/committer `Grinv <4070730+Grinv@users.noreply.github.com>`;
   do **not** add a `Co-Authored-By` trailer.
+
+## Testing the live/published server
+
+For a full audit of the currently published package — build/test/lint plus
+hammering the live MCP tools with edge cases, cross-checked against source —
+follow [skills/live-audit/SKILL.md](skills/live-audit/SKILL.md).
 
 ## Before opening a PR
 
