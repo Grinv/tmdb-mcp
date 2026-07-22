@@ -34,6 +34,7 @@ token — see [Getting your credentials](#getting-your-credentials)):
 "Find TV shows rated TV-Y7 in the US — something appropriate for a 9-year-old."
 "What movies has A24 produced?"
 "What are Tarantino's best-rated crime movies?"
+"Who composed the music for My Neighbor Totoro, and what else has he scored?"
 ```
 
 With an optional (free) **OMDb** key, ratings are added too:
