@@ -85,6 +85,7 @@ See [docs/clients.md](docs/clients.md) for per-client details and all tunables.
 | `search_movies` / `search_tv` / `search_people`        | Find titles/people by name → TMDB id                                                       |
 | `search_multi`                                         | Search movies, TV and people at once (each row has a `media_type`)                         |
 | `get_movie` / `get_tv`                                 | Full details **+ IMDb/RT/Metacritic ratings** (toggle with `include_ratings`)              |
+| `get_movies` / `get_tv_shows`                          | Compact card(s) (title/year/genres/vote average, ratings opt-in) for 1-20 ids in one call  |
 | `get_person`                                           | Biography, department, links                                                               |
 | `get_movie_credits` / `get_tv_credits`                 | Top-billed cast and headline crew                                                          |
 | `get_movie_recommendations` / `get_tv_recommendations` | TMDB's editorial recommendations                                                           |

@@ -12,6 +12,8 @@
 // independently-maintained files.
 import type { z } from "zod";
 import {
+  cardNotFoundSchema,
+  cardRatingsSchema,
   collectionSchema,
   creditsSchema,
   personDetailSchema,
@@ -19,6 +21,7 @@ import {
   findSchema,
   genresSchema,
   keywordsSchema,
+  movieCardSchema,
   movieDetailSchema,
   movieSummarySchema,
   multiItemSchema,
@@ -27,6 +30,7 @@ import {
   ratingsSchema,
   reviewSchema,
   seasonSchema,
+  tvCardSchema,
   tvDetailSchema,
   tvSummarySchema,
   videosSchema,
@@ -385,6 +389,64 @@ export function detailTv(t: TmdbTv, region: string): z.infer<typeof tvDetailSche
       ? `https://www.imdb.com/title/${t.external_ids.imdb_id}/`
       : null,
   });
+}
+
+// Trims a full ratingsSchema result (get_movie/get_tv's shape) down to just
+// the three headline numbers for get_movies/get_tv_shows' cards — see
+// cardRatingsSchema for which fields that drops.
+function compactRatings(
+  r: z.infer<typeof ratingsSchema> | undefined,
+): z.infer<typeof cardRatingsSchema> | undefined {
+  if (!r) return undefined;
+  return cardRatingsSchema.parse(
+    r.found
+      ? {
+          found: true,
+          imdb_rating: r.imdb_rating,
+          rotten_tomatoes: r.rotten_tomatoes,
+          metascore: r.metascore,
+        }
+      : { found: false, reason: r.reason },
+  );
+}
+
+// get_movies/get_tv_shows' per-id shapers: take an already-shaped detail (plus
+// whatever ratings getEnrichedDetail folded in) and trim it to a batch card.
+export function movieCard(
+  m: z.infer<typeof movieDetailSchema> & { ratings?: z.infer<typeof ratingsSchema> },
+): z.infer<typeof movieCardSchema> {
+  return movieCardSchema.parse({
+    found: true,
+    id: m.id,
+    title: m.title,
+    year: m.year,
+    genres: m.genres,
+    vote_average: m.vote_average,
+    vote_count: m.vote_count,
+    ratings: compactRatings(m.ratings),
+  });
+}
+
+export function tvCard(
+  t: z.infer<typeof tvDetailSchema> & { ratings?: z.infer<typeof ratingsSchema> },
+): z.infer<typeof tvCardSchema> {
+  return tvCardSchema.parse({
+    found: true,
+    id: t.id,
+    name: t.name,
+    year: year(t.first_air_date),
+    genres: t.genres,
+    vote_average: t.vote_average,
+    vote_count: t.vote_count,
+    ratings: compactRatings(t.ratings),
+  });
+}
+
+// Shared "couldn't fetch this id" card for a batch entry whose individual
+// fetch rejected — Promise.allSettled per id, not Promise.all, so one bad id
+// never fails get_movies/get_tv_shows' whole call.
+export function notFoundCard(id: number, reason: string): z.infer<typeof cardNotFoundSchema> {
+  return cardNotFoundSchema.parse({ found: false, id, reason });
 }
 
 export function detailPerson(p: TmdbPerson): z.infer<typeof personDetailSchema> {

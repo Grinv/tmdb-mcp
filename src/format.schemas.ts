@@ -464,3 +464,62 @@ export const tvDetailEnrichedSchema = tvDetailSchema.extend({
   ratings: ratingsSchema.optional(),
   seasons_detail: z.array(seasonSchema).optional(),
 });
+
+// ---- get_movies / get_tv_shows: compact batch cards ------------------------------------
+
+// Deliberately smaller than ratingsSchema — a batch of up to 20 cards is the
+// whole point of get_movies/get_tv_shows, so this drops the fields a card
+// doesn't need (imdb_id/title/year/rated/runtime/imdb_votes/awards, and the
+// source/value array duplicating imdb_rating/rotten_tomatoes/metascore) to
+// keep each card's ratings genuinely compact rather than reusing ratingsSchema
+// as-is.
+export const cardRatingsSchema = z.discriminatedUnion("found", [
+  z.object({ found: z.literal(false), reason: z.string() }).strict(),
+  z
+    .object({
+      found: z.literal(true),
+      imdb_rating: z.string().nullable(),
+      rotten_tomatoes: z.string().nullable(),
+      metascore: z.string().nullable(),
+    })
+    .strict(),
+]);
+
+// Shared by movieCardSchema/tvCardSchema's "couldn't fetch this one" branch —
+// the same shape either way, since the caller already knows which media_type
+// the whole batch call was for.
+export const cardNotFoundSchema = z
+  .object({
+    found: z.literal(false),
+    id: z.number(),
+    reason: z.string(),
+  })
+  .strict();
+
+// Picked from movieDetailSchema rather than redeclared, so a card's id/title/
+// year/genres/vote_average/vote_count can never silently drift from the
+// detail schema's own definition of those same fields.
+export const movieCardSchema = z.discriminatedUnion("found", [
+  movieDetailSchema
+    .pick({ id: true, title: true, year: true, genres: true, vote_average: true, vote_count: true })
+    .extend({ found: z.literal(true), ratings: cardRatingsSchema.optional() })
+    .strict(),
+  cardNotFoundSchema,
+]);
+
+// tvDetailSchema has no `year` field of its own (only first_air_date, unlike
+// movieDetailSchema) — picked fields cover id/name/genres/vote_average/
+// vote_count from the detail schema, `year` (derived from first_air_date, the
+// same derivation tvSummarySchema's shaper already does) is the one field
+// this can't inherit and must declare directly.
+export const tvCardSchema = z.discriminatedUnion("found", [
+  tvDetailSchema
+    .pick({ id: true, name: true, genres: true, vote_average: true, vote_count: true })
+    .extend({
+      found: z.literal(true),
+      year: z.number().nullable(),
+      ratings: cardRatingsSchema.optional(),
+    })
+    .strict(),
+  cardNotFoundSchema,
+]);

@@ -159,6 +159,32 @@ const TV_SEASONS_APPENDED = {
   "season/2": { ...SEASON, id: 101, name: "Season 2", season_number: 2 },
 };
 
+// /similar and /recommendations list rows carry `genre_ids` (bare numeric
+// ids), unlike /movie|/tv/{id}'s own `genres` (full {id,name} objects) — a
+// distinct fixture, not a reuse of MOVIE_DETAIL/TV_DETAIL, so getSimilar's
+// genre-overlap filter (which reads genre_ids) sees a shape matching the real
+// upstream list endpoints. genre_ids intentionally overlaps MOVIE_DETAIL's/
+// TV_DETAIL's own genres (28 "Action", 18 "Drama") so the filter passes them.
+const MOVIE_LIST_ITEM = {
+  id: 603,
+  title: "The Matrix",
+  original_title: "The Matrix",
+  overview: "A hacker learns the truth.",
+  release_date: "1999-03-30",
+  vote_average: 8.2,
+  vote_count: 25000,
+  genre_ids: [28],
+};
+
+const TV_LIST_ITEM = {
+  id: 1396,
+  name: "Breaking Bad",
+  overview: "A chemistry teacher turns to crime.",
+  first_air_date: "2008-01-20",
+  vote_average: 8.9,
+  genre_ids: [18],
+};
+
 const KEYWORDS = pageOf([{ id: 4379, name: "time travel" }]);
 
 const REVIEWS = pageOf([
@@ -273,9 +299,9 @@ function router(url: string) {
   if (url.includes("/credits")) return jsonResponse(CREDITS);
   if (/\/person\/\d+/.test(url)) return jsonResponse(PERSON_DETAIL);
   if (url.includes("/similar") || url.includes("/recommendations")) {
-    const results: (typeof MOVIE_DETAIL | typeof TV_DETAIL)[] = url.includes("/tv/")
-      ? [TV_DETAIL]
-      : [MOVIE_DETAIL];
+    const results: (typeof MOVIE_LIST_ITEM | typeof TV_LIST_ITEM)[] = url.includes("/tv/")
+      ? [TV_LIST_ITEM]
+      : [MOVIE_LIST_ITEM];
     return jsonResponse(pageOf(results));
   }
   if (url.includes("/reviews")) return jsonResponse(REVIEWS);
@@ -626,6 +652,77 @@ describe("get_movie", () => {
   });
 });
 
+describe("get_movies", () => {
+  test("returns a compact card without ratings by default", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({ name: "get_movies", arguments: { ids: [603] } });
+    assert.notEqual(res.isError, true);
+    const s = res.structuredContent as {
+      results: {
+        found: boolean;
+        id: number;
+        title?: string;
+        year: number | null;
+        genres: string[];
+        ratings?: unknown;
+      }[];
+    };
+    assert.equal(s.results.length, 1);
+    assert.equal(s.results[0]!.found, true);
+    assert.equal(s.results[0]!.id, 603);
+    assert.equal(s.results[0]!.title, "The Matrix");
+    assert.equal(s.results[0]!.year, 1999);
+    assert.deepEqual(s.results[0]!.genres, ["Action"]);
+    assert.equal(s.results[0]!.ratings, undefined);
+  });
+
+  test("include_ratings=true folds in compact ratings for every id", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({
+      name: "get_movies",
+      arguments: { ids: [603], include_ratings: true },
+    });
+    const s = res.structuredContent as {
+      results: { ratings?: { found: boolean; imdb_rating: string; rotten_tomatoes: string } }[];
+    };
+    assert.equal(s.results[0]!.ratings?.found, true);
+    assert.equal(s.results[0]!.ratings?.imdb_rating, "8.7");
+    assert.equal(s.results[0]!.ratings?.rotten_tomatoes, "83%");
+    assert.ok(mock.calls.some((c) => c.url.includes("apikey")));
+  });
+
+  test("a bad id doesn't fail the whole call — that entry comes back found:false, same position", async (t) => {
+    const mock = mockFetch((url) => {
+      if (url.includes("/movie/999")) {
+        return jsonResponse({ status_message: "not found" }, { status: 404 });
+      }
+      return router(url);
+    });
+    installFetch(t, mock);
+    const { client, close } = await connectServer({ ...ENV, HTTP_RETRIES: "0" });
+    t.after(close);
+    const res = await client.callTool({
+      name: "get_movies",
+      arguments: { ids: [603, 999] },
+    });
+    assert.notEqual(res.isError, true);
+    const s = res.structuredContent as {
+      results: ({ found: true; id: number } | { found: false; id: number; reason: string })[];
+    };
+    assert.equal(s.results.length, 2);
+    assert.equal(s.results[0]!.found, true);
+    assert.equal(s.results[0]!.id, 603);
+    assert.equal(s.results[1]!.found, false);
+    assert.equal(s.results[1]!.id, 999);
+    assert.match((s.results[1] as { reason: string }).reason, /404/);
+  });
+});
+
 describe("get_tv", () => {
   test("appends external_ids and enriches via the resulting imdb_id", async (t) => {
     const mock = mockFetch(router);
@@ -710,6 +807,59 @@ describe("get_tv", () => {
     t.after(close);
     await client.callTool({ name: "get_tv", arguments: { id: 1396 } });
     assert.ok(!mock.calls.some((c) => c.url.toLowerCase().includes("season")));
+  });
+});
+
+describe("get_tv_shows", () => {
+  test("returns a compact card (year derived from first_air_date) without ratings by default", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({ name: "get_tv_shows", arguments: { ids: [1396] } });
+    assert.notEqual(res.isError, true);
+    const s = res.structuredContent as {
+      results: {
+        found: boolean;
+        id: number;
+        name?: string;
+        year: number | null;
+        genres: string[];
+        ratings?: unknown;
+      }[];
+    };
+    assert.equal(s.results.length, 1);
+    assert.equal(s.results[0]!.found, true);
+    assert.equal(s.results[0]!.id, 1396);
+    assert.equal(s.results[0]!.name, "Breaking Bad");
+    assert.equal(s.results[0]!.year, 2008);
+    assert.deepEqual(s.results[0]!.genres, ["Drama"]);
+    assert.equal(s.results[0]!.ratings, undefined);
+  });
+
+  test("a bad id doesn't fail the whole call — that entry comes back found:false, same position", async (t) => {
+    const mock = mockFetch((url) => {
+      if (url.includes("/tv/999")) {
+        return jsonResponse({ status_message: "not found" }, { status: 404 });
+      }
+      return router(url);
+    });
+    installFetch(t, mock);
+    const { client, close } = await connectServer({ ...ENV, HTTP_RETRIES: "0" });
+    t.after(close);
+    const res = await client.callTool({
+      name: "get_tv_shows",
+      arguments: { ids: [1396, 999] },
+    });
+    assert.notEqual(res.isError, true);
+    const s = res.structuredContent as {
+      results: ({ found: true; id: number } | { found: false; id: number; reason: string })[];
+    };
+    assert.equal(s.results.length, 2);
+    assert.equal(s.results[0]!.found, true);
+    assert.equal(s.results[0]!.id, 1396);
+    assert.equal(s.results[1]!.found, false);
+    assert.equal(s.results[1]!.id, 999);
+    assert.match((s.results[1] as { reason: string }).reason, /404/);
   });
 });
 

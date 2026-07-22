@@ -9,7 +9,7 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import type { TmdbClient } from "../clients/tmdb.js";
 import type { OmdbClient } from "../clients/omdb.js";
 import type { Config } from "../config.js";
-import { summarizeRatings } from "../format.js";
+import { movieCard, notFoundCard, summarizeRatings, tvCard } from "../format.js";
 import {
   collectionSchema,
   creditsSchema,
@@ -17,6 +17,7 @@ import {
   findSchema,
   genresSchema,
   keywordsSchema,
+  movieCardSchema,
   movieDetailEnrichedSchema,
   movieOrTvSchema,
   movieSummarySchema,
@@ -27,6 +28,7 @@ import {
   personSummarySchema,
   reviewSchema,
   seasonSchema,
+  tvCardSchema,
   tvDetailEnrichedSchema,
   tvSummarySchema,
   videosSchema,
@@ -55,6 +57,36 @@ const includeRatings = z
       "(requires OMDB_API_KEY). Set false to skip the extra lookup when ratings are not needed.",
   )
   .optional();
+// get_movies/get_tv_shows: capped well under TMDB's own per-request limits
+// (e.g. append_to_response's 20) since, unlike Steam's real batch endpoints,
+// TMDB has no batch API at all — each id here is still its own upstream
+// request under the hood (see docs/api-references.md), just fanned out
+// concurrently through the same rate limiter every other call shares.
+const movieIdsBatch = z
+  .array(z.number().int().positive())
+  .min(1)
+  .max(20)
+  .describe(
+    "TMDB movie ids to fetch (1-20). Get them from search_movies/discover_movies/get_similar/" +
+      "get_movie_recommendations/etc.",
+  );
+const tvIdsBatch = z
+  .array(z.number().int().positive())
+  .min(1)
+  .max(20)
+  .describe(
+    "TMDB TV show ids to fetch (1-20). Get them from search_tv/discover_tv/get_similar/" +
+      "get_tv_recommendations/etc.",
+  );
+const includeRatingsBatch = z
+  .boolean()
+  .describe(
+    "If true, enrich every card with compact IMDb/Rotten Tomatoes/Metacritic ratings from OMDb " +
+      "(requires OMDB_API_KEY) — one extra OMDb lookup per id, so a large batch means a burst of " +
+      "OMDb calls; mind OMDb's own rate limit. Unlike get_movie/get_tv, defaults to false (off) here.",
+  )
+  .optional();
+
 const expandEpisodes = z
   .boolean()
   .describe(
@@ -453,6 +485,99 @@ export function registerTmdbTools(
   );
 
   server.registerTool(
+    "get_movies",
+    {
+      title: "Get compact movie card(s)",
+      description:
+        "Get a compact card — title, year, genres, vote average, and (opt-in) ratings — for 1-20 " +
+        "movies by TMDB id in one call. Deliberately trimmed (no overview, cast, budget, " +
+        "certifications, production companies, etc.): use this for a single id too when you only " +
+        "need that headline info and not the full get_movie payload, not just for checking many at " +
+        "once. Call get_movie instead when you need the full details for a title. A bad/unknown id " +
+        "never fails the whole call — that entry comes back `{id, found:false, reason}` instead, in " +
+        "the same order as `ids`.",
+      inputSchema: z
+        .object({ ids: movieIdsBatch, region, language, include_ratings: includeRatingsBatch })
+        .strict(),
+      outputSchema: z.object({ results: z.array(movieCardSchema) }).strict(),
+      annotations: READ_ONLY,
+    },
+    ({ ids, region: r, language: lang, include_ratings }) => {
+      const stale = trackStale();
+      return requireTmdb(async () => {
+        const settled = await Promise.allSettled(
+          ids.map((id) =>
+            getEnrichedDetail(
+              "movie",
+              id,
+              r,
+              lang,
+              include_ratings ?? false,
+              tmdb,
+              omdb,
+              false,
+              stale.onStale,
+            ),
+          ),
+        );
+        return {
+          results: settled.map((result, i) =>
+            result.status === "fulfilled"
+              ? movieCard(result.value)
+              : notFoundCard(ids[i]!, errorReason(result.reason)),
+          ),
+        };
+      }, stale.meta);
+    },
+  );
+
+  server.registerTool(
+    "get_tv_shows",
+    {
+      title: "Get compact TV show card(s)",
+      description:
+        "Get a compact card — name, year, genres, vote average, and (opt-in) ratings — for 1-20 TV " +
+        "shows by TMDB id in one call. Deliberately trimmed (no overview, seasons/episodes, networks, " +
+        "certifications, etc.): use this for a single id too when you only need that headline info " +
+        "and not the full get_tv payload, not just for checking many at once. Call get_tv instead " +
+        "when you need the full details for a title. A bad/unknown id never fails the whole call — " +
+        "that entry comes back `{id, found:false, reason}` instead, in the same order as `ids`.",
+      inputSchema: z
+        .object({ ids: tvIdsBatch, region, language, include_ratings: includeRatingsBatch })
+        .strict(),
+      outputSchema: z.object({ results: z.array(tvCardSchema) }).strict(),
+      annotations: READ_ONLY,
+    },
+    ({ ids, region: r, language: lang, include_ratings }) => {
+      const stale = trackStale();
+      return requireTmdb(async () => {
+        const settled = await Promise.allSettled(
+          ids.map((id) =>
+            getEnrichedDetail(
+              "tv",
+              id,
+              r,
+              lang,
+              include_ratings ?? false,
+              tmdb,
+              omdb,
+              false,
+              stale.onStale,
+            ),
+          ),
+        );
+        return {
+          results: settled.map((result, i) =>
+            result.status === "fulfilled"
+              ? tvCard(result.value)
+              : notFoundCard(ids[i]!, errorReason(result.reason)),
+          ),
+        };
+      }, stale.meta);
+    },
+  );
+
+  server.registerTool(
     "get_person",
     {
       title: "Get person details",
@@ -547,10 +672,13 @@ export function registerTmdbTools(
       description:
         "Get titles TMDB considers similar to a given movie or TV show, based on shared genres " +
         "and keywords — a blunter heuristic than get_movie_recommendations'/get_tv_recommendations' " +
-        "behavioral (co-viewing) data, so results can be thematically noisy (matching on a shared " +
-        "keyword despite an unrelated tone or plot). Try recommendations first for thematically " +
-        "closer picks; use this when you specifically want genre/keyword-adjacent titles. Get the " +
-        "id from search_movies/search_tv.",
+        "behavioral (co-viewing) data, so results can still be thematically noisy (matching on a " +
+        "shared keyword despite an unrelated tone or plot). Results sharing only the source title's " +
+        "broadest genre (e.g. two titles that are both merely tagged 'Drama' among several genres) " +
+        "are filtered out per page, since a title with a common genre can otherwise return results " +
+        "spanning TMDB's entire catalog; a page can come back thin or empty for a niche title once " +
+        "that filter applies. Try recommendations first for thematically closer picks; use this when " +
+        "you specifically want genre/keyword-adjacent titles. Get the id from search_movies/search_tv.",
       inputSchema: z.object({ media_type: mediaKind, id: tmdbId, page: page.optional() }).strict(),
       outputSchema: pageSchema(movieOrTvSchema),
       annotations: READ_ONLY,
@@ -851,7 +979,39 @@ export function registerTmdbTools(
   );
 }
 
+/** get_movies/get_tv_shows: a rejected per-id fetch becomes that entry's `reason`. */
+function errorReason(reason: unknown): string {
+  return reason instanceof Error ? reason.message : String(reason);
+}
+
 /** get_movie/get_tv's shared shape: fetch the TMDB detail, then fold in OMDb ratings. */
+// Overloads narrow the return type by the mediaType literal — movieCard/tvCard
+// (get_movies/get_tv_shows) each call this with a fixed "movie"/"tv" and need
+// the matching single-shape result, not the movie|tv union the plain
+// signature would otherwise give every caller regardless of which literal
+// they passed.
+async function getEnrichedDetail(
+  mediaType: "movie",
+  id: number,
+  region: string | undefined,
+  language: string | undefined,
+  wantRatings: boolean,
+  tmdb: TmdbClient,
+  omdb: OmdbClient,
+  expandEpisodes?: boolean,
+  onStale?: () => void,
+): Promise<z.infer<typeof movieDetailEnrichedSchema>>;
+async function getEnrichedDetail(
+  mediaType: "tv",
+  id: number,
+  region: string | undefined,
+  language: string | undefined,
+  wantRatings: boolean,
+  tmdb: TmdbClient,
+  omdb: OmdbClient,
+  expandEpisodes?: boolean,
+  onStale?: () => void,
+): Promise<z.infer<typeof tvDetailEnrichedSchema>>;
 async function getEnrichedDetail(
   mediaType: "movie" | "tv",
   id: number,

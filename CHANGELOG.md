@@ -6,10 +6,20 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Add `get_movies`/`get_tv_shows`, returning a compact card (title/name, year, genres, vote average, opt-in ratings) for 1-20 ids in one call instead of one `get_movie`/`get_tv` call per title. A bad/unknown id never fails the whole call — that entry comes back `{id, found:false, reason}` instead, in the same order as given.
+
 ### Fixed
 
-- Cap the combined episode count across all seasons at 500 in `get_tv`'s `expand_episodes`, since a 30+ season show (e.g. long-running sitcoms) could still blow past a usable response size even with each season's own 50-episode cap.
-- Widen `get_person_credits`' self-appearance filter to also exclude `Himself`/`Herself`-credited cast entries, not just `Self`-prefixed ones.
+- Filter `get_similar` results down to titles sharing at least half of the source title's genres, since a title with a broad genre (e.g. "Drama") could otherwise surface completely unrelated blockbusters from across TMDB's entire catalog.
+
+## [0.7.1] - 2026-07-22
+
+### Fixed
+
+- Cap the combined episode count across all seasons at 500 in `get_tv`'s `expand_episodes`, since a 30+ season show (e.g. long-running sitcoms) could still blow past a usable response size even with each season's own 50-episode cap ([c74a261](https://github.com/Grinv/tmdb-mcp/commit/c74a261)).
+- Widen `get_person_credits`' self-appearance filter to also exclude `Himself`/`Herself`-credited cast entries, not just `Self`-prefixed ones ([c74a261](https://github.com/Grinv/tmdb-mcp/commit/c74a261)).
 
 ## [0.7.0] - 2026-07-22
 

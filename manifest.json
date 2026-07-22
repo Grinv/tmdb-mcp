@@ -40,6 +40,11 @@
     { "name": "search_people", "description": "Search people by name." },
     { "name": "get_movie", "description": "Movie details (+ IMDb/RT/Metacritic ratings)." },
     { "name": "get_tv", "description": "TV details (+ IMDb/RT/Metacritic ratings)." },
+    { "name": "get_movies", "description": "Compact movie card(s) by id (1-20), no full details." },
+    {
+      "name": "get_tv_shows",
+      "description": "Compact TV show card(s) by id (1-20), no full details."
+    },
     { "name": "get_person", "description": "Person details." },
     { "name": "get_movie_credits", "description": "Movie cast & crew." },
     { "name": "get_tv_credits", "description": "TV cast & crew." },

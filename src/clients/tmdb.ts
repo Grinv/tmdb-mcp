@@ -69,6 +69,44 @@ function chunk<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
+// How many of the source title's genres a "similar" candidate must share to
+// count as a real match, not just noise from TMDB's genre/keyword-only
+// heuristic. Requiring only "≥1 shared genre" is almost no filter at all once
+// a title carries a broad tag like "Drama" — half of TMDB's catalog would
+// pass. Requiring "share every genre" is too strict for titles with several
+// tags. Half (rounded up), floored at 2 once there are enough genres to ask
+// for that: a title with only one genre must match that one exactly.
+function minSharedGenres(sourceGenreCount: number): number {
+  if (sourceGenreCount <= 1) return sourceGenreCount;
+  return Math.min(sourceGenreCount, Math.max(2, Math.ceil(sourceGenreCount / 2)));
+}
+
+// Drop "similar" results that only cross the broadest shared genre with the
+// source title (see minSharedGenres) — recommendations (behavioral, not
+// genre-based) never runs this. Passes everything through unfiltered when the
+// source's own genres are unknown (empty sourceGenreIds): no signal, no veto.
+//
+// A tighter variant was tried and reverted: additionally requiring the
+// source's first-listed genre specifically (TMDB empirically lists a title's
+// most defining genre first, e.g. Midsommar's ["Horror", "Drama", "Mystery"])
+// looked promising on that one title, but a wider live comparison across
+// several films showed it swings both ways — it also drops legitimately
+// decent candidates (e.g. Fargo/The Silence of the Lambs for Parasite) about
+// as often as it removes real noise, and does nothing at all when a title's
+// first-listed genre already happens to be a generic one (Drama). Not a net
+// improvement over the plain count below, so left out.
+function filterByGenreOverlap<T extends { genre_ids?: number[] }>(
+  items: T[],
+  sourceGenreIds: number[],
+): T[] {
+  if (sourceGenreIds.length === 0) return items;
+  const required = minSharedGenres(sourceGenreIds.length);
+  const sourceSet = new Set(sourceGenreIds);
+  return items.filter(
+    (item) => (item.genre_ids ?? []).filter((g) => sourceSet.has(g)).length >= required,
+  );
+}
+
 function capTotalEpisodes(
   seasons: ReturnType<typeof summarizeSeason>[],
   limit: number,
@@ -404,10 +442,39 @@ export class TmdbClient {
     );
   }
 
+  // The source title's own genre ids, used only to filter getSimilar's noise
+  // (see filterByGenreOverlap). Cheap+cacheable: a bare detail fetch, no
+  // append_to_response. Degrades to "no signal" on any failure — losing this
+  // enhancement should never take down the similar-titles call it supports.
+  async #sourceGenreIds(
+    mediaType: "movie" | "tv",
+    id: number,
+    language?: string,
+  ): Promise<number[]> {
+    try {
+      return await this.#cache.wrap(
+        cacheKey(`${mediaType}-genre-ids:${id}`, { language: this.#lang(language) }),
+        async () => {
+          const res =
+            mediaType === "tv"
+              ? await this.#get<TmdbTv>(`tv/${id}`, {}, language)
+              : await this.#get<TmdbMovie>(`movie/${id}`, {}, language);
+          return (res.genres ?? [])
+            .map((g) => g.id)
+            .filter((genreId): genreId is number => typeof genreId === "number");
+        },
+      );
+    } catch {
+      return [];
+    }
+  }
+
   // Paged movie/tv title list under a per-title sub-resource. `recommendations`
   // (editorial) and `similar` (algorithmic) share this shape; the endpoint
-  // segment differs and the summarizer follows the media type.
-  #pagedTitles(
+  // segment differs and the summarizer follows the media type. `similar`
+  // additionally gets filtered against the source title's own genres — see
+  // filterByGenreOverlap — since recommendations isn't genre-based to begin with.
+  async #pagedTitles(
     mediaType: "movie" | "tv",
     id: number,
     kind: "recommendations" | "similar",
@@ -416,16 +483,31 @@ export class TmdbClient {
     signal?: AbortSignal,
   ): Promise<MovieOrTvPage> {
     if (mediaType === "tv") {
-      return this.#get<TmdbPage<TmdbTv>>(`tv/${id}/${kind}`, { page: pg }, language, signal).then(
-        (res) => page(res, summarizeTv),
+      const res = await this.#get<TmdbPage<TmdbTv>>(
+        `tv/${id}/${kind}`,
+        { page: pg },
+        language,
+        signal,
+      );
+      if (kind !== "similar") return page(res, summarizeTv);
+      const sourceGenreIds = await this.#sourceGenreIds("tv", id, language);
+      return page(
+        { ...res, results: filterByGenreOverlap(res.results ?? [], sourceGenreIds) },
+        summarizeTv,
       );
     }
-    return this.#get<TmdbPage<TmdbMovie>>(
+    const res = await this.#get<TmdbPage<TmdbMovie>>(
       `movie/${id}/${kind}`,
       { page: pg },
       language,
       signal,
-    ).then((res) => page(res, summarizeMovie));
+    );
+    if (kind !== "similar") return page(res, summarizeMovie);
+    const sourceGenreIds = await this.#sourceGenreIds("movie", id, language);
+    return page(
+      { ...res, results: filterByGenreOverlap(res.results ?? [], sourceGenreIds) },
+      summarizeMovie,
+    );
   }
 
   /** TMDB's editorial recommendations for a movie or TV show. */
