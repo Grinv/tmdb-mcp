@@ -877,7 +877,15 @@ export interface TmdbSeason {
 // clips over a long-running show's lifetime (e.g. 300+ for some long-running
 // series) and would otherwise blow well past a reasonable response size.
 // `episode_count` still reports the true total; `episodes` is the capped list.
-export function summarizeSeason(s: TmdbSeason, episodeLimit = 50): z.infer<typeof seasonSchema> {
+// `includeEpisodeOverview` is false for getTvSeasonsBulk's multi-season aggregate
+// (get_tv's expand_episodes): a per-episode overview repeated across up to 500
+// episodes dwarfs every other field combined, so the aggregate path drops it —
+// call get_tv_season for one season's full detail including overview.
+export function summarizeSeason(
+  s: TmdbSeason,
+  episodeLimit = 50,
+  includeEpisodeOverview = true,
+): z.infer<typeof seasonSchema> {
   const episodes = s.episodes ?? [];
   return seasonSchema.parse({
     season_number: s.season_number ?? null,
@@ -892,7 +900,7 @@ export function summarizeSeason(s: TmdbSeason, episodeLimit = 50): z.infer<typeo
       air_date: e.air_date || null,
       runtime_minutes: e.runtime ?? null,
       vote_average: e.vote_average ?? null,
-      overview: e.overview || null,
+      overview: includeEpisodeOverview ? e.overview || null : null,
     })),
   });
 }

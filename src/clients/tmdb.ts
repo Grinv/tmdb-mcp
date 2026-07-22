@@ -387,7 +387,7 @@ export class TmdbClient {
               { append_to_response: append },
               language,
             );
-            return numbers.map((n) => summarizeSeason(res[`season/${n}`] ?? {}));
+            return numbers.map((n) => summarizeSeason(res[`season/${n}`] ?? {}, 50, false));
           }),
         );
         return { seasons: capTotalEpisodes(chunkResults.flat(), MAX_EXPANDED_EPISODES) };

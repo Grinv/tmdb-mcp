@@ -502,6 +502,19 @@ describe("summarizeSeason", () => {
     assert.equal(s.episodes.length, 50);
     assert.equal(s.episodes[0]!.episode_number, 1);
   });
+
+  test("includeEpisodeOverview=false nulls out each episode's overview (season overview untouched)", () => {
+    // get_tv's expand_episodes aggregates up to 500 episodes across seasons;
+    // a per-episode overview repeated that many times dominates the payload
+    // size, so that path opts out while get_tv_season (default) keeps it.
+    const s = summarizeSeason(
+      { overview: "Season overview", episodes: [{ overview: "Episode overview" }] },
+      50,
+      false,
+    );
+    assert.equal(s.overview, "Season overview");
+    assert.equal(s.episodes[0]!.overview, null);
+  });
 });
 
 describe("summarizeEpisode", () => {
