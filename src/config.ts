@@ -19,7 +19,13 @@ const EnvSchema = z.object({
   // Default response language (ISO-639-1, optionally with a region: "ru-RU",
   // "en-US", "ja"). Applied to every TMDB request so titles/overviews/genre
   // names come back localized; tools can override it per call.
-  TMDB_LANGUAGE: z.string().min(2).default("en-US"),
+  TMDB_LANGUAGE: z
+    .string()
+    .regex(
+      /^[a-z]{2}(-[A-Z]{2})?$/,
+      "TMDB_LANGUAGE must be an ISO-639-1 code, optionally with a region, e.g. en or en-US",
+    )
+    .default("en-US"),
   // Default ISO-3166-1 country for region-specific results (release dates,
   // watch providers). Optional; tools that need a region also accept one.
   TMDB_REGION: z

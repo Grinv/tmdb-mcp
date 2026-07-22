@@ -1068,6 +1068,21 @@ describe("search keywords & language", () => {
     assert.match(movieCall.url, /language=ru-RU/);
     assert.match(tvCall.url, /language=de-DE/);
   });
+
+  // TMDB silently returns null overview/title fields for a well-formed-looking
+  // but nonexistent language instead of erroring, so malformed shapes (not
+  // matching ISO-639-1[-ISO-3166-1] at all) are rejected upfront instead of
+  // reaching TMDB and looking like a legitimate no-translation response.
+  test("a malformed language (not an ISO-639-1[-REGION] shape) is rejected before hitting TMDB", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({
+      name: "search_movies",
+      arguments: { query: "matrix", language: "english" },
+    });
+    assert.equal(res.isError, true);
+  });
 });
 
 describe("get_watch_providers", () => {

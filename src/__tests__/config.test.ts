@@ -45,6 +45,10 @@ describe("loadConfig", () => {
     assert.throws(() => loadConfig({ TMDB_REGION: "usa" }), /TMDB_REGION/);
   });
 
+  test("a malformed TMDB_LANGUAGE (not a language[-REGION] shape) throws a readable error", () => {
+    assert.throws(() => loadConfig({ TMDB_LANGUAGE: "english" }), /TMDB_LANGUAGE/);
+  });
+
   test("a non-numeric tunable (HTTP_RETRIES) throws a readable error, not a silent NaN", () => {
     assert.throws(() => loadConfig({ HTTP_RETRIES: "not-a-number" }), /HTTP_RETRIES/);
   });

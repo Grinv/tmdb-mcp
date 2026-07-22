@@ -132,10 +132,12 @@ const expandEpisodes = z
   .describe(
     "If true, also fetch every season's full episode list (name, air date, runtime, rating) as " +
       "`seasons_detail`, in one extra request — use this instead of calling get_tv_season once per " +
-      "season when you need all episodes of a multi-season show. Each season's episode list is " +
-      "capped at 50 (season 0 'Specials' in particular can otherwise run to hundreds of bonus " +
-      "clips), and the combined episode count across every season is capped at 500 (a 30+ season " +
-      "show can still exceed that even with the per-season cap); `episode_count` on each season " +
+      "season when you need all episodes of a multi-season show. Episode overviews are omitted " +
+      "here to keep that aggregate response usable — call get_tv_season for one season's full " +
+      "detail including overview. Each season's episode list is capped at 50 (season 0 'Specials' " +
+      "in particular can otherwise run to hundreds of bonus clips), and the combined count across " +
+      "every season is capped at 500 total, since a 30+ season show could otherwise still exceed a " +
+      "usable response size even with the per-season cap alone; `episode_count` on each season " +
       "still reports that season's true total. Defaults to false.",
   )
   .optional();
@@ -161,7 +163,10 @@ const withGenres = z
   .optional();
 const language = z
   .string()
-  .min(2)
+  .regex(
+    /^[a-z]{2}(-[A-Z]{2})?$/,
+    "Use an ISO-639-1 language code, optionally with a region, e.g. 'en' or 'en-US'.",
+  )
   .describe(
     "Override the response language (ISO-639-1, optionally with a region), e.g. 'ru-RU' or 'en-US'. " +
       "Localizes titles/overviews/genre names. Defaults to the server's TMDB_LANGUAGE.",
