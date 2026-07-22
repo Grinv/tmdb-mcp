@@ -410,6 +410,23 @@ describe("summarizePersonCredits", () => {
     assert.equal(crew[0]!.id, 1);
     assert.equal(crew[0]!.job, "Director");
   });
+
+  // Regression: department alone doesn't help an exceptionally prolific person
+  // (e.g. a director with 50+ films) whose department-filtered credits still
+  // exceed the default cap — limit has to be raised too.
+  test("limit raises the cap past the 25 default for an exceptionally prolific department", () => {
+    const crew = Array.from({ length: 30 }, (_, i) => ({
+      id: i + 1,
+      title: `Film ${i + 1}`,
+      job: "Director",
+      department: "Directing",
+      popularity: 30 - i,
+    }));
+    const capped = summarizePersonCredits({ crew }, "Directing");
+    assert.equal(capped.crew.length, 25); // default still applies without limit
+    const raised = summarizePersonCredits({ crew }, "Directing", 30);
+    assert.equal(raised.crew.length, 30); // every title now fits
+  });
 });
 
 describe("summarizeVideos", () => {

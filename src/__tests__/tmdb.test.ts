@@ -1178,6 +1178,33 @@ describe("person", () => {
     assert.equal(s.crew[0]!.job, "Director");
   });
 
+  test("get_person_credits' limit raises the crew cap past the default 25", async (t) => {
+    const crew = Array.from({ length: 30 }, (_, i) => ({
+      id: i + 1,
+      media_type: "movie",
+      title: `Film ${i + 1}`,
+      job: "Director",
+      department: "Directing",
+      popularity: 30 - i,
+    }));
+    const mock = mockFetch((url) =>
+      url.includes("combined_credits") ? jsonResponse({ crew }) : router(url),
+    );
+    installFetch(t, mock);
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const defaultRes = await client.callTool({
+      name: "get_person_credits",
+      arguments: { id: 6384 },
+    });
+    assert.equal((defaultRes.structuredContent as { crew: unknown[] }).crew.length, 25);
+    const raisedRes = await client.callTool({
+      name: "get_person_credits",
+      arguments: { id: 6384, limit: 30 },
+    });
+    assert.equal((raisedRes.structuredContent as { crew: unknown[] }).crew.length, 30);
+  });
+
   test("get_person returns full biography details and a human-readable gender", async (t) => {
     installFetch(t, mockFetch(router));
     const { client, close } = await connectServer(ENV);

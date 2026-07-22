@@ -72,6 +72,17 @@ const personDepartment = z
       "same 25-credit cap and can crowd out titles in the department you actually want.",
   )
   .optional();
+const personCreditsLimit = z
+  .number()
+  .int()
+  .min(1)
+  .max(100)
+  .describe(
+    "Max cast entries and max crew entries to return (each capped separately; default 25). Raise " +
+      "this for an exceptionally prolific person — e.g. a director with 50+ films — where even a " +
+      "department filter still leaves more titles than the default cap keeps.",
+  )
+  .optional();
 const includeAdult = z
   .boolean()
   .describe("Include adult (NSFW) results. Defaults to false.")
@@ -917,23 +928,27 @@ export function registerTmdbTools(
       title: "Get person filmography",
       description:
         "List the movies and TV shows a person is known for (cast roles and crew jobs), most " +
-        "popular first, capped to the top 25 of each; talk-show/awards-show guest appearances " +
-        "('Self'/'Himself'/'Herself') and repeat entries for the same title are excluded so the list stays about " +
-        "actual roles. A title with several crew jobs (writer AND director AND producer on one " +
-        "film) still only counts once against the 25-credit crew cap. Cast entries include a " +
-        "vote_average; crew entries (director, writer, …) do not — call get_movie/get_tv on the id " +
-        "for a crew credit's rating. Pass department (e.g. 'Directing') to restrict crew to just " +
-        "that role — the reliable way to get someone's complete filmography in one department when " +
-        "their other departments would otherwise compete for the same cap. Use for 'what has this " +
-        "actor/director been in'. Get the id from search_people.",
-      inputSchema: z.object({ id: tmdbId, department: personDepartment }).strict(),
+        "popular first, capped to the top 25 of each by default; talk-show/awards-show guest " +
+        "appearances ('Self'/'Himself'/'Herself') and repeat entries for the same title are excluded " +
+        "so the list stays about actual roles. A title with several crew jobs (writer AND director " +
+        "AND producer on one film) still only counts once against the crew cap. Cast entries " +
+        "include a vote_average; crew entries (director, writer, …) do not — call get_movie/get_tv " +
+        "on the id for a crew credit's rating. Pass department (e.g. 'Directing') to restrict crew " +
+        "to just that role — the reliable way to get someone's complete filmography in one " +
+        "department when their other departments would otherwise compete for the same cap; for a " +
+        "handful of exceptionally prolific people even that isn't enough (e.g. 50+ directing " +
+        "credits), so raise `limit` too when department alone still looks short. Use for 'what has " +
+        "this actor/director been in'. Get the id from search_people.",
+      inputSchema: z
+        .object({ id: tmdbId, department: personDepartment, limit: personCreditsLimit })
+        .strict(),
       outputSchema: personCreditsSchema,
       annotations: READ_ONLY,
     },
-    ({ id, department }) => {
+    ({ id, department, limit }) => {
       const stale = trackStale();
       return requireTmdb(
-        () => tmdb.getPersonCredits(id, department, undefined, stale.onStale),
+        () => tmdb.getPersonCredits(id, department, limit, undefined, stale.onStale),
         stale.meta,
       );
     },
