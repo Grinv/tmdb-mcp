@@ -865,8 +865,11 @@ export function registerTmdbTools(
         "cast/crew/people, companies, keywords, watch providers, certification, and sort order. " +
         "certification and with_watch_providers each error if given without their required pair " +
         "(certification_country, watch_region) instead of silently applying no filter. Use for " +
-        "'popular sci-fi from the 1990s rated above 7 available on Netflix'. Resolve ids with " +
-        "get_movie_genres, search_people, search_keywords, search_companies.",
+        "'popular sci-fi from the 1990s rated above 7 available on Netflix', or for a specific " +
+        "person's work in one genre — 'which of this director's/actor's/composer's films are " +
+        "animated' — via with_crew/with_cast/with_people + with_genres together; get_person_credits " +
+        "has no genre filter, so this combination is the right tool for that question, not that one. " +
+        "Resolve ids with get_movie_genres, search_people, search_keywords, search_companies.",
       inputSchema: discoverMovieInputSchema,
       outputSchema: pageSchema(movieSummarySchema),
       annotations: READ_ONLY,
@@ -938,7 +941,9 @@ export function registerTmdbTools(
         "department when their other departments would otherwise compete for the same cap; for a " +
         "handful of exceptionally prolific people even that isn't enough (e.g. 50+ directing " +
         "credits), so raise `limit` too when department alone still looks short. Use for 'what has " +
-        "this actor/director been in'. Get the id from search_people.",
+        "this actor/director been in'. This tool has no genre filter — for 'which of X's films are " +
+        "animated/horror/etc.' use discover_movies/discover_tv instead, combining with_cast/" +
+        "with_crew/with_people with with_genres. Get the id from search_people.",
       inputSchema: z
         .object({ id: tmdbId, department: personDepartment, limit: personCreditsLimit })
         .strict(),

@@ -15,6 +15,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - Sharpen several tool/prompt descriptions per a TDQS audit (`get_movie`/`get_tv` now name `get_movies`/`get_tv_shows`; `get_trending` discloses per-row `media_type`; genre tools point at `discover_*`). `recommend_similar` now fetches its shortlist's ratings via `get_movies`/`get_tv_shows` instead of one call per title.
+- Cross-reference `get_person_credits` (no genre filter) with `discover_movies`'s `with_crew`/`with_cast`/`with_people` + `with_genres` — the right combination for "this person's work in one genre".
 
 ### Fixed
 
