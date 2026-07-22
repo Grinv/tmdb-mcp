@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { TmdbClient } from "../clients/tmdb.js";
+import { TmdbClient, MAX_EXPANDED_EPISODES } from "../clients/tmdb.js";
 import { ApiError } from "../lib/errors.js";
 import { loadConfig } from "../config.js";
 import {
@@ -160,7 +160,7 @@ describe("TmdbClient: getTv(expand_episodes) on a show with more than 20 seasons
     );
   });
 
-  test("caps the combined episode count across all seasons at 500, even though each season is individually under its own 50-episode cap", async (t) => {
+  test(`caps the combined episode count across all seasons at ${MAX_EXPANDED_EPISODES}, even though each season is individually under its own 50-episode cap`, async (t) => {
     // 25 seasons x 30 episodes = 750 total episodes, each season well under
     // the per-season 50 cap on its own — only the aggregate needs capping.
     const EPISODES_PER_SEASON = 30;
@@ -192,14 +192,14 @@ describe("TmdbClient: getTv(expand_episodes) on a show with more than 20 seasons
     const seasonsDetail = s.seasons_detail!;
     const totalReturnedEpisodes = seasonsDetail.reduce((sum, x) => sum + x.episodes.length, 0);
     assert.ok(
-      totalReturnedEpisodes <= 500,
-      `expected <=500 episodes, got ${totalReturnedEpisodes}`,
+      totalReturnedEpisodes <= MAX_EXPANDED_EPISODES,
+      `expected <=${MAX_EXPANDED_EPISODES} episodes, got ${totalReturnedEpisodes}`,
     );
     // Every season still reports its true per-season count, capping notwithstanding.
     assert.ok(seasonsDetail.every((x) => x.episode_count === EPISODES_PER_SEASON));
     // Earlier seasons are kept in full before the budget runs out.
     assert.equal(seasonsDetail[0]!.episodes.length, EPISODES_PER_SEASON);
-    // Some later season must have been truncated (25 * 30 = 750 > 500).
+    // Some later season must have been truncated (25 * 30 = 750 > MAX_EXPANDED_EPISODES).
     assert.ok(seasonsDetail.some((x) => x.episodes.length < EPISODES_PER_SEASON));
   });
 });

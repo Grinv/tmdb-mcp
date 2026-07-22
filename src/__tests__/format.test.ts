@@ -504,7 +504,7 @@ describe("summarizeSeason", () => {
   });
 
   test("includeEpisodeOverview=false nulls out each episode's overview (season overview untouched)", () => {
-    // get_tv's expand_episodes aggregates up to 500 episodes across seasons;
+    // get_tv's expand_episodes aggregates up to 250 episodes across seasons;
     // a per-episode overview repeated that many times dominates the payload
     // size, so that path opts out while get_tv_season (default) keeps it.
     const s = summarizeSeason(

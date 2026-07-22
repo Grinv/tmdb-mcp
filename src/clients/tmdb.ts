@@ -63,7 +63,12 @@ const MAX_APPEND_TO_RESPONSE = 20;
 // a usable response size. Cap the combined episode count across all seasons
 // in one getTvSeasonsBulk result; episode_count on each season still reports
 // that season's true total even once its episodes are truncated to fit.
-const MAX_EXPANDED_EPISODES = 500;
+// 500 was tried first but, even with each episode's overview already dropped
+// (see summarizeSeason's includeEpisodeOverview), a real 500-episode
+// seasons_detail (e.g. The Simpsons, 802 episodes) still runs to ~75-80K
+// characters — large enough to blow past several real MCP clients' own
+// tool-output size limits. 250 keeps the same aggregate well under 40K chars.
+export const MAX_EXPANDED_EPISODES = 250;
 
 function chunk<T>(items: T[], size: number): T[][] {
   const chunks: T[][] = [];

@@ -878,7 +878,7 @@ export interface TmdbSeason {
 // series) and would otherwise blow well past a reasonable response size.
 // `episode_count` still reports the true total; `episodes` is the capped list.
 // `includeEpisodeOverview` is false for getTvSeasonsBulk's multi-season aggregate
-// (get_tv's expand_episodes): a per-episode overview repeated across up to 500
+// (get_tv's expand_episodes): a per-episode overview repeated across up to 250
 // episodes dwarfs every other field combined, so the aggregate path drops it —
 // call get_tv_season for one season's full detail including overview.
 export function summarizeSeason(
