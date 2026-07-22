@@ -31,7 +31,7 @@ token — see [Getting your credentials](#getting-your-credentials)):
 "Search for people named Zendaya."
 "Get the year, genres and rating for these five movies in one go: Dune, Dune: Part Two, Arrival, Sicario and Blade Runner 2049."
 "What are the best limited series to binge over a weekend?"
-"What are some good TV shows for a 9-year-old to watch?"
+"What can I watch with my 9-year-old?"
 "What movies has A24 produced?"
 "What are Tarantino's best-rated crime movies?"
 "Who composed the music for My Neighbor Totoro, and what else has he scored?"
