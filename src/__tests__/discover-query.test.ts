@@ -65,13 +65,11 @@ describe("discoverQuery", () => {
     }
   });
 
-  test("movie-only filters (cast/crew/people/certification) are dropped for tv", () => {
+  test("movie-only filters (cast/crew/people) are dropped for tv", () => {
     const q = discoverQuery(ALL_PARAMS, "tv");
     assert.equal(q.with_cast, undefined);
     assert.equal(q.with_crew, undefined);
     assert.equal(q.with_people, undefined);
-    assert.equal(q.certification, undefined);
-    assert.equal(q.certification_country, undefined);
   });
 
   test("tv-only filters (with_networks/with_type/with_status) are dropped for movie", () => {
@@ -81,10 +79,20 @@ describe("discoverQuery", () => {
     assert.equal(q.with_status, undefined);
   });
 
+  // certification/certification_country work for both kinds — verified live
+  // against the real /discover/tv, which TMDB's own docs don't advertise but
+  // does actually honor (a nonsense certification value returns zero results).
+  test("certification/certification_country pass through for both movie and tv", () => {
+    for (const kind of ["movie", "tv"] as const) {
+      const q = discoverQuery(ALL_PARAMS, kind);
+      assert.equal(q.certification, "PG-13");
+      assert.equal(q.certification_country, "US");
+    }
+  });
+
   test("movie-only filters pass through for movie, with_networks passes through for tv", () => {
     const movie = discoverQuery(ALL_PARAMS, "movie");
     assert.equal(movie.with_cast, "6193");
-    assert.equal(movie.certification, "PG-13");
 
     const tv = discoverQuery(ALL_PARAMS, "tv");
     assert.equal(tv.with_networks, "49");

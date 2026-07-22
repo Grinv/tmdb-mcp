@@ -781,8 +781,11 @@ export class TmdbClient {
 
 // Maps each DiscoverParams field to the TMDB query key(s) it becomes for
 // movie and/or tv (some use a dotted range syntax like "vote_average.gte";
-// some differ per kind; some — certification = movie, with_networks = tv —
-// are exclusive to one). The Record type requires every DiscoverParams field
+// some differ per kind; some — with_cast = movie-only, with_networks =
+// tv-only — are exclusive to one). certification/certification_country work
+// for both (verified live against /discover/tv, not just /discover/movie,
+// despite TMDB's own docs only mentioning it for movies). The Record type
+// requires every DiscoverParams field
 // (other than `language`, applied separately) to have a row here, so adding a
 // field to either tool-facing discover schema in tools/tmdb.ts without adding
 // its mapping here is a compile error instead of a filter that silently never
@@ -816,8 +819,8 @@ const DISCOVER_FIELD_MAP: Record<
   with_networks: { tv: "with_networks" },
   with_type: { tv: "with_type" },
   with_status: { tv: "with_status" },
-  certification: { movie: "certification" },
-  certification_country: { movie: "certification_country" },
+  certification: { movie: "certification", tv: "certification" },
+  certification_country: { movie: "certification_country", tv: "certification_country" },
   page: { movie: "page", tv: "page" },
 };
 

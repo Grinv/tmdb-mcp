@@ -224,25 +224,41 @@ const discoverShared = {
     .regex(/^[A-Z]{2}$/, "Two-letter ISO-3166-1 country code.")
     .describe("Country for with_watch_providers, e.g. 'US'.")
     .optional(),
-  language,
-  page: page.optional(),
-};
-
-// Movie discover adds cast/crew/people and certification filters.
-const discoverMovieSchema = {
-  ...discoverShared,
-  with_cast: idList("cast (actor)"),
-  with_crew: idList("crew, e.g. a director"),
-  with_people: idList("person (cast or crew)"),
+  // Shared, not movie-only: verified live against the real /discover/tv (not
+  // just /discover/movie) — an unsupported/nonsense certification value
+  // returns zero results there too, confirming TMDB actually applies it
+  // rather than silently ignoring an undocumented param.
   certification: z
     .string()
-    .describe("Filter by exact age certification, e.g. 'PG-13'. Requires certification_country.")
+    .describe(
+      "Filter by exact age/content certification, e.g. 'PG-13' (movies) or 'TV-Y7' (TV). Requires " +
+        "certification_country, and a certification_country TMDB doesn't recognize silently " +
+        "disables this filter (returns unfiltered results) instead of erroring or matching nothing " +
+        "— double-check the country actually has data for that rating system. Case-sensitive for " +
+        "movies ('pg-13' matches nothing; use 'PG-13'). Unlike get_movie/get_tv's own certification " +
+        "field (which falls back to the US rating, then any country, when the requested region has " +
+        "none), this filter has NO fallback: a title with no certification entry at all for the " +
+        "exact country given is silently excluded from results, even if it's certified elsewhere " +
+        "(e.g. has a US rating) — for a country with sparse TMDB certification data, prefer " +
+        "certification_country='US' for broader, more reliable coverage over the user's actual " +
+        "country if completeness matters more than exact local ratings.",
+    )
     .optional(),
   certification_country: z
     .string()
     .regex(/^[A-Z]{2}$/, "Two-letter ISO-3166-1 country code.")
     .describe("Country whose certification system the `certification` filter uses, e.g. 'US'.")
     .optional(),
+  language,
+  page: page.optional(),
+};
+
+// Movie discover adds cast/crew/people filters.
+const discoverMovieSchema = {
+  ...discoverShared,
+  with_cast: idList("cast (actor)"),
+  with_crew: idList("crew, e.g. a director"),
+  with_people: idList("person (cast or crew)"),
 };
 
 // TMDB's own fixed vocabularies for a TV show's type/status (verified live
@@ -912,8 +928,9 @@ export function registerTmdbTools(
         "Find movies by structured filters instead of a title query: genres (include/exclude), " +
         "year or release-date range, rating range, vote count, runtime range, original language, " +
         "cast/crew/people, companies, keywords, watch providers, certification, and sort order. " +
-        "certification and with_watch_providers each error if given without their required pair " +
-        "(certification_country, watch_region) instead of silently applying no filter. Use for " +
+        "certification and with_watch_providers each error if given with no certification_country/" +
+        "watch_region at all, but an unrecognized certification_country still silently disables the " +
+        "filter instead of erroring — see certification's own description. Use for " +
         "'popular sci-fi from the 1990s rated above 7 available on Netflix', or for a specific " +
         "person's work in one genre — 'which of this director's/actor's/composer's films are " +
         "animated' — via with_crew/with_cast/with_people + with_genres together; get_person_credits " +
@@ -933,10 +950,16 @@ export function registerTmdbTools(
       description:
         "Find TV shows by structured filters (genres, first-air year or date range, rating range, " +
         "vote count, runtime, language, companies, networks, keywords, watch providers, type, " +
-        "status, sort). with_watch_providers errors if given without watch_region instead of " +
-        "silently applying no filter. The TV counterpart of discover_movies; use with_networks for " +
-        "'HBO shows', with_type='Miniseries' for short/limited series (e.g. 'best miniseries to " +
-        "binge in a weekend'), with_status='Ended' to exclude shows still airing.",
+        "status, certification, sort) — but NOT cast/crew/person (TMDB's own /discover/tv silently " +
+        "ignores those, unlike /discover/movie; to find TV shows featuring someone, call " +
+        "get_person_credits instead and filter its results to media_type 'tv'). certification and " +
+        "with_watch_providers each error if given with no certification_country/watch_region at " +
+        "all, but an unrecognized certification_country still silently disables the filter instead " +
+        "of erroring — see certification's own description. The TV counterpart of discover_movies; " +
+        "use with_networks for 'HBO shows', with_type='Miniseries' for short/limited series (e.g. " +
+        "'best miniseries to binge in a weekend'), with_status='Ended' to exclude shows still " +
+        "airing, certification='TV-Y7' + certification_country='US' for 'shows appropriate for a " +
+        "young kid'.",
       inputSchema: discoverTvInputSchema,
       outputSchema: pageSchema(tvSummarySchema),
       annotations: READ_ONLY,

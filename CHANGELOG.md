@@ -12,12 +12,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Add `search_companies`, resolving a production company name (e.g. "A24") to the id `with_companies` needs.
 - Add `department` and `limit` params to `get_person_credits`, so a prolific multi-hyphenate's filmography in one role isn't crowded out by their other credits or the default 25-credit cap.
 - Add `with_type`/`with_status` to `discover_tv` (e.g. `with_type: "Miniseries"`), and `number_of_seasons`/`number_of_episodes` to `get_tv_shows`' card.
+- Add `certification`/`certification_country` to `discover_tv` (e.g. `certification: "TV-Y7"`) — verified live against the real API, though TMDB's own docs only list this for movies.
 
 ### Changed
 
 - Sharpen several tool/prompt descriptions per a TDQS audit (`get_movie`/`get_tv` now name `get_movies`/`get_tv_shows`; `get_trending` discloses per-row `media_type`; genre tools point at `discover_*`). `recommend_similar` now fetches its shortlist's ratings via `get_movies`/`get_tv_shows` instead of one call per title.
 - Cross-reference `get_person_credits` (no genre filter) with `discover_movies`'s `with_crew`/`with_cast`/`with_people` + `with_genres` — the right combination for "this person's work in one genre".
 - Disclose `get_movie`/`get_tv`/`get_ratings`' previously-undocumented `awards` and `ratings.rated` fields (both from OMDb), and clarify `awards` isn't Oscar-specific.
+- Document `certification`'s real edge cases (case-sensitive for movies, silently disabled by an unrecognized country, no fallback to another country unlike `get_movie`/`get_tv`) and that `discover_tv` ignores cast/crew/person filters entirely — all verified live.
 
 ### Fixed
 

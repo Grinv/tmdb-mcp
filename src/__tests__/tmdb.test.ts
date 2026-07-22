@@ -941,6 +941,21 @@ describe("discover_movies/discover_tv reject incomplete filter pairs", () => {
     assert.match(toolText(res), /certification_country/);
   });
 
+  // certification works for discover_tv too (verified live against the real
+  // /discover/tv — see clients/tmdb.ts's DISCOVER_FIELD_MAP comment), so the
+  // same pairing rule must apply there, not just to discover_movies.
+  test("certification without certification_country is rejected before hitting TMDB (discover_tv)", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({
+      name: "discover_tv",
+      arguments: { certification: "TV-Y7" },
+    });
+    assert.equal(res.isError, true);
+    assert.match(toolText(res), /certification_country/);
+  });
+
   test("with_watch_providers without watch_region is rejected before hitting TMDB (discover_tv)", async (t) => {
     installFetch(t, mockFetch(router));
     const { client, close } = await connectServer(ENV);
