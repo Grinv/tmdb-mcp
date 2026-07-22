@@ -138,12 +138,11 @@ export function registerPrompts(server: McpServer): void {
         );
       }
       if (includeTv) {
-        const moviesStepRef = includeMovies ? "the step above" : "the equivalent movies filter";
         steps.push(
           `For TV: if this is a COMPANY, discover_tv's with_companies works the same way as ` +
-            `${moviesStepRef}. If this is a PERSON, discover_tv can NOT filter by person at all — it ` +
-            `doesn't even accept with_cast/with_crew/with_people as parameters for TV (a validation error, ` +
-            `not a silent no-op) — instead call get_person_credits for ` +
+            `discover_movies's with_companies filter. If this is a PERSON, discover_tv can NOT filter ` +
+            `by person at all — it doesn't even accept with_cast/with_crew/with_people as parameters ` +
+            `for TV (a validation error, not a silent no-op) — instead call get_person_credits for ` +
             `that id, keep only entries with media_type 'tv', then batch-fetch ratings/genres for those ids ` +
             `via get_tv_shows in one call and filter to the requested genre yourself if one was given.`,
         );

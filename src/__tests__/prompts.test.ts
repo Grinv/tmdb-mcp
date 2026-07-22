@@ -117,7 +117,11 @@ describe("top_by_entity prompt", () => {
     assert.match(text, /tv only/);
     assert.match(text, /discover_tv/);
     assert.doesNotMatch(text, /For movies/);
-    assert.doesNotMatch(text, /discover_movies/);
+    // The TV step names discover_movies's with_companies for comparison, but
+    // the movies-specific guidance itself (sort_by/min_votes) must not leak
+    // through when there's no movies step to actually carry it.
+    assert.doesNotMatch(text, /sort_by=vote_average\.desc/);
+    assert.doesNotMatch(text, /min_votes floor/);
   });
 
   test("rejects a non-numeric count via the argument schema", async (t) => {
