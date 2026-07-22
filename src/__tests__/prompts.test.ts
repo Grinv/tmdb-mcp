@@ -99,6 +99,25 @@ describe("top_by_entity prompt", () => {
     assert.match(text, /Quentin Tarantino.*\(a person\).*Crime/);
     assert.match(text, /top 3/);
     assert.match(text, /movie only/);
+    assert.match(text, /discover_movies/);
+    // media_type=movie must drop the TV-only branch, not just say "movie only"
+    // in the intro while still instructing the model through TV steps too.
+    assert.doesNotMatch(text, /For TV/);
+    assert.doesNotMatch(text, /discover_tv/);
+  });
+
+  test("media_type=tv drops the movies-only branch", async (t) => {
+    const { client, close } = await connectServer({});
+    t.after(close);
+    const res = await client.getPrompt({
+      name: "top_by_entity",
+      arguments: { name: "Shonda Rhimes", media_type: "tv" },
+    });
+    const text = contentText(res.messages[0]!.content);
+    assert.match(text, /tv only/);
+    assert.match(text, /discover_tv/);
+    assert.doesNotMatch(text, /For movies/);
+    assert.doesNotMatch(text, /discover_movies/);
   });
 
   test("rejects a non-numeric count via the argument schema", async (t) => {
