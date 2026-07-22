@@ -10,6 +10,10 @@
 import { z } from "zod";
 import type { LogLevel } from "./lib/logger.js";
 
+// Shared with tools/tmdb.ts's per-call `language` param — both accept the same
+// ISO-639-1[-ISO-3166-1] shape, so the regex is defined once here.
+export const LANGUAGE_REGEX = /^[a-z]{2}(-[A-Z]{2})?$/;
+
 const EnvSchema = z.object({
   // --- TMDB: the primary read backbone. v4 "Read Access Token" (a long JWT),
   //     sent as `Authorization: Bearer <token>`. Get one at
@@ -22,7 +26,7 @@ const EnvSchema = z.object({
   TMDB_LANGUAGE: z
     .string()
     .regex(
-      /^[a-z]{2}(-[A-Z]{2})?$/,
+      LANGUAGE_REGEX,
       "TMDB_LANGUAGE must be an ISO-639-1 code, optionally with a region, e.g. en or en-US",
     )
     .default("en-US"),

@@ -9,6 +9,7 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import type { TmdbClient } from "../clients/tmdb.js";
 import type { OmdbClient } from "../clients/omdb.js";
 import type { Config } from "../config.js";
+import { LANGUAGE_REGEX } from "../config.js";
 import { movieCard, notFoundCard, summarizeRatings, tvCard } from "../format.js";
 import {
   collectionSchema,
@@ -164,7 +165,7 @@ const withGenres = z
 const language = z
   .string()
   .regex(
-    /^[a-z]{2}(-[A-Z]{2})?$/,
+    LANGUAGE_REGEX,
     "Use an ISO-639-1 language code, optionally with a region, e.g. 'en' or 'en-US'.",
   )
   .describe(
@@ -172,6 +173,9 @@ const language = z
       "Localizes titles/overviews/genre names. Defaults to the server's TMDB_LANGUAGE.",
   )
   .optional();
+// TMDB's with_original_language discover filter, unlike `language` above,
+// takes a plain ISO-639-1 code with no region suffix.
+const originalLanguageRegex = /^[a-z]{2}$/;
 const idList = (what: string) =>
   z.string().describe(`Comma-separated TMDB ${what} ids.`).optional();
 const dateStr = (what: string) =>
@@ -204,6 +208,10 @@ const discoverShared = {
   max_runtime: z.number().int().min(0).describe("Maximum runtime in minutes.").optional(),
   with_original_language: z
     .string()
+    .regex(
+      originalLanguageRegex,
+      "Use a plain ISO-639-1 language code with no region, e.g. 'en' or 'ja'.",
+    )
     .describe("ISO-639-1 original-language code, e.g. 'en', 'ja'.")
     .optional(),
   with_companies: z

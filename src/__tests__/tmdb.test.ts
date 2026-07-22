@@ -925,6 +925,46 @@ describe("discover_movies", () => {
   });
 });
 
+describe("discover_movies/discover_tv reject a malformed with_original_language", () => {
+  // Unlike `language`, TMDB's with_original_language filter takes no region
+  // suffix — a malformed/region-qualified value must be rejected upfront
+  // instead of reaching TMDB and silently no-op'ing the filter.
+  test("a malformed with_original_language is rejected before hitting TMDB", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({
+      name: "discover_movies",
+      arguments: { with_original_language: "english" },
+    });
+    assert.equal(res.isError, true);
+  });
+
+  test("a region-qualified with_original_language (valid for `language` but not this field) is rejected", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({
+      name: "discover_movies",
+      arguments: { with_original_language: "en-US" },
+    });
+    assert.equal(res.isError, true);
+  });
+
+  // with_original_language is shared with discover_tv too, same as
+  // certification/certification_country below.
+  test("a malformed with_original_language is rejected before hitting TMDB (discover_tv)", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({
+      name: "discover_tv",
+      arguments: { with_original_language: "english" },
+    });
+    assert.equal(res.isError, true);
+  });
+});
+
 describe("discover_movies/discover_tv reject incomplete filter pairs", () => {
   // TMDB silently ignores certification/with_watch_providers when their
   // required pair field is missing instead of erroring, which reads as "the
