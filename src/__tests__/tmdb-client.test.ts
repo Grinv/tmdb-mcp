@@ -238,13 +238,17 @@ describe("TmdbClient: getTv(expand_episodes) on a show with more than 20 seasons
       requestedSeasonNumbers.sort((a, b) => a - b),
       [1, 2, 3, 4, 5, 6, 7, 8, 9],
     );
-    // Skipped seasons still appear in seasons_detail (true episode_count, no
-    // episodes), same contract as a season truncated after being fetched.
+    // Skipped seasons still appear in seasons_detail with their true
+    // episode_count, but — unlike a season truncated AFTER being fetched,
+    // which keeps its overview/poster_url — a skipped season was never
+    // fetched at all, so overview/poster_url come back null too.
     const seasonsDetail = s.seasons_detail!;
     assert.equal(seasonsDetail.length, 25);
     const skippedSeason = seasonsDetail.find((x) => x.season_number === 20)!;
     assert.equal(skippedSeason.episode_count, EPISODES_PER_SEASON);
     assert.deepEqual(skippedSeason.episodes, []);
+    assert.equal(skippedSeason.overview, null);
+    assert.equal(skippedSeason.poster_url, null);
   });
 
   test("falls back to a byte-size cap when episode names are unusually verbose, even under the count cap", async (t) => {

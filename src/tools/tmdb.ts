@@ -140,7 +140,10 @@ const expandEpisodes = z
       "every season is capped at 250 total, and the whole aggregate additionally has a hard size " +
       "ceiling (trims further if episode names are unusually long) since a 30+ season show could " +
       "otherwise still exceed a usable response size even with the per-season cap alone; " +
-      "`episode_count` on each season still reports that season's true total. Defaults to false.",
+      "`episode_count` on each season still reports that season's true total. A season that falls " +
+      "entirely beyond the 250-episode budget is skipped rather than fetched-then-discarded, so its " +
+      "`overview`/`poster_url` come back null too, not just its `episodes` list — call get_tv_season " +
+      "for that season's full detail. Defaults to false.",
   )
   .optional();
 
