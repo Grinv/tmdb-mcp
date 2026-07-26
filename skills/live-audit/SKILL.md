@@ -101,7 +101,14 @@ run's exact calls verbatim:
 - **Documented vs. actual shape**: for anything that looked surprising live,
   grep the field back to its `.describe()` text — does the tool's own
   description promise what you just saw (or promise something you didn't)?
-  Mismatches here are bugs even when the data itself is "correct."
+  Mismatches here are bugs even when the data itself is "correct." When an
+  aggregation shortcut skips fetching some items entirely instead of
+  fetching-then-trimming (e.g. a season past a combined-count budget never
+  requested at all), check _every_ field of that stub, not just the one the
+  cap is named after — unrelated fields (`overview`, `poster_url`) silently
+  going null is exactly the kind of thing a "count capped at N" description
+  never warns about, and a nearby test comment asserting "same contract as a
+  trimmed item" can be flat wrong without a test actually failing.
 - **Unicode / adult / locale weirdness**: emoji-only queries, non-Latin
   scripts, `include_adult` toggling, a fake 2-letter region/language that's
   shaped correctly but doesn't exist.

@@ -30,7 +30,8 @@ src/
                   # shared.ts (READ_ONLY, requireConfigured — try/catch → ToolResult)
   __tests__/      # node:test (*.test.ts) + helpers.ts
 scripts/          # build-tests.mjs, run-tests.mjs (generic), check-api.mjs (domain),
-                  # sync-version.mjs (npm version hook — see docs/releasing.md)
+                  # sync-version.mjs (npm version hook), preversion-check.mjs (npm version
+                  # gate — see docs/releasing.md)
 ```
 
 ## Commands
