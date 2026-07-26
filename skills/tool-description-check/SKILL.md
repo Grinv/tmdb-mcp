@@ -1,11 +1,17 @@
+---
+name: tool-description-check
+description: Self-check a new or edited MCP tool `description`/field `.describe()` text against Glama's Tool Definition Quality Score (TDQS) rubric before committing. Use whenever a tool description or schema field description in src/tools/*.ts is added or changed.
+---
+
 # Tool descriptions: what to check before committing
 
 When adding or editing a tool's `description` (or a schema field's
 `.describe()`), self-check it against Glama's [Tool Definition Quality Score
 (TDQS)](https://github.com/glama-ai/tool-definition-quality-score) rubric —
-the same one Glama uses to score every public MCP server it indexes. There's
-no way to force an instant re-score there (Glama re-analyzes on its own
-schedule, not on push), so treat this as a manual pre-commit check, not
+the same one that scores this server at
+[glama.ai/mcp/servers/Grinv/tmdb-mcp/score](https://glama.ai/mcp/servers/Grinv/tmdb-mcp/score).
+There's no way to force an instant re-score there (Glama re-analyzes on its
+own schedule, not on push), so treat this as a manual pre-commit check, not
 something to verify live after every edit.
 
 ## The six dimensions (weight, question)
@@ -27,14 +33,16 @@ Purpose, and are the two dimensions most worth double-checking on a new tool.
 - **Name the alternative tool.** "Use X instead of Y when Z" is the single
   highest-leverage fix for Usage Guidelines. Every pair of tools that could
   plausibly be confused (similar inputs, overlapping domain) should
-  cross-reference each other.
+  cross-reference each other — e.g. `get_movie_recommendations` explicitly
+  says to prefer it over `get_similar` as the default choice, since
+  `get_similar` only matches on shared genre/keyword overlap.
 - **Disclose the return shape, not just the auth/key caveat.** Behavioral
   Transparency rewards concrete consequences — field names returned, caps,
   ordering, visibility/privacy caveats — over a generic aside about
   credentials.
 - **Parameter Semantics has a structural ceiling.** If a schema's
   `.describe()` coverage is already ~100% (this project's convention — see
-  the Conventions section in [AGENTS.md](../AGENTS.md)), the rubric's own
+  the Conventions section in [AGENTS.md](../../AGENTS.md)), the rubric's own
   baseline is 3/5 for that dimension _even with a perfect description_ —
   restating schema fields in prose adds no information and isn't rewarded.
   Don't chase this by padding descriptions; only add prose when there's a

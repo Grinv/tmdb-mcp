@@ -1,3 +1,8 @@
+---
+name: release
+description: Cut a release of tmdb-mcp — draft CHANGELOG entries, check docs/metadata consistency, then bump/tag/push. Use when asked to release, cut a version, or publish a new version of this package.
+---
+
 # Releasing
 
 `package.json` is the **single source of truth** for the version. The npm
@@ -6,37 +11,34 @@
 URL); `version.test.ts` guards that they never drift. `sync-version.mjs` uses
 `import.meta.dirname`, so running `npm version` yourself needs Node ≥ 20.11 —
 the package's own `engines.node` floor (≥ 20) is unaffected, since the shipped
-server never touches this script. So a release is:
+server never touches this script.
 
-```sh
-# 1. land your changes; move CHANGELOG.md's [Unreleased] notes under a new
-#    [X.Y.Z] - YYYY-MM-DD heading and commit.
-npm version <patch|minor|major>   # bumps + syncs every file + commits "release: vX.Y.Z" + tags vX.Y.Z
-git push --follow-tags            # pushing the tag triggers .github/workflows/release.yml
-```
+A `preversion` hook (`scripts/preversion-check.mjs`) runs first — it's a
+presence-only safety net, not a substitute for actually running the skill
+below as a real judgment step. It blocks `npm version` if `CHANGELOG.md`'s
+`[Unreleased]` section is empty: run the `changelog-style` skill against the
+commits since the last tag first — it's what actually makes the entries
+short, self-describing, free of implementation detail, and linked to their
+commits; the hook only confirms _something_ is there, not that it follows
+that style. (Or re-run with `CONFIRM_EMPTY_CHANGELOG=1` if this release
+genuinely has no user-facing changes, e.g. a pure dependency bump.)
 
-## Pre-release audit
+**When invoked as this skill**, run these as explicit steps, not optional —
+don't rely on the `preversion` hook alone to catch a skipped one:
 
-Before tagging (step 1 above), audit these against the current source — none
-of it is version-bump mechanics, so `sync-version.mjs`/`version.test.ts` don't
-catch drift here, and it tends to accumulate silently across several PRs:
-
-- **Tool/prompt descriptions** (`src/tools/*.ts`, `src/prompts.ts`) — self-check
-  against [docs/tool-descriptions.md](tool-descriptions.md)'s TDQS rubric.
-- **`manifest.json`** — its `tools`/`prompts` arrays are a hand-maintained copy
-  of the source; check the tool list and every registered prompt's
-  (`recommend_similar`, `top_by_entity`, …) `description`/`text` haven't
-  drifted from `src/tools/*.ts`/`src/prompts.ts`. `top_by_entity`'s `text`
-  branches on `media_type`/`genre`, so re-check it whenever that branching
-  logic changes, not just when its wording does.
-- **`server.json`** — `packages[].environmentVariables` vs `config.ts` (see
-  "Keep config in three places in sync" below) and the top-level `description`
-  (≤ 100 chars).
-- **`README.md`** — the tool table (any added/renamed/removed tool) and any
-  claim about cross-cutting behavior (e.g. which tools accept `language`/
-  `region`) against what the schemas actually declare.
-- **`AGENTS.md`** — the `src/` tree diagram and any convention that's since
-  changed.
+1. Invoke the `changelog-style` skill against the commits since the last tag;
+   write/fix the `[Unreleased]` entries per its style rules.
+2. Run the `docs-consistency-check` skill — none of this is version-bump
+   mechanics, so `sync-version.mjs`/`version.test.ts` don't catch drift here,
+   and it accumulates silently across several PRs (`manifest.json`'s
+   `tools`/`prompts` arrays, `server.json`'s `environmentVariables`/
+   description length, README's tool table, AGENTS.md's `src/` tree). Note
+   `top_by_entity`'s `text` branches on `media_type`/`genre`, so re-check it
+   whenever that branching logic changes, not just when its wording does.
+3. Commit all of the above.
+4. `npm version <patch|minor|major>` — preversion gate, then bumps + syncs
+   every file + commits `"release: vX.Y.Z"` + tags `vX.Y.Z`.
+5. `git push --follow-tags` — pushing the tag triggers `.github/workflows/release.yml`.
 
 The tag push (`v*`) runs the **Release** workflow: `check:api` gate → build → test
 → pack `.mcpb` → GitHub Release → `npm publish` (OIDC trusted publishing, with

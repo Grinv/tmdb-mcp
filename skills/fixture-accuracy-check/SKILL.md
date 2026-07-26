@@ -1,3 +1,8 @@
+---
+name: fixture-accuracy-check
+description: Make sure a mocked-fetch test fixture mirrors TMDB/OMDb's real response shape, not just whatever fields make the current code pass. Use before writing or changing a fixture in src/__tests__/*.test.ts.
+---
+
 # Testing conventions
 
 `src/__tests__/*.test.ts` mocks `fetch` and feeds it canned JSON fixtures (see
