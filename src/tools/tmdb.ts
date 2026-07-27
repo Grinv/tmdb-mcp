@@ -158,9 +158,16 @@ const regionSchema = (defaultRegion: string) =>
     .regex(/^[A-Z]{2}$/, "Use a two-letter ISO-3166-1 country code, e.g. 'US'.")
     .describe(`ISO-3166-1 country code for region-specific results (default '${defaultRegion}').`)
     .optional();
+// An unrecognized sort_by value is a silent no-op, not an error — verified
+// live: /discover/movie?sort_by=nonsense_field.desc still returns 200 with
+// results in TMDB's default order, instead of rejecting the request.
 const sortBy = z
   .string()
-  .describe("TMDB sort, e.g. 'popularity.desc', 'vote_average.desc', 'primary_release_date.desc'.")
+  .describe(
+    "TMDB sort, e.g. 'popularity.desc', 'vote_average.desc', 'primary_release_date.desc'. An " +
+      "unrecognized value is silently ignored (falls back to TMDB's default order) rather than " +
+      "erroring.",
+  )
   .optional();
 const withGenres = z
   .string()
@@ -191,7 +198,12 @@ const dateStr = (what: string) =>
 const discoverShared = {
   sort_by: sortBy,
   with_genres: withGenres,
-  without_genres: z.string().describe("Comma-separated TMDB genre ids to exclude.").optional(),
+  without_genres: z
+    .string()
+    .describe(
+      "Comma-separated TMDB genre ids to exclude; get ids from get_movie_genres/get_tv_genres.",
+    )
+    .optional(),
   year: z.number().int().min(1870).max(2100).describe("Release / first-air year.").optional(),
   release_date_gte: dateStr("Only entries released on/after this date (YYYY-MM-DD)."),
   release_date_lte: dateStr("Only entries released on/before this date (YYYY-MM-DD)."),
@@ -228,7 +240,7 @@ const discoverShared = {
     .string()
     .describe("Comma-separated TMDB keyword ids (use search_keywords to resolve names → ids).")
     .optional(),
-  without_keywords: idList("keyword to exclude"),
+  without_keywords: z.string().describe("Comma-separated TMDB keyword ids to exclude.").optional(),
   with_watch_providers: z
     .string()
     .describe(
@@ -245,6 +257,13 @@ const discoverShared = {
   // just /discover/movie) — an unsupported/nonsense certification value
   // returns zero results there too, confirming TMDB actually applies it
   // rather than silently ignoring an undocumented param.
+  //
+  // The opposite case — an unrecognized certification_country — is a silent
+  // no-op instead: verified live against /discover/movie, pairing a real
+  // certification ("PG-13") with a nonsense certification_country ("ZZ")
+  // returned a total_results count matching the fully-unfiltered call
+  // (~1.16M either way), not the ~10K a real US-certification-country filter
+  // returns, confirming the filter is disabled rather than applied-and-empty.
   certification: z
     .string()
     .describe(
@@ -274,7 +293,7 @@ const discoverShared = {
 const discoverMovieSchema = {
   ...discoverShared,
   with_cast: idList("cast (actor)"),
-  with_crew: idList("crew, e.g. a director"),
+  with_crew: idList("crew (e.g. a director)"),
   with_people: idList("person (cast or crew)"),
 };
 
@@ -401,7 +420,10 @@ export function registerTmdbTools(
       description:
         "Search TMDB movies by title; returns compact summaries with the TMDB id that the other " +
         "movie tools (get_movie, get_movie_credits, …) require, plus pagination info. Use this over " +
-        "search_multi when you already know the result is a movie.",
+        "search_multi when you already know the result is a movie. `region` here only picks which " +
+        "country's release_date is shown per result (e.g. a title's US vs. India theatrical date) — " +
+        "verified live, it does not filter which movies match or reorder them; for actual " +
+        "region-based availability use get_watch_providers instead.",
       inputSchema: z
         .object({
           query: z.string().min(1).describe("Movie title to search for."),
@@ -642,16 +664,17 @@ export function registerTmdbTools(
         "movies by TMDB id in one call. Deliberately trimmed (no overview, cast, budget, " +
         "certifications, production companies, etc.): use this for a single id too when you only " +
         "need that headline info and not the full get_movie payload, not just for checking many at " +
-        "once. Call get_movie instead when you need the full details for a title. A bad/unknown id " +
+        "once. Call get_movie instead when you need the full details for a title (including " +
+        "region-specific certification). A bad/unknown id " +
         "never fails the whole call — that entry comes back `{id, found:false, reason}` instead, in " +
         "the same order as `ids`.",
       inputSchema: z
-        .object({ ids: movieIdsBatch, region, language, include_ratings: includeRatingsBatch })
+        .object({ ids: movieIdsBatch, language, include_ratings: includeRatingsBatch })
         .strict(),
       outputSchema: z.object({ results: z.array(movieCardSchema) }).strict(),
       annotations: READ_ONLY,
     },
-    ({ ids, region: r, language: lang, include_ratings }) => {
+    ({ ids, language: lang, include_ratings }) => {
       const stale = trackStale();
       return requireTmdb(async () => {
         const settled = await Promise.allSettled(
@@ -659,7 +682,7 @@ export function registerTmdbTools(
             getEnrichedDetail(
               "movie",
               id,
-              r,
+              undefined,
               lang,
               include_ratings ?? false,
               tmdb,
@@ -691,15 +714,16 @@ export function registerTmdbTools(
         "Deliberately trimmed otherwise (no overview, the actual episode list, networks, " +
         "certifications, etc.): use this for a single id too when you only need that headline info " +
         "and not the full get_tv payload, not just for checking many at once. Call get_tv instead " +
-        "when you need the full details for a title. A bad/unknown id never fails the whole call — " +
+        "when you need the full details for a title (including region-specific certification). A " +
+        "bad/unknown id never fails the whole call — " +
         "that entry comes back `{id, found:false, reason}` instead, in the same order as `ids`.",
       inputSchema: z
-        .object({ ids: tvIdsBatch, region, language, include_ratings: includeRatingsBatch })
+        .object({ ids: tvIdsBatch, language, include_ratings: includeRatingsBatch })
         .strict(),
       outputSchema: z.object({ results: z.array(tvCardSchema) }).strict(),
       annotations: READ_ONLY,
     },
-    ({ ids, region: r, language: lang, include_ratings }) => {
+    ({ ids, language: lang, include_ratings }) => {
       const stale = trackStale();
       return requireTmdb(async () => {
         const settled = await Promise.allSettled(
@@ -707,7 +731,7 @@ export function registerTmdbTools(
             getEnrichedDetail(
               "tv",
               id,
-              r,
+              undefined,
               lang,
               include_ratings ?? false,
               tmdb,
