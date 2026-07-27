@@ -8,6 +8,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Remove `get_movies`/`get_tv_shows`' `region` param — the compact card drops the only fields it ever affected (certification), so it was a fully inert input ([083e231](https://github.com/Grinv/tmdb-mcp/commit/083e231)).
+- Disclose that `search_movies`' `region` only picks which country's release_date is shown per result — verified live, it doesn't filter or reorder matches like `get_watch_providers`' `region` does ([083e231](https://github.com/Grinv/tmdb-mcp/commit/083e231)).
+- Disclose that `discover_movies`/`discover_tv`'s `sort_by` silently falls back to TMDB's default order on an unrecognized value instead of erroring — verified live ([083e231](https://github.com/Grinv/tmdb-mcp/commit/083e231)).
 - Disclose that a season entirely skipped by `get_tv`'s `expand_episodes` combined-episode budget also loses its `overview`/`poster_url`, not just its episode list ([0e85a8d](https://github.com/Grinv/tmdb-mcp/commit/0e85a8d)).
 
 ## [0.8.1] - 2026-07-23
