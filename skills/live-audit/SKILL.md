@@ -59,6 +59,20 @@ _specific_ resulting message/shape?
 Anything red here is the actual finding — stop and report it before moving
 to live testing.
 
+This server supports two MCP protocol eras (legacy 2025-era and 2026-07-28).
+The in-memory unit-test transport (`connectServer` in `helpers.ts`) can only
+ever bind the legacy era — only `serveStdio`, i.e. the real spawned bundle
+in `e2e.test.ts`, can prove modern-era behavior (protocol negotiation, real
+tool-call round-tripping, `cacheHints`/`ttlMs`/`cacheScope` on `tools/list`/
+`prompts/list`/`server/discover`, `_meta['io.modelcontextprotocol/serverInfo']`).
+Any era-specific server-construction change (`ServerOptions` fields,
+capability wiring, anything touching `buildServer()`) needs a matching
+`e2e.test.ts` assertion under `versionNegotiation: { mode: "auto" }` — not
+just "the negotiation itself still succeeds," but the actual field/behavior
+that changed, verified via a passthrough `z.record()` schema on
+`client.request()` where the typed result hides it (`StripWireOnly` fields
+like `ttlMs`/`cacheScope`).
+
 ## 2. Live edge-case sweep
 
 Batch independent tool calls together where your harness supports it — this
