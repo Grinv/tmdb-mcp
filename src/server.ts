@@ -1,7 +1,7 @@
 // Server construction and stdio startup. Kept separate from the bin entry
 // (index.ts) so tests can import buildServer without triggering startup.
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
-import { McpServer } from "@modelcontextprotocol/server";
+import { McpServer, type CacheHint } from "@modelcontextprotocol/server";
 import { loadConfig, type Config } from "./config.js";
 import { createLogger, type Logger } from "./lib/logger.js";
 import { TmdbClient } from "./clients/tmdb.js";
@@ -20,6 +20,16 @@ const INSTRUCTIONS =
   "use the standalone get_ratings only when you have just an IMDb id or a raw title. " +
   "TMDB needs TMDB_API_TOKEN; rating enrichment needs OMDB_API_KEY (tools report clearly when unset).";
 
+// The tool/prompt list and server-identity metadata are fixed at build time —
+// registerTmdbTools/registerOmdbTools/registerPrompts below never register or
+// unregister anything at runtime — so a client on protocol revision
+// 2026-07-28 can safely cache tools/list, prompts/list and server/discover
+// for a while, and even let a shared proxy serve that cached response to
+// other clients ('public'): unlike a per-user resource, nothing here varies
+// by caller. Only these three of the six cacheable operations apply — this
+// server registers no MCP Resources. 2025-era connections are unaffected.
+const STATIC_CACHE_HINT: CacheHint = { ttlMs: 3_600_000, cacheScope: "public" };
+
 /** Construct a fully-registered MCP server. Shared by start() and tests. */
 export function buildServer(config: Config, logger: Logger): McpServer {
   const tmdb = new TmdbClient(config, logger);
@@ -27,7 +37,14 @@ export function buildServer(config: Config, logger: Logger): McpServer {
 
   const server = new McpServer(
     { name: "tmdb-mcp", title: "TMDB MCP Server", version: VERSION },
-    { instructions: INSTRUCTIONS },
+    {
+      instructions: INSTRUCTIONS,
+      cacheHints: {
+        "tools/list": STATIC_CACHE_HINT,
+        "prompts/list": STATIC_CACHE_HINT,
+        "server/discover": STATIC_CACHE_HINT,
+      },
+    },
   );
 
   registerTmdbTools(server, tmdb, omdb, config);

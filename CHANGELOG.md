@@ -6,6 +6,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Advertise `cacheHints` (`ttlMs: 3600000`, `cacheScope: 'public'`) on `tools/list`/`prompts/list`/`server/discover` for protocol revision 2026-07-28 connections — this server's tool/prompt list never changes at runtime, so a client or shared proxy may cache it for an hour instead of the SDK's conservative `ttlMs: 0`/`private` default. 2025-era connections are unaffected.
+
 ### Fixed
 
 - Remove `get_movies`/`get_tv_shows`' `region` param — the compact card drops the only fields it ever affected (certification), so it was a fully inert input ([083e231](https://github.com/Grinv/tmdb-mcp/commit/083e231)).
