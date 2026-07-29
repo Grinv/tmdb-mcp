@@ -29,5 +29,11 @@ describe("redact", () => {
     assert.match(redact("grant&refresh_token=SECRET&x=1"), /refresh_token=\*\*\*/);
     assert.ok(!redact("client_secret=zzz999").includes("zzz999"));
     assert.ok(!redact("access_token=TOK").includes("TOK"));
+    // OMDb's key is sent as ?apikey=... (clients/omdb.ts) — a retried request's
+    // full URL is logged at debug level (lib/http.ts), so this param must be
+    // stripped too or OMDB_API_KEY leaks into stderr under LOG_LEVEL=debug.
+    assert.ok(
+      !redact("https://www.omdbapi.com/?apikey=SECRETKEY&i=tt0111161").includes("SECRETKEY"),
+    );
   });
 });

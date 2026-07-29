@@ -53,5 +53,8 @@ export function classifyStatus(status: number): { code: ApiErrorCode; retryable:
 export function redact(input: string): string {
   return input
     .replace(/Bearer\s+[A-Za-z0-9._~+/-]+=*/gi, "Bearer ***")
-    .replace(/\b(access_token|refresh_token|client_secret|client_id)=([^&\s"]+)/gi, "$1=***");
+    .replace(
+      /\b(access_token|refresh_token|client_secret|client_id|apikey)=([^&\s"]+)/gi,
+      "$1=***",
+    );
 }
