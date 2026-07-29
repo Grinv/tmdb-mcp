@@ -45,4 +45,8 @@ Check every one of these, not just a sample:
   cached" after a later feature added exactly that caching, and a separate
   claim conflated an actually-cached field with a similarly-named
   never-cached one — neither doc was self-evidently wrong, both required
-  re-reading the client code to catch.
+  re-reading the client code to catch. Also confirm `README.md` links both
+  (a `## Privacy Policy`/`## Security` section pointing at them) — adding
+  either file doesn't make it discoverable on its own, and this repo's own
+  `SECURITY.md` shipped with no README link at all until this exact check
+  caught it.

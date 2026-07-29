@@ -207,6 +207,12 @@ This product uses the TMDB API but is not endorsed or certified by TMDB.
 see [PRIVACY.md](PRIVACY.md) for exactly what it sends to TMDB/OMDb and what
 (if anything) it stores locally.
 
+## Security
+
+Read-only, two fixed upstream hosts, credentials never persisted — see
+[SECURITY.md](SECURITY.md) for the full breakdown and how to report a
+vulnerability.
+
 ## License
 
 [MIT](LICENSE) © Grinv
