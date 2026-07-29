@@ -8,10 +8,17 @@ description: Cut a release of tmdb-mcp — draft CHANGELOG entries, check docs/m
 `package.json` is the **single source of truth** for the version. The npm
 `version` lifecycle hook runs `scripts/sync-version.mjs`, which propagates it to
 `src/version.ts`, `manifest.json` and `server.json` (incl. the `.mcpb` release-asset
-URL); `version.test.ts` guards that they never drift. `sync-version.mjs` uses
-`import.meta.dirname`, so running `npm version` yourself needs Node ≥ 20.11 —
-the package's own `engines.node` floor (≥ 20) is unaffected, since the shipped
-server never touches this script.
+URL), and moves `CHANGELOG.md`'s `[Unreleased]` notes under a new
+`## [x.y.z] - <date>` heading (leaving `[Unreleased]` empty); `version.test.ts`
+guards that the version files never drift and that a heading for the current
+version exists. This used to be a manual "docs: move Unreleased notes under
+X.Y.Z" step that had to happen **before** `npm version` — easy to forget, or
+easy to do in the wrong order (a v0.9.0 release once shipped tagged with
+`CHANGELOG.md` still saying "Unreleased", caught by nothing). It's now
+atomic with the version bump itself, so there's no ordering to get wrong.
+`sync-version.mjs` uses `import.meta.dirname`, so running `npm version`
+yourself needs Node ≥ 20.11 — the package's own `engines.node` floor (≥ 20)
+is unaffected, since the shipped server never touches this script.
 
 A `preversion` hook (`scripts/preversion-check.mjs`) runs first — it's a
 presence-only safety net, not a substitute for actually running the skill
@@ -27,7 +34,9 @@ genuinely has no user-facing changes, e.g. a pure dependency bump.)
 don't rely on the `preversion` hook alone to catch a skipped one:
 
 1. Invoke the `changelog-style` skill against the commits since the last tag;
-   write/fix the `[Unreleased]` entries per its style rules.
+   write/fix the `[Unreleased]` entries per its style rules. Leave them under
+   `[Unreleased]` — do **not** hand-rename that heading to the target version;
+   `npm version` (step 4) does that automatically now.
 2. Run the `docs-consistency-check` skill — none of this is version-bump
    mechanics, so `sync-version.mjs`/`version.test.ts` don't catch drift here,
    and it accumulates silently across several PRs (`manifest.json`'s
@@ -45,6 +54,19 @@ The tag push (`v*`) runs the **Release** workflow: `check:api` gate → build �
 provenance — no token) → **publish to the official MCP Registry** (`mcp-publisher`,
 GitHub OIDC). Never hand-edit the version in the derived files; bump `package.json`
 via `npm version` and let the hook sync the rest.
+
+## Fixing a mistake before pushing
+
+If something's wrong after `npm version` but before step 5 (e.g. a fixup commit
+needs to land under the same release), it's safe to amend history and move the
+tag — nothing's been pushed yet. One footgun when moving a tag:
+`git tag -f <name>` **without** `-a`/`-m` silently downgrades an existing
+annotated tag to a lightweight one, and `git push --follow-tags` silently skips
+lightweight tags — the push reports success but the tag never leaves your
+machine. Always move a tag with `git tag -f -a <name> -m "<name>"` (matching
+what `npm version` itself creates), then verify before pushing:
+`git cat-file -t <name>` must print `tag`, not `commit`. If you already
+force-pushed a lightweight tag, push it explicitly: `git push origin <name>`.
 
 ## MCP Registry
 

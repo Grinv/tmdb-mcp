@@ -63,6 +63,22 @@ describe("release metadata stays in sync with package.json", () => {
       `server.json description is ${server.description.length} chars (max 100)`,
     );
   });
+
+  // scripts/sync-version.mjs moves CHANGELOG.md's [Unreleased] notes under a
+  // "## [x.y.z] - <date>" heading as part of every version bump (atomically
+  // with bumping package.json itself), so this heading must always exist for
+  // the current version — a v0.9.0 release once shipped with this heading
+  // missing entirely (package.json/manifest/server.json all said 0.9.0, but
+  // CHANGELOG.md still said "Unreleased"), caught by nothing until a human
+  // happened to notice.
+  test("CHANGELOG.md has a heading for the current version", () => {
+    const changelog = readFileSync(join(root, "CHANGELOG.md"), "utf8");
+    assert.match(
+      changelog,
+      new RegExp(`^## \\[${pkg.version.replace(/\./g, "\\.")}\\] - \\d{4}-\\d{2}-\\d{2}$`, "m"),
+      `CHANGELOG.md has no "## [${pkg.version}] - <date>" heading`,
+    );
+  });
 });
 
 describe("manifest.json/server.json stay in sync with the running server", () => {

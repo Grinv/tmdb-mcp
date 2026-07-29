@@ -1,6 +1,6 @@
 ---
 name: changelog-style
-description: Turn a commit range into CHANGELOG.md entries following common-changelog style. Use when finishing a PR (adding to the [Unreleased] section) or cutting a release (moving [Unreleased] under a new version heading).
+description: Turn a commit range into CHANGELOG.md entries following common-changelog style. Use when finishing a PR or cutting a release, to write/fix the [Unreleased] section's entries — moving [Unreleased] under a new dated version heading is a separate, automated step (see the release skill / scripts/sync-version.mjs), not this skill's job.
 ---
 
 # Changelog entries: style & workflow
