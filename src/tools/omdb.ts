@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/server";
 import type { OmdbClient } from "../clients/omdb.js";
 import { ratingsSchema } from "../format.schemas.js";
-import { READ_ONLY, requireConfigured, trackStale } from "./shared.js";
+import { READ_ONLY, requireConfiguredCached } from "./shared.js";
 
 export function registerOmdbTools(server: McpServer, omdb: OmdbClient): void {
   server.registerTool(
@@ -56,15 +56,13 @@ export function registerOmdbTools(server: McpServer, omdb: OmdbClient): void {
       annotations: READ_ONLY,
     },
     ({ imdb_id, title, year, type }) => {
-      const stale = trackStale();
-      return requireConfigured(
+      return requireConfiguredCached(
         omdb,
-        () =>
+        (onStale) =>
           imdb_id
-            ? omdb.ratingsByImdbId(imdb_id, stale.onStale)
-            : omdb.ratingsByTitle(title!, year, type, stale.onStale),
+            ? omdb.ratingsByImdbId(imdb_id, onStale)
+            : omdb.ratingsByTitle(title!, year, type, onStale),
         () => (!imdb_id && !title ? "Provide either imdb_id or title." : undefined),
-        stale.meta,
       );
     },
   );

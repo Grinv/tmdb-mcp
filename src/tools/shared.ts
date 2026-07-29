@@ -67,3 +67,20 @@ export async function requireConfigured(
     return errorResult(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
+
+/** requireConfigured, wired up for a cached client method: creates the
+ *  staleness tracker, passes its `onStale` into `fn`, and its `meta` as
+ *  `getMeta` — the three-step tracker/onStale/meta ritual every cached-tool
+ *  handler otherwise repeats by hand (17+ call sites in tools/tmdb.ts alone),
+ *  with the exact failure mode `trackStale`'s own doc comment warns about:
+ *  forgetting to wire it through silently serves stale data with no way for
+ *  the caller to detect it. Use this instead of manually calling
+ *  `trackStale()` for any handler that doesn't also need `validate`. */
+export function requireConfiguredCached<T extends Record<string, unknown>>(
+  client: ConfigurableClient,
+  fn: (onStale: () => void) => Promise<T>,
+  validate?: () => string | undefined,
+): Promise<ToolResult> {
+  const stale = trackStale();
+  return requireConfigured(client, () => fn(stale.onStale), validate, stale.meta);
+}

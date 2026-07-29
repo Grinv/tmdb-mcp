@@ -37,7 +37,7 @@ import {
   watchProviderMatchesSchema,
   watchProvidersSchema,
 } from "../format.schemas.js";
-import { READ_ONLY, requireConfigured, trackStale } from "./shared.js";
+import { READ_ONLY, requireConfigured, requireConfiguredCached } from "./shared.js";
 
 const page = z
   .number()
@@ -483,6 +483,12 @@ export function registerTmdbTools(
     fn: () => Promise<T>,
     getMeta?: () => Record<string, unknown> | undefined,
   ) => requireConfigured(tmdb, fn, undefined, getMeta);
+  // For a cached client method: wires up staleness tracking automatically
+  // instead of the caller hand-assembling trackStale()/onStale/meta — see
+  // requireConfiguredCached's own doc comment for why.
+  const requireTmdbCached = <T extends Record<string, unknown>>(
+    fn: (onStale: () => void) => Promise<T>,
+  ) => requireConfiguredCached(tmdb, fn);
   const region = regionSchema(config.tmdbRegion);
 
   // ---- search ---------------------------------------------------------------
@@ -663,10 +669,8 @@ export function registerTmdbTools(
       annotations: READ_ONLY,
     },
     ({ query, media_type, watch_region }) => {
-      const stale = trackStale();
-      return requireTmdb(
-        () => tmdb.searchWatchProviders(media_type, query, watch_region, stale.onStale),
-        stale.meta,
+      return requireTmdbCached((onStale) =>
+        tmdb.searchWatchProviders(media_type, query, watch_region, onStale),
       );
     },
   );
@@ -698,21 +702,18 @@ export function registerTmdbTools(
       annotations: READ_ONLY,
     },
     ({ id, region: r, language: lang, include_ratings }) => {
-      const stale = trackStale();
-      return requireTmdb(
-        () =>
-          getEnrichedDetail(
-            "movie",
-            id,
-            r,
-            lang,
-            include_ratings ?? true,
-            tmdb,
-            omdb,
-            false,
-            stale.onStale,
-          ),
-        stale.meta,
+      return requireTmdbCached((onStale) =>
+        getEnrichedDetail(
+          "movie",
+          id,
+          r,
+          lang,
+          include_ratings ?? true,
+          tmdb,
+          omdb,
+          false,
+          onStale,
+        ),
       );
     },
   );
@@ -750,21 +751,18 @@ export function registerTmdbTools(
       annotations: READ_ONLY,
     },
     ({ id, region: r, language: lang, include_ratings, expand_episodes }) => {
-      const stale = trackStale();
-      return requireTmdb(
-        () =>
-          getEnrichedDetail(
-            "tv",
-            id,
-            r,
-            lang,
-            include_ratings ?? true,
-            tmdb,
-            omdb,
-            expand_episodes ?? false,
-            stale.onStale,
-          ),
-        stale.meta,
+      return requireTmdbCached((onStale) =>
+        getEnrichedDetail(
+          "tv",
+          id,
+          r,
+          lang,
+          include_ratings ?? true,
+          tmdb,
+          omdb,
+          expand_episodes ?? false,
+          onStale,
+        ),
       );
     },
   );
@@ -789,8 +787,7 @@ export function registerTmdbTools(
       annotations: READ_ONLY,
     },
     ({ ids, language: lang, include_ratings }) => {
-      const stale = trackStale();
-      return requireTmdb(async () => {
+      return requireTmdbCached(async (onStale) => {
         const settled = await Promise.allSettled(
           ids.map((id) =>
             getEnrichedDetail(
@@ -802,7 +799,7 @@ export function registerTmdbTools(
               tmdb,
               omdb,
               false,
-              stale.onStale,
+              onStale,
             ),
           ),
         );
@@ -813,7 +810,7 @@ export function registerTmdbTools(
               : notFoundCard(ids[i]!, errorReason(result.reason)),
           ),
         };
-      }, stale.meta);
+      });
     },
   );
 
@@ -838,8 +835,7 @@ export function registerTmdbTools(
       annotations: READ_ONLY,
     },
     ({ ids, language: lang, include_ratings }) => {
-      const stale = trackStale();
-      return requireTmdb(async () => {
+      return requireTmdbCached(async (onStale) => {
         const settled = await Promise.allSettled(
           ids.map((id) =>
             getEnrichedDetail(
@@ -851,7 +847,7 @@ export function registerTmdbTools(
               tmdb,
               omdb,
               false,
-              stale.onStale,
+              onStale,
             ),
           ),
         );
@@ -862,7 +858,7 @@ export function registerTmdbTools(
               : notFoundCard(ids[i]!, errorReason(result.reason)),
           ),
         };
-      }, stale.meta);
+      });
     },
   );
 
@@ -879,8 +875,7 @@ export function registerTmdbTools(
       annotations: READ_ONLY,
     },
     ({ id, language: lang }) => {
-      const stale = trackStale();
-      return requireTmdb(() => tmdb.getPerson(id, lang, stale.onStale), stale.meta);
+      return requireTmdbCached((onStale) => tmdb.getPerson(id, lang, onStale));
     },
   );
 
@@ -896,8 +891,7 @@ export function registerTmdbTools(
       annotations: READ_ONLY,
     },
     ({ id }) => {
-      const stale = trackStale();
-      return requireTmdb(() => tmdb.getMovieCredits(id, undefined, stale.onStale), stale.meta);
+      return requireTmdbCached((onStale) => tmdb.getMovieCredits(id, undefined, onStale));
     },
   );
 
@@ -913,8 +907,7 @@ export function registerTmdbTools(
       annotations: READ_ONLY,
     },
     ({ id }) => {
-      const stale = trackStale();
-      return requireTmdb(() => tmdb.getTvCredits(id, undefined, stale.onStale), stale.meta);
+      return requireTmdbCached((onStale) => tmdb.getTvCredits(id, undefined, onStale));
     },
   );
 
@@ -1003,8 +996,7 @@ export function registerTmdbTools(
       annotations: READ_ONLY,
     },
     ({ id, language: lang }) => {
-      const stale = trackStale();
-      return requireTmdb(() => tmdb.getCollection(id, lang, stale.onStale), stale.meta);
+      return requireTmdbCached((onStale) => tmdb.getCollection(id, lang, onStale));
     },
   );
 
@@ -1051,8 +1043,7 @@ export function registerTmdbTools(
       annotations: READ_ONLY,
     },
     () => {
-      const stale = trackStale();
-      return requireTmdb(() => tmdb.getGenres("movie", undefined, stale.onStale), stale.meta);
+      return requireTmdbCached((onStale) => tmdb.getGenres("movie", undefined, onStale));
     },
   );
 
@@ -1068,8 +1059,7 @@ export function registerTmdbTools(
       annotations: READ_ONLY,
     },
     () => {
-      const stale = trackStale();
-      return requireTmdb(() => tmdb.getGenres("tv", undefined, stale.onStale), stale.meta);
+      return requireTmdbCached((onStale) => tmdb.getGenres("tv", undefined, onStale));
     },
   );
 
@@ -1148,11 +1138,7 @@ export function registerTmdbTools(
       annotations: READ_ONLY,
     },
     ({ media_type, id, region: r }) => {
-      const stale = trackStale();
-      return requireTmdb(
-        () => tmdb.getWatchProviders(media_type, id, r, stale.onStale),
-        stale.meta,
-      );
+      return requireTmdbCached((onStale) => tmdb.getWatchProviders(media_type, id, r, onStale));
     },
   );
 
@@ -1187,10 +1173,8 @@ export function registerTmdbTools(
       annotations: READ_ONLY,
     },
     ({ id, department, limit }) => {
-      const stale = trackStale();
-      return requireTmdb(
-        () => tmdb.getPersonCredits(id, department, limit, undefined, stale.onStale),
-        stale.meta,
+      return requireTmdbCached((onStale) =>
+        tmdb.getPersonCredits(id, department, limit, undefined, onStale),
       );
     },
   );
@@ -1209,11 +1193,7 @@ export function registerTmdbTools(
       annotations: READ_ONLY,
     },
     ({ media_type, id }) => {
-      const stale = trackStale();
-      return requireTmdb(
-        () => tmdb.getVideos(media_type, id, undefined, stale.onStale),
-        stale.meta,
-      );
+      return requireTmdbCached((onStale) => tmdb.getVideos(media_type, id, undefined, onStale));
     },
   );
 
@@ -1238,11 +1218,7 @@ export function registerTmdbTools(
       annotations: READ_ONLY,
     },
     ({ imdb_id }) => {
-      const stale = trackStale();
-      return requireTmdb(
-        () => tmdb.findByExternalId(imdb_id, "imdb_id", stale.onStale),
-        stale.meta,
-      );
+      return requireTmdbCached((onStale) => tmdb.findByExternalId(imdb_id, "imdb_id", onStale));
     },
   );
 
@@ -1268,10 +1244,8 @@ export function registerTmdbTools(
       annotations: READ_ONLY,
     },
     ({ id, season_number }) => {
-      const stale = trackStale();
-      return requireTmdb(
-        () => tmdb.getTvSeason(id, season_number, undefined, stale.onStale),
-        stale.meta,
+      return requireTmdbCached((onStale) =>
+        tmdb.getTvSeason(id, season_number, undefined, onStale),
       );
     },
   );
@@ -1295,10 +1269,8 @@ export function registerTmdbTools(
       annotations: READ_ONLY,
     },
     ({ id, season_number, episode_number }) => {
-      const stale = trackStale();
-      return requireTmdb(
-        () => tmdb.getTvEpisode(id, season_number, episode_number, undefined, stale.onStale),
-        stale.meta,
+      return requireTmdbCached((onStale) =>
+        tmdb.getTvEpisode(id, season_number, episode_number, undefined, onStale),
       );
     },
   );
