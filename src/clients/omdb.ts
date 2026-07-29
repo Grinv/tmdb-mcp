@@ -55,17 +55,18 @@ export class OmdbClient {
     );
   }
 
-  /** Ratings looked up by title (+ optional year to disambiguate). */
+  /** Ratings looked up by title (+ optional year/type to disambiguate). */
   async ratingsByTitle(
     title: string,
     year?: number,
+    type?: "movie" | "series" | "episode",
     onStale?: () => void,
   ): Promise<ReturnType<typeof summarizeRatings>> {
     return this.#cache.wrapStaleOnError(
-      cacheKey(`omdb:t:${title}`, { year }),
+      cacheKey(`omdb:t:${title}`, { year, type }),
       async () => {
         const res = await this.#http.getJson<OmdbResponse>("", {
-          query: { apikey: this.#apiKey, t: title, y: year },
+          query: { apikey: this.#apiKey, t: title, y: year, type },
         });
         return summarizeRatings(res);
       },

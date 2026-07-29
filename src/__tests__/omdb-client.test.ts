@@ -37,6 +37,18 @@ describe("OmdbClient: query params", () => {
     await client().ratingsByTitle("The Matrix");
     assert.ok(!/[?&]y=/.test(mock.calls[0]!.url));
   });
+
+  test("ratingsByTitle sends `type` when given, omits it otherwise", async (t) => {
+    const mock = mockFetch(() => jsonResponse(OMDB_OK));
+    installFetch(t, mock);
+    await client().ratingsByTitle("Chuck", undefined, "movie");
+    assert.match(mock.calls[0]!.url, /[?&]type=movie/);
+
+    const mock2 = mockFetch(() => jsonResponse(OMDB_OK));
+    installFetch(t, mock2);
+    await client().ratingsByTitle("Chuck");
+    assert.ok(!/[?&]type=/.test(mock2.calls[0]!.url));
+  });
 });
 
 describe("OmdbClient: cache is wired through the real client, not just TtlCache in isolation", () => {
@@ -55,6 +67,18 @@ describe("OmdbClient: cache is wired through the real client, not just TtlCache 
     const c = client();
     await c.ratingsByTitle("Dune", 1984);
     await c.ratingsByTitle("Dune", 2021);
+    assert.equal(mock.calls.length, 2);
+  });
+
+  // Same title, different type, are genuinely different OMDb entries (e.g.
+  // "Chuck" the 2007 series vs. "Chuck" the 2016 movie) — conflating them
+  // under one cache slot would serve one type's rating for the other.
+  test("ratingsByTitle does not conflate different types under the same cache slot", async (t) => {
+    const mock = mockFetch(() => jsonResponse(OMDB_OK));
+    installFetch(t, mock);
+    const c = client();
+    await c.ratingsByTitle("Chuck", undefined, "series");
+    await c.ratingsByTitle("Chuck", undefined, "movie");
     assert.equal(mock.calls.length, 2);
   });
 });

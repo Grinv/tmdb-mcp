@@ -94,6 +94,35 @@ describe("get_ratings", () => {
     assert.ok(!url.includes("&i=") && !url.includes("?i="), "should not send an imdb_id param");
   });
 
+  test("passes type through to OMDb when looking up by title", async (t) => {
+    const mock = mockFetch(() => jsonResponse(OMDB_OK));
+    installFetch(t, mock);
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({
+      name: "get_ratings",
+      arguments: { title: "Chuck", type: "movie" },
+    });
+    assert.notEqual(res.isError, true);
+    const url = mock.calls[0]!.url;
+    assert.match(url, /[?&]type=movie/);
+  });
+
+  test("rejects an unrecognized type before hitting OMDb", async (t) => {
+    installFetch(
+      t,
+      mockFetch(() => jsonResponse(OMDB_OK)),
+    );
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({
+      name: "get_ratings",
+      arguments: { title: "Chuck", type: "documentary" },
+    });
+    assert.equal(res.isError, true);
+    assert.match(toolText(res), /type/);
+  });
+
   test("returns a soft not-found result on an OMDb miss, without throwing", async (t) => {
     installFetch(
       t,
