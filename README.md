@@ -82,7 +82,7 @@ install dialog. Re-download and reinstall to update.
 at it with `"command": "node"`, `"args": ["/ABS/PATH/tmdb-mcp/dist/index.js"]` and
 the same `env` as above.
 
-See [docs/clients.md](docs/clients.md) for per-client details and all tunables.
+See [docs/clients.md](https://github.com/Grinv/tmdb-mcp/blob/main/docs/clients.md) for per-client details and all tunables.
 
 ## What it does
 
@@ -154,7 +154,7 @@ One token is required (TMDB); the OMDb key is optional. Both are free.
    and TV details. Without it, everything else still works.
 
 Put these in your MCP client config's `env` block (see
-[docs/clients.md](docs/clients.md) for per-client snippets) — never commit them.
+[docs/clients.md](https://github.com/Grinv/tmdb-mcp/blob/main/docs/clients.md) for per-client snippets) — never commit them.
 `TMDB_LANGUAGE` / `TMDB_REGION` optionally set default locale/region (e.g. `ru-RU`, `RU`).
 
 ### Advanced tuning (env-only, no install-UI equivalent)
