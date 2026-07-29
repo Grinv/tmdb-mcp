@@ -109,6 +109,7 @@ See [docs/clients.md](https://github.com/Grinv/tmdb-mcp/blob/main/docs/clients.m
 | `get_tv_season` / `get_tv_episode`                     | Season episode list / single-episode details                                                                 |
 | `search_keywords`                                      | Resolve keyword names → ids for `discover_*`                                                                 |
 | `search_companies`                                     | Resolve a production company name → id for `discover_*`'s `with_companies`                                   |
+| `search_watch_providers`                               | Resolve a streaming/rental service name (e.g. 'Netflix') → id for `discover_*`'s `with_watch_providers`      |
 | `get_ratings`                                          | IMDb/RT/Metacritic ratings by IMDb id or title (standalone)                                                  |
 
 **Prompts.** Alongside the tools above, the server exposes two MCP prompts:

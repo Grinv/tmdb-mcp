@@ -67,6 +67,10 @@
     { "name": "search_keywords", "description": "Resolve keyword names to ids for discover." },
     { "name": "search_companies", "description": "Resolve a production company name to its id." },
     { "name": "get_watch_providers", "description": "Where to stream/rent/buy, by region." },
+    {
+      "name": "search_watch_providers",
+      "description": "Resolve a streaming service name (e.g. Netflix) to its id."
+    },
     { "name": "get_person_credits", "description": "A person's filmography (cast & crew)." },
     { "name": "get_videos", "description": "Trailers/teasers/clips (YouTube links)." },
     { "name": "find_by_imdb_id", "description": "Resolve an IMDb id to TMDB entities." },

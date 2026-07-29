@@ -319,6 +319,22 @@ export const watchProvidersSchema = z.discriminatedUnion("available", [
     .strict(),
 ]);
 
+// ---- summarizeWatchProviderMatches -------------------------------------------------
+
+export const watchProviderMatchesSchema = z
+  .object({
+    results: z.array(
+      z
+        .object({
+          provider_id: z.number(),
+          provider_name: z.string(),
+          logo_url: z.string().nullable(),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+
 // ---- summarizePersonCredits ---------------------------------------------------------
 
 const creditMediaType = z.enum(["movie", "tv"]).optional();

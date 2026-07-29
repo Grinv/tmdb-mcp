@@ -29,10 +29,12 @@ import {
   summarizeSeason,
   summarizeTv,
   summarizeVideos,
+  summarizeWatchProviderMatches,
   summarizeWatchProviders,
   type CombinedCredits,
   type KeywordsResponse,
   type Page,
+  type ProviderEntry,
   type TmdbCompany,
   type TmdbCredits,
   type TmdbReview,
@@ -739,6 +741,28 @@ export class TmdbClient {
       },
       onStale,
     );
+  }
+
+  // Provider ids feed discover_*'s with_watch_providers; this resolves a
+  // provider name (e.g. "Netflix") → id. TMDB's own endpoint has no query
+  // parameter — it always returns every provider for the given media type
+  // (+ region, if given), so the full list is cached (like getGenres caches
+  // its own reference list) and matched against `query` in the shaper.
+  async searchWatchProviders(
+    mediaType: "movie" | "tv",
+    query: string,
+    watchRegion?: string,
+    onStale?: () => void,
+  ): Promise<ReturnType<typeof summarizeWatchProviderMatches>> {
+    const providers = await this.#cached(
+      cacheKey(`watch-providers:${mediaType}`, { watchRegion }),
+      `watch/providers/${mediaType}`,
+      (res: { results?: ProviderEntry[] }) => res.results ?? [],
+      watchRegion ? { watch_region: watchRegion } : {},
+      undefined,
+      onStale,
+    );
+    return summarizeWatchProviderMatches(providers, query);
   }
 
   // ---- person filmography ---------------------------------------------------

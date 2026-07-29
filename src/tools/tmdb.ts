@@ -34,6 +34,7 @@ import {
   tvDetailEnrichedSchema,
   tvSummarySchema,
   videosSchema,
+  watchProviderMatchesSchema,
   watchProvidersSchema,
 } from "../format.schemas.js";
 import { READ_ONLY, requireConfigured, trackStale } from "./shared.js";
@@ -48,6 +49,13 @@ const page = z
   );
 const tmdbId = z.number().int().positive().describe("TMDB numeric id.");
 const mediaKind = z.enum(["movie", "tv"]).describe("Media type: 'movie' or 'tv'.");
+// Shared by discover_*'s with_watch_providers pairing and search_watch_providers:
+// watch-provider availability (and even a provider's own numeric id) is
+// region-specific, so both need the same "which country" field.
+const watchRegion = z
+  .string()
+  .regex(/^[A-Z]{2}$/, "Two-letter ISO-3166-1 country code.")
+  .describe("Two-letter ISO-3166-1 country code, e.g. 'US'.");
 // TMDB's own fixed department vocabulary for crew jobs (from
 // /configuration/jobs, verified live — stable reference data, not something
 // tmdb-mcp invents). get_person_credits' department filter uses this.
@@ -257,15 +265,11 @@ const discoverShared = {
   with_watch_providers: z
     .string()
     .describe(
-      "Comma-separated TMDB watch-provider ids (e.g. Netflix's numeric id); requires " +
-        "watch_region to also be set.",
+      "Comma-separated TMDB watch-provider ids (use search_watch_providers to resolve a " +
+        "service name, e.g. 'Netflix', to its numeric id); requires watch_region to also be set.",
     )
     .optional(),
-  watch_region: z
-    .string()
-    .regex(/^[A-Z]{2}$/, "Two-letter ISO-3166-1 country code.")
-    .describe("Country for with_watch_providers, e.g. 'US'.")
-    .optional(),
+  watch_region: watchRegion.optional(),
   // Shared, not movie-only: verified live against the real /discover/tv (not
   // just /discover/movie) — an unsupported/nonsense certification value
   // returns zero results there too, confirming TMDB actually applies it
@@ -625,6 +629,46 @@ export function registerTmdbTools(
     },
     ({ query, page: pg }, ctx) =>
       requireTmdb(() => tmdb.searchCompanies(query, pg, ctx.mcpReq.signal)),
+  );
+
+  server.registerTool(
+    "search_watch_providers",
+    {
+      title: "Search streaming/rental providers",
+      description:
+        "Resolve a streaming/rental/purchase service's name (e.g. 'Netflix', 'Disney Plus') to its " +
+        "TMDB numeric provider id. Feed the id into discover_movies/discover_tv's " +
+        "with_watch_providers (with watch_region set to the same region given here, if any) to " +
+        "find top titles on that service — TMDB has no name-based lookup of its own for this, only " +
+        "numeric ids, and there are hundreds of providers (269+ for the US alone, more elsewhere), " +
+        "so don't guess an id. A provider's id and even whether it's offered at all can differ by " +
+        "region (e.g. a service bundled as a channel add-on in one country vs. standalone in " +
+        "another) — pass watch_region to match what discover_movies/discover_tv will actually see; " +
+        "omitting it searches the full global provider list instead, which may include ids not valid " +
+        "for the region the caller actually cares about.",
+      inputSchema: z
+        .object({
+          query: z
+            .string()
+            .min(1)
+            .describe("Service name (or part of it) to look up, e.g. 'Netflix'."),
+          media_type: mediaKind.describe(
+            "Whether to search movie or TV providers — the same service can have a different id " +
+              "per media type.",
+          ),
+          watch_region: watchRegion.optional(),
+        })
+        .strict(),
+      outputSchema: watchProviderMatchesSchema,
+      annotations: READ_ONLY,
+    },
+    ({ query, media_type, watch_region }) => {
+      const stale = trackStale();
+      return requireTmdb(
+        () => tmdb.searchWatchProviders(media_type, query, watch_region, stale.onStale),
+        stale.meta,
+      );
+    },
   );
 
   // ---- details --------------------------------------------------------------

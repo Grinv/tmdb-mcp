@@ -35,6 +35,7 @@ import {
   tvDetailSchema,
   tvSummarySchema,
   videosSchema,
+  watchProviderMatchesSchema,
   watchProvidersSchema,
 } from "./format.schemas.js";
 
@@ -637,7 +638,7 @@ export function summarizeCompany(c: TmdbCompany): z.infer<typeof companySchema> 
 
 // ---- watch providers --------------------------------------------------------
 
-interface ProviderEntry {
+export interface ProviderEntry {
   provider_id?: number;
   provider_name?: string;
   logo_path?: string | null;
@@ -683,6 +684,31 @@ export function summarizeWatchProviders(
     buy: providerNames(here.buy),
     available_regions: regions,
   });
+}
+
+// TMDB's own /watch/providers/{movie,tv} endpoint has no query parameter — it
+// always returns every registered provider for that media type (+ region, if
+// given), so `search_watch_providers` fetches the full list (cached, like
+// get_movie_genres/get_tv_genres cache their own reference list) and matches
+// it against `query` here. Feeds discover_*'s `with_watch_providers` filter,
+// the same way search_keywords/search_companies feed with_keywords/with_companies.
+export function summarizeWatchProviderMatches(
+  providers: ProviderEntry[],
+  query: string,
+): z.infer<typeof watchProviderMatchesSchema> {
+  const q = query.trim().toLowerCase();
+  const results = providers
+    .filter(
+      (p): p is ProviderEntry & { provider_id: number; provider_name: string } =>
+        typeof p.provider_id === "number" && Boolean(p.provider_name),
+    )
+    .filter((p) => p.provider_name.toLowerCase().includes(q))
+    .map((p) => ({
+      provider_id: p.provider_id,
+      provider_name: p.provider_name,
+      logo_url: imageUrl(p.logo_path),
+    }));
+  return watchProviderMatchesSchema.parse({ results });
 }
 
 // ---- person combined credits ------------------------------------------------

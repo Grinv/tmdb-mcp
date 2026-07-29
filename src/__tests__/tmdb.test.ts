@@ -92,6 +92,16 @@ const WATCH_PROVIDERS = {
   },
 };
 
+// /watch/providers/{movie,tv}'s own reference-list shape (flat array), distinct
+// from the per-title WATCH_PROVIDERS above (region-keyed map).
+const WATCH_PROVIDER_LIST = {
+  results: [
+    { provider_id: 8, provider_name: "Netflix", logo_path: "/netflix.png" },
+    { provider_id: 175, provider_name: "Netflix Kids", logo_path: null },
+    { provider_id: 337, provider_name: "Disney Plus", logo_path: "/disney.png" },
+  ],
+};
+
 const COMBINED_CREDITS = {
   cast: [
     {
@@ -302,6 +312,11 @@ function router(url: string) {
   }
   if (url.includes("/discover/tv")) {
     return jsonResponse(pageOf([TV_DETAIL]));
+  }
+  // Must precede the generic /watch/providers check below: both this
+  // reference-list endpoint and the per-title one share that substring.
+  if (url.includes("/watch/providers/movie") || url.includes("/watch/providers/tv")) {
+    return jsonResponse(WATCH_PROVIDER_LIST);
   }
   if (url.includes("/watch/providers")) return jsonResponse(WATCH_PROVIDERS);
   if (url.includes("/combined_credits")) return jsonResponse(COMBINED_CREDITS);
@@ -1280,6 +1295,55 @@ describe("get_watch_providers", () => {
     // Under the old id-only cache key this returned the US slice.
     assert.equal(gb.region, "GB");
     assert.deepEqual(gb.streaming, ["Prime Video"]);
+  });
+});
+
+describe("search_watch_providers", () => {
+  test("resolves a provider name to its id, matching substrings case-insensitively", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({
+      name: "search_watch_providers",
+      arguments: { query: "netflix", media_type: "tv" },
+    });
+    const s = res.structuredContent as {
+      results: { provider_id: number; provider_name: string; logo_url: string | null }[];
+    };
+    // "netflix" (lowercase) matches both "Netflix" and "Netflix Kids" — not
+    // "Disney Plus" — confirming case-insensitive substring matching.
+    assert.equal(s.results.length, 2);
+    assert.equal(s.results[0]!.provider_id, 8);
+    assert.equal(s.results[0]!.provider_name, "Netflix");
+    assert.match(s.results[0]!.logo_url!, /netflix\.png$/);
+    assert.equal(s.results[1]!.provider_id, 175);
+    assert.equal(s.results[1]!.logo_url, null);
+  });
+
+  test("an unmatched query returns an empty result, not an error", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({
+      name: "search_watch_providers",
+      arguments: { query: "no such service", media_type: "movie" },
+    });
+    const s = res.structuredContent as { results: unknown[] };
+    assert.equal(res.isError, undefined);
+    assert.deepEqual(s.results, []);
+  });
+
+  test("passes watch_region through as a query param (movie vs. tv use separate endpoints)", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    await client.callTool({
+      name: "search_watch_providers",
+      arguments: { query: "Disney", media_type: "movie", watch_region: "US" },
+    });
+    const call = mock.calls.find((c) => c.url.includes("/watch/providers/movie"))!;
+    assert.match(call.url, /watch_region=US/);
   });
 });
 
