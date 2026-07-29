@@ -68,6 +68,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.7.0] - 2026-07-22
 
+Everything below is one commit: [6d6ff93](https://github.com/Grinv/tmdb-mcp/commit/6d6ff93).
+
 ### Added
 
 - Surface `_meta: {"tmdb-mcp/stale": true}` on a tool result when the upstream (TMDB/OMDb) was down and the response was served from a stale cache entry, so a caller can tell degraded data from a fresh answer instead of it looking identical.
@@ -82,6 +84,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Reject a `page` above TMDB's hard cap of 500 up front instead of surfacing TMDB's raw error.
 
 ## [0.6.0] - 2026-07-21
+
+Everything below is one commit: [f2a88e7](https://github.com/Grinv/tmdb-mcp/commit/f2a88e7).
 
 ### Added
 
@@ -104,6 +108,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.5.1] - 2026-07-20
 
+Everything below is one commit: [04789ef](https://github.com/Grinv/tmdb-mcp/commit/04789ef).
+
 ### Fixed
 
 - Fix `search_people` mis-shaping every result as a TV show (`media_type: "tv"`, wrong fields) instead of a person — TMDB's `/search/person` endpoint, unlike `/search/multi`, never sends `media_type`.
@@ -114,11 +120,15 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.5.0] - 2026-07-20
 
+Everything below is one commit: [70c03cb](https://github.com/Grinv/tmdb-mcp/commit/70c03cb).
+
 ### Added
 
 - Add `expand_episodes` to `get_tv`, fetching every season's full episode list (`seasons_detail`) in one extra request instead of calling `get_tv_season` once per season.
 
 ## [0.4.1] - 2026-07-18
+
+Everything below is one commit: [823a490](https://github.com/Grinv/tmdb-mcp/commit/823a490).
 
 ### Changed
 
