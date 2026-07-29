@@ -8,17 +8,18 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- Advertise `cacheHints` (`ttlMs: 3600000`, `cacheScope: 'public'`) on `tools/list`/`prompts/list`/`server/discover` for protocol revision 2026-07-28 — this server's tool/prompt list never changes at runtime, so a client or proxy may cache it for an hour instead of the SDK's conservative default ([1f8246b](https://github.com/Grinv/tmdb-mcp/commit/1f8246b)).
-- Add `include_adult` and `region` to `discover_movies`/`discover_tv` (`region` is movie-only, verified live against `/discover/tv`) — `include_adult` measurably changes the result set on both endpoints; `region`'s documented date-filtering effect wasn't reproducible, only a small, unexplained shift in unfiltered result counts was confirmed live ([7ed7c99](https://github.com/Grinv/tmdb-mcp/commit/7ed7c99)).
-- Add `type` (`movie`/`series`/`episode`) to `get_ratings`'s title lookup — without it, OMDb's title match can silently prefer one type over another for an ambiguous name (e.g. "Chuck": the 2007 series, not the 2016 movie) ([6a35918](https://github.com/Grinv/tmdb-mcp/commit/6a35918)).
+- Advertise `cacheHints` on `tools/list`/`prompts/list`/`server/discover` for protocol revision 2026-07-28, since this server's tool/prompt list never changes at runtime ([1f8246b](https://github.com/Grinv/tmdb-mcp/commit/1f8246b)).
+- Add `include_adult` to `discover_movies`/`discover_tv` — verified live to change the result set on both endpoints ([7ed7c99](https://github.com/Grinv/tmdb-mcp/commit/7ed7c99)).
+- Add `region` to `discover_movies` (movie-only) — its documented date-filtering effect wasn't reproducible live, only disclosed as-is ([7ed7c99](https://github.com/Grinv/tmdb-mcp/commit/7ed7c99)).
+- Add `type` (`movie`/`series`/`episode`) to `get_ratings`'s title lookup, to disambiguate same-titled entries of different types (e.g. "Chuck" the movie vs. the series) ([6a35918](https://github.com/Grinv/tmdb-mcp/commit/6a35918)).
 
 ### Fixed
 
-- Remove `get_movies`/`get_tv_shows`' `region` param — the compact card drops the only fields it ever affected, so it was a fully inert input ([083e231](https://github.com/Grinv/tmdb-mcp/commit/083e231)).
+- Remove `get_movies`/`get_tv_shows`' `region` param — a fully inert input, since the compact card drops the only fields it ever affected ([083e231](https://github.com/Grinv/tmdb-mcp/commit/083e231)).
 - Disclose that `search_movies`' `region` only picks which country's release_date is shown per result, unlike `get_watch_providers`' `region` ([083e231](https://github.com/Grinv/tmdb-mcp/commit/083e231)).
-- Reject an unrecognized `sort_by` on `discover_movies`/`discover_tv` via a strict, per-kind enum instead of silently falling back to TMDB's default order — every accepted value verified live to actually reorder results ([7ed7c99](https://github.com/Grinv/tmdb-mcp/commit/7ed7c99)).
-- Disclose that a season entirely skipped by `get_tv`'s `expand_episodes` combined-episode budget also loses its `overview`/`poster_url`, not just its episode list ([0e85a8d](https://github.com/Grinv/tmdb-mcp/commit/0e85a8d)).
-- Fix `top_by_entity`'s TV step to still apply a given `genre` to `discover_tv` for a COMPANY (via `with_genres`) — previously only the movies branch carried the genre filter through ([d520865](https://github.com/Grinv/tmdb-mcp/commit/d520865)).
+- Reject an unrecognized `sort_by` on `discover_movies`/`discover_tv` via a strict, per-kind enum instead of silently falling back to TMDB's default order ([7ed7c99](https://github.com/Grinv/tmdb-mcp/commit/7ed7c99)).
+- Disclose that a season skipped by `get_tv`'s `expand_episodes` budget also loses its `overview`/`poster_url`, not just its episode list ([0e85a8d](https://github.com/Grinv/tmdb-mcp/commit/0e85a8d)).
+- Fix `top_by_entity`'s TV step to still apply a given `genre` to `discover_tv` for a COMPANY ([d520865](https://github.com/Grinv/tmdb-mcp/commit/d520865)).
 
 ## [0.8.1] - 2026-07-23
 
