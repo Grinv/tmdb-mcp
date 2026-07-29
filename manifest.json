@@ -17,6 +17,11 @@
     "url": "https://github.com/Grinv/tmdb-mcp"
   },
   "license": "MIT",
+  "privacy_policies": [
+    "https://github.com/Grinv/tmdb-mcp/blob/main/PRIVACY.md",
+    "https://www.themoviedb.org/privacy-policy",
+    "https://www.omdbapi.com/legal.htm"
+  ],
   "keywords": ["mcp", "tmdb", "imdb", "omdb", "movies", "tv"],
   "server": {
     "type": "node",

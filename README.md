@@ -201,6 +201,12 @@ Runtime requires Node ≥ 20. Contributor/agent guidance lives in
 
 This product uses the TMDB API but is not endorsed or certified by TMDB.
 
+## Privacy Policy
+
+`tmdb-mcp` runs entirely on your own machine and collects no data of its own —
+see [PRIVACY.md](PRIVACY.md) for exactly what it sends to TMDB/OMDb and what
+(if anything) it stores locally.
+
 ## License
 
 [MIT](LICENSE) © Grinv
