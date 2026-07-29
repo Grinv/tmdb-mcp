@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-07-29
+
 ### Added
 
 - Advertise `cacheHints` on `tools/list`/`prompts/list`/`server/discover` for protocol revision 2026-07-28, since this server's tool/prompt list never changes at runtime ([1f8246b](https://github.com/Grinv/tmdb-mcp/commit/1f8246b)).
