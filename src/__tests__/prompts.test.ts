@@ -134,4 +134,24 @@ describe("top_by_entity prompt", () => {
       }),
     );
   });
+
+  test("a company + genre + media_type=tv combo still applies the genre to discover_tv", async (t) => {
+    const { client, close } = await connectServer({});
+    t.after(close);
+    const res = await client.getPrompt({
+      name: "top_by_entity",
+      arguments: {
+        name: "Pixar",
+        entity_type: "company",
+        genre: "Comedy",
+        media_type: "tv",
+      },
+    });
+    const text = contentText(res.messages[0]!.content);
+    const genreStep = text.match(/^(\d+)\. Resolve "Comedy" to a genre id/m);
+    assert.ok(genreStep, "genre-resolution step should be present");
+    // The TV/COMPANY branch must reference that step's genre id — dropping it
+    // silently ignores the genre filter for a company's TV catalogue.
+    assert.match(text, new RegExp(`with_genres from step ${genreStep![1]}`));
+  });
 });
