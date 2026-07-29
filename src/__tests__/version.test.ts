@@ -4,7 +4,13 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { VERSION } from "../version.js";
 import { connectServer, DEFAULT_ENV } from "./helpers.js";
-import { renderChangelogRelease } from "../../scripts/sync-version.mjs";
+// Imports the real, unbundled script directly (scripts/build-tests.mjs only
+// compiles src/) — this relies on sync-version.mjs's own module-guard
+// (`import.meta.url === pathToFileURL(process.argv[1]).href`) to keep main()
+// from running as a side effect of this import. If that guard is ever
+// weakened, `npm test` would start writing to package.json/manifest.json/
+// server.json/CHANGELOG.md — keep that invariant in mind before touching it.
+import { renderChangelogRelease, unreleasedHasBullets } from "../../scripts/sync-version.mjs";
 
 // Tests run from the dist-tests/ working directory; the repo root is one level up.
 const root = join(process.cwd(), "..");
@@ -99,13 +105,27 @@ describe("renderChangelogRelease", () => {
     assert.match(out, /## \[0\.9\.0\] - 2026-07-29\n\n### Added\n\n- Old thing\./);
   });
 
-  test("is a no-op when [Unreleased] has no bullets (idempotent re-run / no-user-facing-change release)", () => {
+  test("still files a heading (with a placeholder note) when [Unreleased] has no bullets", () => {
+    // A CONFIRM_EMPTY_CHANGELOG=1 release still needs its own heading with
+    // SOME content, or release.yml's fail-loud "no CHANGELOG section found"
+    // guard fires on exactly the scenario that escape hatch exists to allow.
     const fixture = "## [Unreleased]\n\n## [0.9.0] - 2026-07-29\n\n### Added\n\n- Old thing.\n";
-    assert.equal(renderChangelogRelease(fixture, "0.10.0", "2026-08-01"), fixture);
+    const out = renderChangelogRelease(fixture, "0.10.0", "2026-08-01");
+    assert.match(out, /## \[Unreleased\]\n\n## \[0\.10\.0\] - 2026-08-01\n/);
+    assert.match(out, /## \[0\.10\.0\][\s\S]*_No user-facing changes in this release\._/);
+    assert.match(out, /## \[0\.9\.0\] - 2026-07-29\n\n### Added\n\n- Old thing\./);
   });
 
-  test("is a no-op when [Unreleased] has only blank lines before the next heading", () => {
+  test("still files a heading when [Unreleased] has only blank lines before the next heading", () => {
     const fixture = "## [Unreleased]\n\n\n## [0.9.0] - 2026-07-29\n\n- Old thing.\n";
+    const out = renderChangelogRelease(fixture, "0.10.0", "2026-08-01");
+    assert.match(out, /## \[0\.10\.0\][\s\S]*_No user-facing changes in this release\._/);
+  });
+
+  test("is idempotent: a re-run once this version's heading already exists is a no-op", () => {
+    const fixture =
+      "## [Unreleased]\n\n## [0.10.0] - 2026-08-01\n\n### Fixed\n\n- Something.\n\n" +
+      "## [0.9.0] - 2026-07-29\n\n### Added\n\n- Old thing.\n";
     assert.equal(renderChangelogRelease(fixture, "0.10.0", "2026-08-01"), fixture);
   });
 
@@ -113,6 +133,20 @@ describe("renderChangelogRelease", () => {
     assert.throws(() =>
       renderChangelogRelease("## [0.10.0] - 2026-08-01\n", "0.11.0", "2026-09-01"),
     );
+  });
+});
+
+describe("unreleasedHasBullets", () => {
+  test("true when [Unreleased] has a real bullet", () => {
+    assert.equal(unreleasedHasBullets("## [Unreleased]\n\n- Something.\n\n## [0.9.0]\n"), true);
+  });
+
+  test("false when [Unreleased] has no bullets", () => {
+    assert.equal(unreleasedHasBullets("## [Unreleased]\n\n## [0.9.0]\n"), false);
+  });
+
+  test("throws if the Unreleased heading is missing entirely", () => {
+    assert.throws(() => unreleasedHasBullets("## [0.9.0] - 2026-07-29\n"));
   });
 });
 
