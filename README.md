@@ -191,7 +191,7 @@ npm run inspector    # run under the MCP Inspector
 ```
 
 Runtime requires Node ≥ 20. Contributor/agent guidance lives in
-[AGENTS.md](AGENTS.md).
+[AGENTS.md](https://github.com/Grinv/tmdb-mcp/blob/main/AGENTS.md).
 
 ## Updating
 
