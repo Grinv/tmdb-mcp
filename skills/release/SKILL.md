@@ -20,15 +20,22 @@ atomic with the version bump itself, so there's no ordering to get wrong.
 yourself needs Node ≥ 20.11 — the package's own `engines.node` floor (≥ 20)
 is unaffected, since the shipped server never touches this script.
 
-A `preversion` hook (`scripts/preversion-check.mjs`) runs first — it's a
-presence-only safety net, not a substitute for actually running the skill
-below as a real judgment step. It blocks `npm version` if `CHANGELOG.md`'s
-`[Unreleased]` section is empty: run the `changelog-style` skill against the
-commits since the last tag first — it's what actually makes the entries
-short, self-describing, free of implementation detail, and linked to their
-commits; the hook only confirms _something_ is there, not that it follows
-that style. (Or re-run with `CONFIRM_EMPTY_CHANGELOG=1` if this release
-genuinely has no user-facing changes, e.g. a pure dependency bump.)
+A `preversion` hook (`scripts/preversion-check.mjs`) runs first, with two checks:
+
+- **Unpushed-tag race**: if the _current_ `package.json` version already has a
+  local git tag, it blocks unless that tag is also on `origin` — this is the
+  exact race that once orphaned a version in a sibling repo (`npm version` run
+  twice within minutes, the first tag/commit never pushed, silently buried
+  under the second). Push the dangling tag (`git push origin vX.Y.Z`) or
+  delete it if it was a mistake (`git tag -d vX.Y.Z`), then retry.
+- **Empty `[Unreleased]`**: presence-only safety net, not a substitute for
+  actually running the skill below as a real judgment step. Run the
+  `changelog-style` skill against the commits since the last tag first — it's
+  what actually makes the entries short, self-describing, free of
+  implementation detail, and linked to their commits; the hook only confirms
+  _something_ is there, not that it follows that style. (Or re-run with
+  `CONFIRM_EMPTY_CHANGELOG=1` if this release genuinely has no user-facing
+  changes, e.g. a pure dependency bump.)
 
 **When invoked as this skill**, run these as explicit steps, not optional —
 don't rely on the `preversion` hook alone to catch a skipped one:
@@ -50,10 +57,17 @@ don't rely on the `preversion` hook alone to catch a skipped one:
 5. `git push --follow-tags` — pushing the tag triggers `.github/workflows/release.yml`.
 
 The tag push (`v*`) runs the **Release** workflow: `check:api` gate → build → test
-→ pack `.mcpb` → GitHub Release → `npm publish` (OIDC trusted publishing, with
-provenance — no token) → **publish to the official MCP Registry** (`mcp-publisher`,
-GitHub OIDC). Never hand-edit the version in the derived files; bump `package.json`
-via `npm version` and let the hook sync the rest.
+→ pack `.mcpb` → extract `CHANGELOG.md`'s section for this version (fails loudly,
+not silently, if that section is empty — the workflow's own safety net for
+whatever slipped past `sync-version.mjs`/`preversion-check.mjs`) → GitHub Release
+→ `npm publish` (OIDC trusted publishing, with provenance, pinned to an exact
+verified-good npm version — no token; skipped without failing the job if this
+version is already on npm, so a re-run after a partial failure doesn't abort) →
+inject the just-packed `.mcpb`'s SHA-256 into `server.json` (fails loudly if the
+injection didn't actually match a package, instead of silently leaving a stale
+hash) → **publish to the official MCP Registry** (`mcp-publisher`, GitHub OIDC).
+Never hand-edit the version in the derived files; bump `package.json` via
+`npm version` and let the hook sync the rest.
 
 ## Fixing a mistake before pushing
 
