@@ -6,6 +6,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- Redact OMDb's `apikey` query parameter from log output, closing a gap where a retried request's logged URL could leak `OMDB_API_KEY` under `LOG_LEVEL=debug` ([573a4cf](https://github.com/Grinv/tmdb-mcp/commit/573a4cf)).
+
 ## [0.9.0] - 2026-07-29
 
 ### Added
