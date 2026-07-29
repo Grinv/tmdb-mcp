@@ -48,11 +48,12 @@ import {
 import type { Logger } from "../lib/logger.js";
 import type { Config } from "../config.js";
 // Type-only: DiscoverParams' source of truth is the input zod schema in
-// tools/tmdb.ts (per-field descriptions/validation belong there), z.infer'd
-// and re-exported for client code — see discoverParamsSchema in tools/tmdb.ts.
+// tools/tmdb/discover.ts (per-field descriptions/validation belong there),
+// z.infer'd and re-exported for client code — see discoverParamsSchema there.
 // `import type` is fully erased at build, so this doesn't create a runtime
-// circular import even though tools/tmdb.ts also imports TmdbClient from here.
-import type { DiscoverParams } from "../tools/tmdb.js";
+// circular import even though tools/tmdb/discover.ts also imports TmdbClient
+// from here.
+import type { DiscoverParams } from "../tools/tmdb/discover.js";
 
 type Query = Record<string, string | number | boolean | undefined>;
 
@@ -886,11 +887,11 @@ export class TmdbClient {
 // despite TMDB's own docs only mentioning it for movies). The Record type
 // requires every DiscoverParams field
 // (other than `language`, applied separately) to have a row here, so adding a
-// field to either tool-facing discover schema in tools/tmdb.ts without adding
-// its mapping here is a compile error instead of a filter that silently never
-// reaches TMDB — DiscoverParams itself is z.infer'd from that schema (see
-// discoverParamsSchema in tools/tmdb.ts), so there's no third hand-kept copy
-// left to drift.
+// field to either tool-facing discover schema in tools/tmdb/discover.ts without
+// adding its mapping here is a compile error instead of a filter that silently
+// never reaches TMDB — DiscoverParams itself is z.infer'd from that schema
+// (see discoverParamsSchema in tools/tmdb/discover.ts), so there's no third
+// hand-kept copy left to drift.
 const DISCOVER_FIELD_MAP: Record<
   Exclude<keyof DiscoverParams, "language">,
   Partial<Record<"movie" | "tv", string>>
@@ -926,9 +927,10 @@ const DISCOVER_FIELD_MAP: Record<
 };
 
 // TMDB's actual with_type/with_status query values are numeric codes, not the
-// human-readable names tools/tmdb.ts's schema asks callers for (TV_TYPES/
-// TV_STATUSES there) — verified live against /discover/tv. Translated here,
-// after DISCOVER_FIELD_MAP's generic pass-through copies the raw string in.
+// human-readable names tools/tmdb/discover.ts's schema asks callers for
+// (TV_TYPES/TV_STATUSES there) — verified live against /discover/tv.
+// Translated here, after DISCOVER_FIELD_MAP's generic pass-through copies the
+// raw string in.
 const TV_TYPE_IDS: Record<string, number> = {
   Documentary: 0,
   News: 1,

@@ -71,7 +71,7 @@ export async function requireConfigured(
 /** requireConfigured, wired up for a cached client method: creates the
  *  staleness tracker, passes its `onStale` into `fn`, and its `meta` as
  *  `getMeta` — the three-step tracker/onStale/meta ritual every cached-tool
- *  handler otherwise repeats by hand (17+ call sites in tools/tmdb.ts alone),
+ *  handler otherwise repeats by hand (17+ call sites across tools/tmdb/*.ts alone),
  *  with the exact failure mode `trackStale`'s own doc comment warns about:
  *  forgetting to wire it through silently serves stale data with no way for
  *  the caller to detect it. Use this instead of manually calling

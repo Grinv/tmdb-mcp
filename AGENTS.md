@@ -26,8 +26,10 @@ src/
   prompts.ts      # MCP Prompts: multi-step plans that guide the model through the tools
   lib/            # GENERIC carcass: http, rateLimit, cache, upstream, errors, logger, result
   clients/        # tmdb.ts (backbone reads), omdb.ts (ratings enrichment)
-  tools/          # tmdb.ts (search/details/credits/…, OMDb enrichment), omdb.ts (get_ratings),
-                  # shared.ts (READ_ONLY, requireConfigured — try/catch → ToolResult)
+  tools/          # tmdb/ (search.ts, details.ts incl. OMDb enrichment, discover.ts, lookups.ts,
+                  # fields.ts shared builders, index.ts composes registerTmdbTools), omdb.ts
+                  # (get_ratings), shared.ts (READ_ONLY, requireConfigured(Cached) — try/catch →
+                  # ToolResult)
   __tests__/      # node:test (*.test.ts) + helpers.ts
 scripts/          # build-tests.mjs, run-tests.mjs (generic), check-api.mjs (domain),
                   # sync-version.mjs (npm version hook), preversion-check.mjs (npm version
@@ -92,8 +94,8 @@ npm run inspector      # run under the MCP Inspector
 - Every schema in `format.schemas.ts` must be `.strict()` — a non-strict
   schema silently drops unknown keys instead of failing, which defeats the
   shaper/schema drift check above.
-- `clients/tmdb.ts` `import type`s `DiscoverParams` from `tools/tmdb.ts` (its
-  `z.infer` source of truth, alongside the hand-authored discover input
+- `clients/tmdb.ts` `import type`s `DiscoverParams` from `tools/tmdb/discover.ts`
+  (its `z.infer` source of truth, alongside the hand-authored discover input
   schemas) — a lower-layer file type-importing from a higher-layer one. This
   is intentional and fully erased at build (no runtime circular import,
   verified via `tsc`/`tsup`); don't invert the import direction to "fix" it.
@@ -107,7 +109,7 @@ npm run inspector      # run under the MCP Inspector
   and a field that takes an external identifier in a different format says
   so in its own name (`imdb_id`, not `id`). Keep the same field name and
   Zod builder for the same concept across every tool that takes it (e.g.
-  `tmdbId`, `page`, `language`, `region` in `tools/tmdb.ts`) — grep sibling
+  `tmdbId`, `page`, `language`, `region` in `tools/tmdb/fields.ts`) — grep sibling
   tools before naming a new field for an existing concept instead of
   defining an ad hoc one-off.
 - Keep dependencies minimal. New deps need a clear justification (supply-chain).

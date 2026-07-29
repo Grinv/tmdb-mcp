@@ -1,6 +1,6 @@
 ---
 name: tool-description-check
-description: Self-check a new or edited MCP tool `description`/field `.describe()` text before committing — verify every behavioral claim against live testing or the source, check for contradictions with sibling tools, and score against Glama's Tool Definition Quality Score (TDQS) rubric. Use whenever a tool description or schema field description in src/tools/tmdb.ts or src/tools/omdb.ts is added or changed.
+description: Self-check a new or edited MCP tool `description`/field `.describe()` text before committing — verify every behavioral claim against live testing or the source, check for contradictions with sibling tools, and score against Glama's Tool Definition Quality Score (TDQS) rubric. Use whenever a tool description or schema field description in src/tools/tmdb/*.ts or src/tools/omdb.ts is added or changed.
 ---
 
 # Tool descriptions: what to check before committing
@@ -37,14 +37,15 @@ Purpose Clarity — double-check those two first on any new or edited tool.
    - an in-code comment that already documents a verified-live upstream
      quirk, cited by reference instead of re-asserted from memory (e.g. the
      `verified live against the real /discover/tv` comment above
-     `certification`/`TV_TYPES`/`TV_STATUSES` in `src/tools/tmdb.ts`), or an
-     existing note in [docs/architecture.md](../../docs/architecture.md) or
-     [docs/clients.md](../../docs/clients.md);
+     `certification`/`TV_TYPES`/`TV_STATUSES` in `src/tools/tmdb/discover.ts`),
+     or an existing note in [docs/architecture.md](../../docs/architecture.md)
+     or [docs/clients.md](../../docs/clients.md);
    - a fresh live call against the real TMDB/OMDb API made during this
      review, with the actual response observed;
    - direct reading of the exact function implementing the behavior, when
      it's deterministic code logic (e.g. `getEnrichedDetail`'s ratings
-     fallback in `src/tools/tmdb.ts`) rather than an external API's quirk.
+     fallback in `src/tools/tmdb/details.ts`) rather than an external API's
+     quirk.
 
    If you can't tick one of these, don't write the claim. This server
    already has a good example of the alternative — doing the verification
@@ -90,7 +91,7 @@ Purpose Clarity — double-check those two first on any new or edited tool.
   keep both sides of a pair in sync whenever either changes.
 - Don't split one concept across near-duplicate tools, and don't collapse
   unrelated actions into one tool with a mode flag — one tool, one job,
-  matching how this project already groups by domain (`tools/tmdb.ts` vs.
+  matching how this project already groups by domain (`tools/tmdb/` vs.
   `tools/omdb.ts`) rather than by raw upstream endpoint.
 - When genuinely unsure whether a description will make an agent pick the
   right tool among lookalikes, test it: prompt a fresh model with the

@@ -782,7 +782,7 @@ function capByUniqueTitle<T>(entries: T[], limit: number, idOf: (e: T) => string
 // A prolific person can have hundreds of credits; cap to the most popular so the
 // result stays useful and token-bounded. `department` restricts crew to just
 // one of TMDB's fixed department values (e.g. "Directing" — the tool-facing
-// PERSON_DEPARTMENTS enum in tools/tmdb.ts lists all of them) before capping —
+// PERSON_DEPARTMENTS enum in tools/tmdb/fields.ts lists all of them) before capping —
 // the precise way to get a complete filmography for one role when a person's
 // other departments would otherwise crowd it out of the cap.
 export function summarizePersonCredits(

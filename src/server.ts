@@ -6,7 +6,7 @@ import { loadConfig, type Config } from "./config.js";
 import { createLogger, type Logger } from "./lib/logger.js";
 import { TmdbClient } from "./clients/tmdb.js";
 import { OmdbClient } from "./clients/omdb.js";
-import { registerTmdbTools } from "./tools/tmdb.js";
+import { registerTmdbTools } from "./tools/tmdb/index.js";
 import { registerOmdbTools } from "./tools/omdb.js";
 import { registerPrompts } from "./prompts.js";
 import { VERSION } from "./version.js";

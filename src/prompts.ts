@@ -1,7 +1,7 @@
 // MCP Prompts: reusable prompt templates that hand the calling model a
 // multi-step plan instead of a single structured result. A prompt returns
 // instructions the model then carries out using the tools registered in
-// tools/tmdb.ts (search/get_similar/discover/...) — it doesn't call any
+// tools/tmdb/ (search/get_similar/discover/...) — it doesn't call any
 // upstream itself.
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/server";

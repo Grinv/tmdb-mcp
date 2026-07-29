@@ -482,7 +482,7 @@ export const ratingsSchema = z.discriminatedUnion("found", [
 // ---- get_movie / get_tv: TMDB detail + optional OMDb enrichment ------------------------
 
 // get_movie/get_tv's real outputSchema — the base detail plus what
-// getEnrichedDetail (tools/tmdb.ts) may fold in — named here next to
+// getEnrichedDetail (tools/tmdb/details.ts) may fold in — named here next to
 // movieDetailSchema/tvDetailSchema instead of assembled via `.extend()` at
 // the tool-registration call site, so the full contract for each tool is
 // visible in one place instead of split across the registration, the client,

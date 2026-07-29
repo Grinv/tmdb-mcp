@@ -41,7 +41,7 @@ import {
 //
 // Three compositions aren't validated inside any single shaper — pageSchema,
 // movieOrTvSchema and multiItemSchema are only ever applied at the tool
-// registration site in tools/tmdb.ts — so those still get an explicit
+// registration site in tools/tmdb/*.ts — so those still get an explicit
 // `.parse()` here.
 
 describe("movieSummarySchema / movieDetailSchema", () => {

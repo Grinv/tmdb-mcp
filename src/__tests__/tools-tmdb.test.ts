@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { maybeEnrich } from "../tools/tmdb.js";
+import { maybeEnrich } from "../tools/tmdb/details.js";
 import type { OmdbClient } from "../clients/omdb.js";
 
 // get_movie/get_tv's degrade-gracefully policy, tested directly against the

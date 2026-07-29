@@ -10,8 +10,8 @@
 import { z } from "zod";
 import type { LogLevel } from "./lib/logger.js";
 
-// Shared with tools/tmdb.ts's per-call `language` param — both accept the same
-// ISO-639-1[-ISO-3166-1] shape, so the regex is defined once here.
+// Shared with tools/tmdb/fields.ts's per-call `language` param — both accept
+// the same ISO-639-1[-ISO-3166-1] shape, so the regex is defined once here.
 export const LANGUAGE_REGEX = /^[a-z]{2}(-[A-Z]{2})?$/;
 
 const EnvSchema = z.object({
