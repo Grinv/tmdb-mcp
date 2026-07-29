@@ -16,9 +16,10 @@ X.Y.Z" step that had to happen **before** `npm version` — easy to forget, or
 easy to do in the wrong order (a v0.9.0 release once shipped tagged with
 `CHANGELOG.md` still saying "Unreleased", caught by nothing). It's now
 atomic with the version bump itself, so there's no ordering to get wrong.
-`sync-version.mjs` uses `import.meta.dirname`, so running `npm version`
-yourself needs Node ≥ 20.11 — the package's own `engines.node` floor (≥ 20)
-is unaffected, since the shipped server never touches this script.
+`sync-version.mjs` and `preversion-check.mjs` locate the repo root via
+`fileURLToPath(import.meta.url)` + `dirname()` — no Node-version floor above
+the package's own `engines.node` (≥ 20) applies to running `npm version`
+yourself.
 
 A `preversion` hook (`scripts/preversion-check.mjs`) runs first, with two checks:
 
@@ -65,7 +66,10 @@ verified-good npm version — no token; skipped without failing the job if this
 version is already on npm, so a re-run after a partial failure doesn't abort) →
 inject the just-packed `.mcpb`'s SHA-256 into `server.json` (fails loudly if the
 injection didn't actually match a package, instead of silently leaving a stale
-hash) → **publish to the official MCP Registry** (`mcp-publisher`, GitHub OIDC).
+hash) → **publish to the official MCP Registry** (`mcp-publisher`, pinned to an
+exact version + verified SHA-256 rather than `latest` — it runs with live OIDC
+publishing credentials, so it gets the same pin discipline as everything else
+in this job — GitHub OIDC).
 Never hand-edit the version in the derived files; bump `package.json` via
 `npm version` and let the hook sync the rest.
 
