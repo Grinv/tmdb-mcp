@@ -15,11 +15,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Reject an unrecognized `sort_by` on `discover_movies`/`discover_tv` via a strict, per-kind enum instead of silently falling back to TMDB's default order ([7ed7c99](https://github.com/Grinv/tmdb-mcp/commit/7ed7c99)).
+- Fix `top_by_entity`'s TV step to still apply a given `genre` to `discover_tv` for a COMPANY ([d520865](https://github.com/Grinv/tmdb-mcp/commit/d520865)).
 - Remove `get_movies`/`get_tv_shows`' `region` param — a fully inert input, since the compact card drops the only fields it ever affected ([083e231](https://github.com/Grinv/tmdb-mcp/commit/083e231)).
 - Disclose that `search_movies`' `region` only picks which country's release_date is shown per result, unlike `get_watch_providers`' `region` ([083e231](https://github.com/Grinv/tmdb-mcp/commit/083e231)).
-- Reject an unrecognized `sort_by` on `discover_movies`/`discover_tv` via a strict, per-kind enum instead of silently falling back to TMDB's default order ([7ed7c99](https://github.com/Grinv/tmdb-mcp/commit/7ed7c99)).
 - Disclose that a season skipped by `get_tv`'s `expand_episodes` budget also loses its `overview`/`poster_url`, not just its episode list ([0e85a8d](https://github.com/Grinv/tmdb-mcp/commit/0e85a8d)).
-- Fix `top_by_entity`'s TV step to still apply a given `genre` to `discover_tv` for a COMPANY ([d520865](https://github.com/Grinv/tmdb-mcp/commit/d520865)).
 
 ## [0.8.1] - 2026-07-23
 
