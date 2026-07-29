@@ -17,6 +17,10 @@ coverage/
 skills/
 AGENTS.md
 CLAUDE.md
+# Glama.ai directory metadata (maintainer GitHub usernames) — read by
+# Glama's crawler from the repo/npm page, not needed by an installed
+# extension at runtime.
+glama.json
 
 # Tooling / config
 tsconfig.json
