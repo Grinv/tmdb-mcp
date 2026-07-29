@@ -154,32 +154,15 @@ correct, intentional code isn't a finding.
 
 ## 3. Docs/metadata consistency
 
-Check every one of these, not just a sample:
-
-- `README.md`'s tool table matches `src/tools/*.ts`'s registrations (names,
-  and any auth/token-requirement column against what each tool actually
-  needs).
-- `manifest.json`'s and `server.json`'s `tools` arrays list the same tool
-  **names** as what's actually registered — treat a test failure here as
-  authoritative if one exists. Their `description` fields are deliberately
-  short, independent marketing-style summaries, NOT a copy of the tool's
-  full `.describe()`/`description` text in `src/tools/*.ts` — don't "fix"
-  them to match verbatim, that's not a bug. Do re-read them for accuracy if
-  a tool's _behavior_ changed in a way the short summary now misrepresents.
-- Tool `description`/field `.describe()` text in `src/tools/*.ts` itself:
-  does it still match the actual `inputSchema`/`outputSchema` and the
-  client function's real behavior?
-- `CHANGELOG.md`'s `[Unreleased]` section (see `docs/changelog-style.md` for
-  entry style) has one line per real behavior change made in this pass — add
-  missing entries, don't just flag them as missing.
-- Any `docs/*.md` documenting upstream API quirks (`docs/architecture.md`,
-  etc.) still matches the current client code, especially any claim this
-  pass's own fixes just invalidated.
-- `AGENTS.md`'s project-shape/file-tree description still matches the
-  filesystem.
-- `docs/clients.md` and any other `docs/*.md` for stale phrasing (e.g.
-  describing something as "once published"/"upcoming" that already
-  shipped).
+Run the `docs-consistency-check` skill in full — it's the single source of
+truth for this checklist (README's tool table, manifest.json/server.json's
+`tools` arrays, tool `.describe()` text, CHANGELOG's `[Unreleased]` section,
+`docs/*.md` staleness, AGENTS.md's project-shape description, and
+`PRIVACY.md`/`SECURITY.md` accuracy against the current code). Don't rely on
+a stale inline copy of it here — this section used to duplicate that
+checklist verbatim and drifted (it still pointed at a `docs/changelog-style.md`
+that had since moved to `skills/changelog-style/SKILL.md`), which is exactly
+the kind of drift `docs-consistency-check` itself exists to catch.
 
 ## 4. Report, then fix only what's confirmed
 
