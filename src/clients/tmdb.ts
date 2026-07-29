@@ -896,6 +896,8 @@ const DISCOVER_FIELD_MAP: Record<
   with_status: { tv: "with_status" },
   certification: { movie: "certification", tv: "certification" },
   certification_country: { movie: "certification_country", tv: "certification_country" },
+  include_adult: { movie: "include_adult", tv: "include_adult" },
+  region: { movie: "region" },
   page: { movie: "page", tv: "page" },
 };
 

@@ -923,6 +923,104 @@ describe("discover_movies", () => {
     assert.match(u, /certification=PG-13/);
     assert.match(u, /certification_country=US/);
   });
+
+  test("passes region and include_adult through to TMDB", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    await client.callTool({
+      name: "discover_movies",
+      arguments: { region: "US", include_adult: true },
+    });
+    const u = mock.calls.find((c) => c.url.includes("/discover/movie"))!.url;
+    assert.match(u, /region=US/);
+    assert.match(u, /include_adult=true/);
+  });
+
+  test("rejects a lowercase region up front instead of reaching TMDB", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({
+      name: "discover_movies",
+      arguments: { region: "us" },
+    });
+    assert.equal(res.isError, true);
+    assert.match(toolText(res), /region/);
+  });
+
+  test("accepts a movie-only sort_by value (revenue.desc)", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({
+      name: "discover_movies",
+      arguments: { sort_by: "revenue.desc" },
+    });
+    assert.notEqual(res.isError, true);
+    const u = mock.calls.find((c) => c.url.includes("/discover/movie"))!.url;
+    assert.match(u, /sort_by=revenue\.desc/);
+  });
+
+  test("rejects a tv-only sort_by value (name.asc) and a nonsense value", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const tvOnly = await client.callTool({
+      name: "discover_movies",
+      arguments: { sort_by: "name.asc" },
+    });
+    assert.equal(tvOnly.isError, true);
+    const nonsense = await client.callTool({
+      name: "discover_movies",
+      arguments: { sort_by: "nonsense_field.desc" },
+    });
+    assert.equal(nonsense.isError, true);
+  });
+});
+
+describe("discover_tv", () => {
+  test("passes include_adult through to TMDB, but rejects region (movie-only)", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    await client.callTool({
+      name: "discover_tv",
+      arguments: { include_adult: true },
+    });
+    const u = mock.calls.find((c) => c.url.includes("/discover/tv"))!.url;
+    assert.match(u, /include_adult=true/);
+
+    const res = await client.callTool({
+      name: "discover_tv",
+      arguments: { region: "US" },
+    });
+    assert.equal(res.isError, true);
+    assert.match(toolText(res), /Unrecognized key.*region/);
+  });
+
+  test("accepts a tv-only sort_by value (name.asc), rejects a movie-only one (revenue.desc)", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const ok = await client.callTool({
+      name: "discover_tv",
+      arguments: { sort_by: "name.asc" },
+    });
+    assert.notEqual(ok.isError, true);
+    const u = mock.calls.find((c) => c.url.includes("/discover/tv"))!.url;
+    assert.match(u, /sort_by=name\.asc/);
+
+    const rejected = await client.callTool({
+      name: "discover_tv",
+      arguments: { sort_by: "revenue.desc" },
+    });
+    assert.equal(rejected.isError, true);
+  });
 });
 
 describe("discover_movies/discover_tv reject a malformed with_original_language", () => {

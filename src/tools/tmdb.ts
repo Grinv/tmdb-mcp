@@ -158,17 +158,31 @@ const regionSchema = (defaultRegion: string) =>
     .regex(/^[A-Z]{2}$/, "Use a two-letter ISO-3166-1 country code, e.g. 'US'.")
     .describe(`ISO-3166-1 country code for region-specific results (default '${defaultRegion}').`)
     .optional();
-// An unrecognized sort_by value is a silent no-op, not an error — verified
-// live: /discover/movie?sort_by=nonsense_field.desc still returns 200 with
-// results in TMDB's default order, instead of rejecting the request.
-const sortBy = z
-  .string()
-  .describe(
-    "TMDB sort, e.g. 'popularity.desc', 'vote_average.desc', 'primary_release_date.desc'. An " +
-      "unrecognized value is silently ignored (falls back to TMDB's default order) rather than " +
-      "erroring.",
-  )
-  .optional();
+// TMDB's actual sort_by vocabulary — verified live per key: each of these
+// produces a genuinely reordered result set (checked against a plain
+// popularity-ordered baseline), and each is movie-only/tv-only exactly as
+// split below — a key valid for the OTHER kind (or any typo) is silently
+// ignored there (falls back to the same default order as an outright bogus
+// value) instead of erroring, which is exactly the ambiguity an enum here
+// removes: a caller now gets a clear validation error instead of silently
+// wrong ordering.
+const SHARED_SORT_FIELDS = ["popularity", "vote_average", "vote_count"] as const;
+const MOVIE_SORT_BY = [
+  ...SHARED_SORT_FIELDS.flatMap((f) => [`${f}.asc`, `${f}.desc`] as const),
+  "original_title.asc",
+  "original_title.desc",
+  "primary_release_date.asc",
+  "primary_release_date.desc",
+  "revenue.asc",
+  "revenue.desc",
+] as const;
+const TV_SORT_BY = [
+  ...SHARED_SORT_FIELDS.flatMap((f) => [`${f}.asc`, `${f}.desc`] as const),
+  "name.asc",
+  "name.desc",
+  "first_air_date.asc",
+  "first_air_date.desc",
+] as const;
 const withGenres = z
   .string()
   .describe("Comma-separated TMDB genre ids (AND); get ids from get_movie_genres/get_tv_genres.")
@@ -196,7 +210,6 @@ const dateStr = (what: string) =>
     .describe(what)
     .optional();
 const discoverShared = {
-  sort_by: sortBy,
   with_genres: withGenres,
   without_genres: z
     .string()
@@ -286,15 +299,55 @@ const discoverShared = {
     .describe("Country whose certification system the `certification` filter uses, e.g. 'US'.")
     .optional(),
   language,
+  // Verified live against both /discover/movie and /discover/tv: unlike
+  // region below, this measurably changes the result set on both endpoints
+  // (a five/six-figure swing in total_results with no other filters at all).
+  include_adult: includeAdult,
   page: page.optional(),
 };
 
 // Movie discover adds cast/crew/people filters.
 const discoverMovieSchema = {
   ...discoverShared,
+  sort_by: z
+    .enum(MOVIE_SORT_BY)
+    .describe("Sort order. Defaults to TMDB's own default (roughly popularity-based) if omitted.")
+    .optional(),
   with_cast: idList("cast (actor)"),
   with_crew: idList("crew (e.g. a director)"),
   with_people: idList("person (cast or crew)"),
+  // TMDB's own docs describe this as picking which country's release date
+  // counts as a movie's release date for date-based filtering/sorting — but
+  // verified live, combining it with release_date_gte/lte, year, or
+  // with_release_type produced byte-identical total_results/ordering with
+  // vs. without it, for a real region (US/FR/DE/JP), so don't rely on the
+  // documented mechanism actually kicking in. The one live-reproducible
+  // effect: even with NO other filter at all, supplying any value here
+  // (including one TMDB doesn't recognize, e.g. "ZZ") shifts total_results
+  // by a handful of titles versus omitting the field — real and repeatable,
+  // but too small/unexplained to use for precise filtering.
+  // Movie-only: verified live against /discover/tv, every value (real,
+  // nonsense, or omitted) returns identical total_results there — TMDB does
+  // not support this param for TV discover at all.
+  // Deliberately NOT built via the shared regionSchema(defaultRegion) factory
+  // above: that factory's description asserts a "(default 'XXX')" fallback,
+  // but discoverQuery (clients/tmdb.ts) never defaults this to config.tmdbRegion
+  // the way getMovie/getTv/getWatchProviders do — it's a pure pass-through,
+  // omitted entirely from the query when not given. Reusing that factory here
+  // would advertise a fallback that doesn't exist.
+  region: z
+    .string()
+    .regex(/^[A-Z]{2}$/, "Use a two-letter ISO-3166-1 country code, e.g. 'US'.")
+    .describe(
+      "ISO-3166-1 country code. TMDB's docs describe this as picking which country's release " +
+        "date counts as a movie's release date for date-based filtering (year, release_date_gte/" +
+        "lte) — but live testing found no measurable effect there; use certification_country " +
+        "instead to scope the certification filter, which does work. The one confirmed live " +
+        "effect: supplying any value (even one TMDB doesn't recognize) shifts total_results by a " +
+        "handful of titles versus omitting this field entirely, even with no other filter — real " +
+        "but too small and unexplained to use for precise filtering. Movie-only.",
+    )
+    .optional(),
 };
 
 // TMDB's own fixed vocabularies for a TV show's type/status (verified live
@@ -323,6 +376,14 @@ export const TV_STATUSES = [
 // TV discover adds network/type/status filtering.
 const discoverTvSchema = {
   ...discoverShared,
+  sort_by: z
+    .enum(TV_SORT_BY)
+    .describe(
+      "Sort order. Defaults to TMDB's own default (roughly popularity-based) if omitted. TV's " +
+        "vocabulary differs from discover_movies' — 'name'/'first_air_date' instead of " +
+        "'original_title'/'primary_release_date', and no 'revenue' (TMDB doesn't track it per-show).",
+    )
+    .optional(),
   with_networks: idList("TV network, e.g. HBO or Netflix"),
   with_type: z
     .enum(TV_TYPES)
@@ -344,7 +405,16 @@ const discoverTvSchema = {
 // instead of a hand-duplicated interface, so adding a field to either variant
 // above automatically extends it — DISCOVER_FIELD_MAP (clients/tmdb.ts)
 // still forces a compile error if the new field has no TMDB query-key mapping.
-export const discoverParamsSchema = z.object({ ...discoverMovieSchema, ...discoverTvSchema });
+// sort_by is spread from both variants with genuinely different enums (movie
+// vs. tv vocabulary) — the plain object spread below would let discoverTvSchema's
+// definition silently win, narrowing the merged type to TV-only values and
+// breaking assignability from a real discover_movies call's args. Re-widen it
+// explicitly to the union of both, matching what discoverQuery actually forwards.
+export const discoverParamsSchema = z.object({
+  ...discoverMovieSchema,
+  ...discoverTvSchema,
+  sort_by: z.union([z.enum(MOVIE_SORT_BY), z.enum(TV_SORT_BY)]).optional(),
+});
 export type DiscoverParams = z.infer<typeof discoverParamsSchema>;
 
 // TMDB silently ignores certification/with_watch_providers when their required
@@ -968,7 +1038,8 @@ export function registerTmdbTools(
       description:
         "Find movies by structured filters instead of a title query: genres (include/exclude), " +
         "year or release-date range, rating range, vote count, runtime range, original language, " +
-        "cast/crew/people, companies, keywords, watch providers, certification, and sort order. " +
+        "cast/crew/people, companies, keywords, watch providers, certification, a region code " +
+        "(minor effect only — see its own description), an adult-content toggle, and sort order. " +
         "certification and with_watch_providers each error if given with no certification_country/" +
         "watch_region at all, but an unrecognized certification_country still silently disables the " +
         "filter instead of erroring — see certification's own description. Use for " +
@@ -991,7 +1062,8 @@ export function registerTmdbTools(
       description:
         "Find TV shows by structured filters (genres, first-air year or date range, rating range, " +
         "vote count, runtime, language, companies, networks, keywords, watch providers, type, " +
-        "status, certification, sort) — but NOT cast/crew/person: this tool doesn't accept those " +
+        "status, certification, an adult-content toggle, sort) — but NOT cast/crew/person: this " +
+        "tool doesn't accept those " +
         "params for TV at all (calling with them is a validation error, not a silent no-op) " +
         "because TMDB's own /discover/tv would silently ignore them anyway, unlike /discover/movie; " +
         "to find TV shows featuring someone, call get_person_credits instead and filter its results " +
