@@ -31,7 +31,7 @@ src/
   __tests__/      # node:test (*.test.ts) + helpers.ts
 scripts/          # build-tests.mjs, run-tests.mjs (generic), check-api.mjs (domain),
                   # sync-version.mjs (npm version hook), preversion-check.mjs (npm version
-                  # gate — see docs/releasing.md)
+                  # gate — see skills/release/SKILL.md)
 ```
 
 ## Commands
@@ -52,7 +52,7 @@ npm run inspector      # run under the MCP Inspector
   descriptions, error messages).
 - Runtime floor is **Node ≥ 20** (global `fetch`, stable `node:test`); tsup
   targets `node20`. (Contributors running `npm version` need Node ≥ 20.11 —
-  see [docs/releasing.md](docs/releasing.md).)
+  see [skills/release/SKILL.md](skills/release/SKILL.md).)
 - Log to **stderr only** — stdout is the MCP protocol channel. Use the logger;
   it redacts credentials.
 - Tool failures return `{ isError: true }` results (via `requireConfigured()` /
@@ -63,7 +63,7 @@ npm run inspector      # run under the MCP Inspector
   specific order, e.g. `get_ratings` in `tools/omdb.ts`.
 - Mocked-`fetch` test fixtures must mirror the real upstream response shape
   for that exact endpoint, not just whatever fields make the current code
-  pass — see [docs/testing.md](docs/testing.md).
+  pass — see [skills/fixture-accuracy-check/SKILL.md](skills/fixture-accuracy-check/SKILL.md).
 - Keep clients fetch+cache only; all raw→agent-facing shaping lives in
   `src/format.ts`. Trim responses for token efficiency.
 - Every cached `TmdbClient`/`OmdbClient` method takes a trailing optional
@@ -99,8 +99,17 @@ npm run inspector      # run under the MCP Inspector
   verified via `tsc`/`tsup`); don't invert the import direction to "fix" it.
 - Write tool `description`s and per-field `.describe()` text for the calling
   model: explain when to use a tool and what each parameter means. Check new
-  or edited descriptions against [docs/tool-descriptions.md](docs/tool-descriptions.md)
-  (Glama's TDQS rubric) before committing.
+  or edited descriptions against the `tool-description-check` skill (Glama's
+  TDQS rubric) before committing.
+- **Name a field for what it actually accepts, not a generic ID suffix** —
+  this project's `id`/`ids` fields are always a numeric TMDB id (resolve a
+  title/name to one via `search_movies`/`search_tv`/`search_people` first),
+  and a field that takes an external identifier in a different format says
+  so in its own name (`imdb_id`, not `id`). Keep the same field name and
+  Zod builder for the same concept across every tool that takes it (e.g.
+  `tmdbId`, `page`, `language`, `region` in `tools/tmdb.ts`) — grep sibling
+  tools before naming a new field for an existing concept instead of
+  defining an ad hoc one-off.
 - Keep dependencies minimal. New deps need a clear justification (supply-chain).
   In particular, do **not** pull in a third-party TMDB SDK — the `lib/` carcass
   already covers retries/cache/rate-limiting, and we shape responses ourselves.
@@ -120,10 +129,10 @@ follow [skills/live-audit/SKILL.md](skills/live-audit/SKILL.md).
 
 Run `npm run build && npm test && npm run lint && npm run format:check`.
 Update `CHANGELOG.md` (Unreleased section) — see
-[docs/changelog-style.md](docs/changelog-style.md) for entry style.
+[skills/changelog-style/SKILL.md](skills/changelog-style/SKILL.md) for entry style.
 
 ## Releasing
 
 `package.json` is the single source of truth for the version; `npm version`
 bumps + syncs every derived file + tags the release. See
-[docs/releasing.md](docs/releasing.md) for the full steps and MCP Registry details.
+[skills/release/SKILL.md](skills/release/SKILL.md) for the full steps and MCP Registry details.

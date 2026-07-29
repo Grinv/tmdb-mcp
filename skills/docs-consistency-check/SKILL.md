@@ -28,7 +28,10 @@ Check every one of these, not just a sample:
   etc.) still matches the current client code, especially any claim this
   pass's own fixes just invalidated.
 - `AGENTS.md`'s project-shape/file-tree description still matches the
-  filesystem.
+  filesystem — including every `docs/*.md`/`skills/*/SKILL.md` link it
+  points to (a doc move/rename, e.g. `docs/*.md` → `skills/*/SKILL.md`,
+  easily strands an old path — grep every `docs/`/`skills/` link target and
+  confirm the file exists).
 - `docs/clients.md` and any other `docs/*.md` for stale phrasing (e.g.
   describing something as "once published"/"upcoming" that already
   shipped).
