@@ -686,29 +686,46 @@ export function summarizeWatchProviders(
   });
 }
 
+// TMDB has ~800 movie / ~730 TV providers globally (269+ for the US alone) —
+// paginate the match results the same way every other search_* tool does
+// (20 per page), rather than returning every match uncapped.
+const WATCH_PROVIDER_PAGE_SIZE = 20;
+
 // TMDB's own /watch/providers/{movie,tv} endpoint has no query parameter — it
 // always returns every registered provider for that media type (+ region, if
-// given), so `search_watch_providers` fetches the full list (cached, like
-// get_movie_genres/get_tv_genres cache their own reference list) and matches
-// it against `query` here. Feeds discover_*'s `with_watch_providers` filter,
-// the same way search_keywords/search_companies feed with_keywords/with_companies.
+// given), so `search_watch_providers` fetches the full list once (cached,
+// like get_movie_genres/get_tv_genres cache their own reference list) and
+// matches it against `query` here on every call. `providers` already carries
+// a precomputed lowercase name (see clients/tmdb.ts's searchWatchProviders) so
+// repeated calls against the same warm cache entry don't re-lowercase every
+// entry from scratch. Feeds discover_*'s `with_watch_providers` filter, the
+// same way search_keywords/search_companies feed with_keywords/with_companies.
 export function summarizeWatchProviderMatches(
-  providers: ProviderEntry[],
+  providers: (ProviderEntry & { nameLower: string })[],
   query: string,
+  pg = 1,
 ): z.infer<typeof watchProviderMatchesSchema> {
   const q = query.trim().toLowerCase();
-  const results = providers
+  const matches = providers
     .filter(
-      (p): p is ProviderEntry & { provider_id: number; provider_name: string } =>
+      (p): p is ProviderEntry & { nameLower: string; provider_id: number; provider_name: string } =>
         typeof p.provider_id === "number" && Boolean(p.provider_name),
     )
-    .filter((p) => p.provider_name.toLowerCase().includes(q))
+    .filter((p) => p.nameLower.includes(q))
     .map((p) => ({
       provider_id: p.provider_id,
       provider_name: p.provider_name,
       logo_url: imageUrl(p.logo_path),
     }));
-  return watchProviderMatchesSchema.parse({ results });
+  const total_results = matches.length;
+  const total_pages = Math.max(1, Math.ceil(total_results / WATCH_PROVIDER_PAGE_SIZE));
+  const start = (pg - 1) * WATCH_PROVIDER_PAGE_SIZE;
+  return watchProviderMatchesSchema.parse({
+    results: matches.slice(start, start + WATCH_PROVIDER_PAGE_SIZE),
+    page: pg,
+    total_pages,
+    total_results,
+  });
 }
 
 // ---- person combined credits ------------------------------------------------

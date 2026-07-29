@@ -3,7 +3,6 @@
 // search_watch_providers for the ids discover_movies/discover_tv's filters need.
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/server";
-import type { TmdbClient } from "../../clients/tmdb.js";
 import {
   companySchema,
   keywordsSchema,
@@ -20,18 +19,13 @@ import {
   language,
   mediaKind,
   page,
-  regionSchema,
   watchRegion,
-  type RequireTmdb,
-  type RequireTmdbCached,
+  type TmdbToolDeps,
 } from "./fields.js";
 
 export function registerSearchTools(
   server: McpServer,
-  tmdb: TmdbClient,
-  requireTmdb: RequireTmdb,
-  requireTmdbCached: RequireTmdbCached,
-  region: ReturnType<typeof regionSchema>,
+  { tmdb, requireTmdb, requireTmdbCached, region }: TmdbToolDeps,
 ): void {
   server.registerTool(
     "search_movies",
@@ -203,14 +197,16 @@ export function registerSearchTools(
               "per media type.",
           ),
           watch_region: watchRegion.optional(),
+          page: page.optional(),
         })
         .strict(),
       outputSchema: watchProviderMatchesSchema,
       annotations: READ_ONLY,
     },
-    ({ query, media_type, watch_region }) => {
-      return requireTmdbCached((onStale) =>
-        tmdb.searchWatchProviders(media_type, query, watch_region, onStale),
+    ({ query, media_type, watch_region, page: pg }, ctx) => {
+      return requireTmdbCached(
+        (onStale) => tmdb.searchWatchProviders(media_type, query, watch_region, pg, onStale),
+        ctx.mcpReq.signal,
       );
     },
   );

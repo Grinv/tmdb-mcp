@@ -1309,6 +1309,9 @@ describe("search_watch_providers", () => {
     });
     const s = res.structuredContent as {
       results: { provider_id: number; provider_name: string; logo_url: string | null }[];
+      page: number;
+      total_pages: number;
+      total_results: number;
     };
     // "netflix" (lowercase) matches both "Netflix" and "Netflix Kids" — not
     // "Disney Plus" — confirming case-insensitive substring matching.
@@ -1318,6 +1321,11 @@ describe("search_watch_providers", () => {
     assert.match(s.results[0]!.logo_url!, /netflix\.png$/);
     assert.equal(s.results[1]!.provider_id, 175);
     assert.equal(s.results[1]!.logo_url, null);
+    // Paginated the same way every other search_* tool is, even though TMDB's
+    // own /watch/providers/{movie,tv} endpoint has no query-side pagination.
+    assert.equal(s.page, 1);
+    assert.equal(s.total_pages, 1);
+    assert.equal(s.total_results, 2);
   });
 
   test("an unmatched query returns an empty result, not an error", async (t) => {
@@ -1328,9 +1336,10 @@ describe("search_watch_providers", () => {
       name: "search_watch_providers",
       arguments: { query: "no such service", media_type: "movie" },
     });
-    const s = res.structuredContent as { results: unknown[] };
+    const s = res.structuredContent as { results: unknown[]; total_results: number };
     assert.equal(res.isError, undefined);
     assert.deepEqual(s.results, []);
+    assert.equal(s.total_results, 0);
   });
 
   test("passes watch_region through as a query param (movie vs. tv use separate endpoints)", async (t) => {
@@ -1344,6 +1353,67 @@ describe("search_watch_providers", () => {
     });
     const call = mock.calls.find((c) => c.url.includes("/watch/providers/movie"))!;
     assert.match(call.url, /watch_region=US/);
+  });
+
+  test("requesting a page past the last one returns an empty page, not an error", async (t) => {
+    installFetch(t, mockFetch(router));
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+    const res = await client.callTool({
+      name: "search_watch_providers",
+      arguments: { query: "netflix", media_type: "tv", page: 2 },
+    });
+    const s = res.structuredContent as {
+      results: unknown[];
+      page: number;
+      total_pages: number;
+      total_results: number;
+    };
+    assert.equal(res.isError, undefined);
+    assert.deepEqual(s.results, []);
+    assert.equal(s.page, 2);
+    assert.equal(s.total_pages, 1);
+    assert.equal(s.total_results, 2);
+  });
+});
+
+describe("MCP client cancellation reaches cached client calls too", () => {
+  test("cancelling get_person stops the caller from waiting, without aborting the shared upstream fetch", async (t) => {
+    // Deliberately resolves on its own after a short real delay (never hangs
+    // forever) so nothing is left dangling once this test returns, even
+    // though the point of the test is that the CALLER stops waiting first.
+    let resolveFetchStarted!: () => void;
+    const fetchStarted = new Promise<void>((r) => (resolveFetchStarted = r));
+    const mock = mockFetch(() => {
+      resolveFetchStarted();
+      return new Promise<Response>((resolve) =>
+        setTimeout(() => resolve(jsonResponse(PERSON_DETAIL)), 40),
+      );
+    });
+    installFetch(t, mock);
+    const { client, close } = await connectServer(ENV);
+    t.after(close);
+
+    const controller = new AbortController();
+    const call = client.callTool(
+      { name: "get_person", arguments: { id: 6384 } },
+      { signal: controller.signal },
+    );
+    await fetchStarted;
+    controller.abort();
+    // The caller stops waiting promptly (requireConfiguredCached's raceAbort)
+    // instead of hanging until the 40ms upstream fetch resolves.
+    await assert.rejects(() => call);
+    // The underlying fetch always carries an internal AbortSignal of its own
+    // (HttpClient's per-request timeout, see lib/http.ts), but the caller's
+    // own signal is deliberately never wired into it for a cached call, since
+    // TtlCache dedupes concurrent callers onto one shared in-flight request
+    // (see tools/shared.ts's requireConfiguredCached doc comment) — relaying
+    // the caller's cancellation into it could abort it out from under a
+    // different, still-waiting caller sharing that same request. Confirm the
+    // fetch's own signal was NOT tripped by the caller's abort above.
+    assert.equal(mock.calls[0]!.init?.signal?.aborted, false);
+    await new Promise((r) => setTimeout(r, 50)); // let the 40ms fetch settle
   });
 });
 

@@ -321,19 +321,14 @@ export const watchProvidersSchema = z.discriminatedUnion("available", [
 
 // ---- summarizeWatchProviderMatches -------------------------------------------------
 
-export const watchProviderMatchesSchema = z
+export const watchProviderMatchSchema = z
   .object({
-    results: z.array(
-      z
-        .object({
-          provider_id: z.number(),
-          provider_name: z.string(),
-          logo_url: z.string().nullable(),
-        })
-        .strict(),
-    ),
+    provider_id: z.number(),
+    provider_name: z.string(),
+    logo_url: z.string().nullable(),
   })
   .strict();
+export const watchProviderMatchesSchema = pageSchema(watchProviderMatchSchema);
 
 // ---- summarizePersonCredits ---------------------------------------------------------
 

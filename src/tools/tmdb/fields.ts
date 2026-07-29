@@ -1,23 +1,45 @@
 // Shared Zod field/schema builders, plus the requireTmdb/requireTmdbCached
-// function shapes, used by more than one of the sibling files in this
-// directory (search.ts, details.ts, discover.ts, lookups.ts) — kept in one
-// place so the same concept (a TMDB id, a media-type toggle, a region code,
-// the configured-client short-circuit, …) isn't redefined slightly
-// differently in more than one spot.
+// function shapes and the TmdbToolDeps bag every sibling file in this
+// directory (search.ts, details.ts, discover.ts, lookups.ts) registers its
+// tools from — kept in one place so the same concept (a TMDB id, a
+// media-type toggle, a region code, the configured-client short-circuit, …)
+// isn't redefined slightly differently in more than one spot.
 import { z } from "zod";
+import type { TmdbClient } from "../../clients/tmdb.js";
+import type { OmdbClient } from "../../clients/omdb.js";
 import { LANGUAGE_REGEX } from "../../config.js";
 import type { ToolResult } from "../../lib/result.js";
 
 // index.ts constructs the real closures (over the actual tmdb client and, for
 // requireTmdbCached, a fresh staleness tracker per call) and passes them into
-// each register*Tools function below — these are just the shapes.
+// each register*Tools function below — these are just the shapes. `signal`,
+// when given, is a per-call AbortSignal (from the calling tool handler's own
+// `ctx.mcpReq.signal`) — requireTmdb's existing callers forward it straight
+// into the underlying (uncached, unshared) client call instead, so it's
+// listed here only on RequireTmdbCached, which has no other way to expose it
+// without risking cancelling the same in-flight fetch for a different,
+// still-waiting caller (see tools/shared.ts's requireConfiguredCached).
 export type RequireTmdb = <T extends Record<string, unknown>>(
   fn: () => Promise<T>,
   getMeta?: () => Record<string, unknown> | undefined,
 ) => Promise<ToolResult>;
 export type RequireTmdbCached = <T extends Record<string, unknown>>(
   fn: (onStale: () => void) => Promise<T>,
+  signal?: AbortSignal,
 ) => Promise<ToolResult>;
+
+// The one dependency bag every register*Tools function below takes, so
+// adding a new cross-cutting dependency means editing this interface once
+// instead of up to 4 differently-shaped function signatures and their call
+// sites in index.ts. Not every file uses every field (e.g. discover.ts has
+// no need for `region`), but each just destructures what it needs.
+export interface TmdbToolDeps {
+  tmdb: TmdbClient;
+  omdb: OmdbClient;
+  requireTmdb: RequireTmdb;
+  requireTmdbCached: RequireTmdbCached;
+  region: ReturnType<typeof regionSchema>;
+}
 
 export const page = z
   .number()
@@ -135,9 +157,6 @@ export const expandEpisodes = z
   )
   .optional();
 
-export const mediaType = z
-  .enum(["movie", "tv"])
-  .describe("Whether the id refers to a movie or a TV show.");
 // The default named in the description must match the server's actual
 // TMDB_REGION, so it's built per-server from config rather than hardcoded.
 export const regionSchema = (defaultRegion: string) =>

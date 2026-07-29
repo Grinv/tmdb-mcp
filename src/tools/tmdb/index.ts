@@ -9,7 +9,7 @@ import type { TmdbClient } from "../../clients/tmdb.js";
 import type { OmdbClient } from "../../clients/omdb.js";
 import type { Config } from "../../config.js";
 import { requireConfigured, requireConfiguredCached } from "../shared.js";
-import { regionSchema } from "./fields.js";
+import { regionSchema, type TmdbToolDeps } from "./fields.js";
 import { registerSearchTools } from "./search.js";
 import { registerDetailsTools } from "./details.js";
 import { registerDiscoverTools } from "./discover.js";
@@ -23,20 +23,20 @@ export function registerTmdbTools(
 ): void {
   // Every TMDB tool needs the token; short-circuit with one clear message
   // instead of letting each call round-trip to a 401.
-  const requireTmdb = <T extends Record<string, unknown>>(
-    fn: () => Promise<T>,
-    getMeta?: () => Record<string, unknown> | undefined,
-  ) => requireConfigured(tmdb, fn, undefined, getMeta);
+  const requireTmdb: TmdbToolDeps["requireTmdb"] = (fn, getMeta) =>
+    requireConfigured(tmdb, fn, undefined, getMeta);
   // For a cached client method: wires up staleness tracking automatically
   // instead of the caller hand-assembling trackStale()/onStale/meta — see
-  // requireConfiguredCached's own doc comment for why.
-  const requireTmdbCached = <T extends Record<string, unknown>>(
-    fn: (onStale: () => void) => Promise<T>,
-  ) => requireConfiguredCached(tmdb, fn);
+  // requireConfiguredCached's own doc comment for why. `signal`, when a
+  // handler forwards its `ctx.mcpReq.signal`, lets a cancelled call stop
+  // waiting promptly without aborting the underlying cache-shared fetch.
+  const requireTmdbCached: TmdbToolDeps["requireTmdbCached"] = (fn, signal) =>
+    requireConfiguredCached(tmdb, fn, undefined, signal);
   const region = regionSchema(config.tmdbRegion);
 
-  registerSearchTools(server, tmdb, requireTmdb, requireTmdbCached, region);
-  registerDetailsTools(server, tmdb, omdb, requireTmdb, requireTmdbCached, region);
-  registerDiscoverTools(server, tmdb, requireTmdb, requireTmdbCached);
-  registerLookupTools(server, tmdb, requireTmdbCached, region);
+  const deps: TmdbToolDeps = { tmdb, omdb, requireTmdb, requireTmdbCached, region };
+  registerSearchTools(server, deps);
+  registerDetailsTools(server, deps);
+  registerDiscoverTools(server, deps);
+  registerLookupTools(server, deps);
 }

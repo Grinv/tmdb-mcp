@@ -7,7 +7,6 @@
 // importing from this higher-layer one (intentional, erased at build).
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/server";
-import type { TmdbClient } from "../../clients/tmdb.js";
 import {
   genresSchema,
   movieSummarySchema,
@@ -16,14 +15,7 @@ import {
   tvSummarySchema,
 } from "../../format.schemas.js";
 import { READ_ONLY } from "../shared.js";
-import {
-  includeAdult,
-  language,
-  page,
-  watchRegion,
-  type RequireTmdb,
-  type RequireTmdbCached,
-} from "./fields.js";
+import { includeAdult, language, page, watchRegion, type TmdbToolDeps } from "./fields.js";
 
 const SHARED_SORT_FIELDS = ["popularity", "vote_average", "vote_count"] as const;
 const MOVIE_SORT_BY = [
@@ -313,9 +305,7 @@ const discoverTvInputSchema = z
 
 export function registerDiscoverTools(
   server: McpServer,
-  tmdb: TmdbClient,
-  requireTmdb: RequireTmdb,
-  requireTmdbCached: RequireTmdbCached,
+  { tmdb, requireTmdb, requireTmdbCached }: TmdbToolDeps,
 ): void {
   server.registerTool(
     "get_trending",
@@ -357,8 +347,11 @@ export function registerDiscoverTools(
       outputSchema: genresSchema,
       annotations: READ_ONLY,
     },
-    () => {
-      return requireTmdbCached((onStale) => tmdb.getGenres("movie", undefined, onStale));
+    (_args, ctx) => {
+      return requireTmdbCached(
+        (onStale) => tmdb.getGenres("movie", undefined, onStale),
+        ctx.mcpReq.signal,
+      );
     },
   );
 
@@ -373,8 +366,11 @@ export function registerDiscoverTools(
       outputSchema: genresSchema,
       annotations: READ_ONLY,
     },
-    () => {
-      return requireTmdbCached((onStale) => tmdb.getGenres("tv", undefined, onStale));
+    (_args, ctx) => {
+      return requireTmdbCached(
+        (onStale) => tmdb.getGenres("tv", undefined, onStale),
+        ctx.mcpReq.signal,
+      );
     },
   );
 

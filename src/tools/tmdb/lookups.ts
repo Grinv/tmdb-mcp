@@ -3,7 +3,6 @@
 // IMDb-id reverse lookup, and TV season/episode deep dives.
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/server";
-import type { TmdbClient } from "../../clients/tmdb.js";
 import {
   episodeSchema,
   findSchema,
@@ -12,13 +11,11 @@ import {
   watchProvidersSchema,
 } from "../../format.schemas.js";
 import { READ_ONLY } from "../shared.js";
-import { mediaType, regionSchema, tmdbId, type RequireTmdbCached } from "./fields.js";
+import { mediaKind, tmdbId, type TmdbToolDeps } from "./fields.js";
 
 export function registerLookupTools(
   server: McpServer,
-  tmdb: TmdbClient,
-  requireTmdbCached: RequireTmdbCached,
-  region: ReturnType<typeof regionSchema>,
+  { tmdb, requireTmdbCached, region }: TmdbToolDeps,
 ): void {
   server.registerTool(
     "get_watch_providers",
@@ -31,7 +28,7 @@ export function registerLookupTools(
         "from search_movies/search_tv.",
       inputSchema: z
         .object({
-          media_type: mediaType,
+          media_type: mediaKind,
           id: tmdbId,
           region,
         })
@@ -39,8 +36,11 @@ export function registerLookupTools(
       outputSchema: watchProvidersSchema,
       annotations: READ_ONLY,
     },
-    ({ media_type, id, region: r }) => {
-      return requireTmdbCached((onStale) => tmdb.getWatchProviders(media_type, id, r, onStale));
+    ({ media_type, id, region: r }, ctx) => {
+      return requireTmdbCached(
+        (onStale) => tmdb.getWatchProviders(media_type, id, r, onStale),
+        ctx.mcpReq.signal,
+      );
     },
   );
 
@@ -51,12 +51,15 @@ export function registerLookupTools(
       description:
         "List trailers, teasers and clips for a movie or TV show; YouTube entries include a " +
         "watch URL. Get the id from search_movies/search_tv.",
-      inputSchema: z.object({ media_type: mediaType, id: tmdbId }).strict(),
+      inputSchema: z.object({ media_type: mediaKind, id: tmdbId }).strict(),
       outputSchema: videosSchema,
       annotations: READ_ONLY,
     },
-    ({ media_type, id }) => {
-      return requireTmdbCached((onStale) => tmdb.getVideos(media_type, id, undefined, onStale));
+    ({ media_type, id }, ctx) => {
+      return requireTmdbCached(
+        (onStale) => tmdb.getVideos(media_type, id, undefined, onStale),
+        ctx.mcpReq.signal,
+      );
     },
   );
 
@@ -78,8 +81,11 @@ export function registerLookupTools(
       outputSchema: findSchema,
       annotations: READ_ONLY,
     },
-    ({ imdb_id }) => {
-      return requireTmdbCached((onStale) => tmdb.findByExternalId(imdb_id, "imdb_id", onStale));
+    ({ imdb_id }, ctx) => {
+      return requireTmdbCached(
+        (onStale) => tmdb.findByExternalId(imdb_id, "imdb_id", onStale),
+        ctx.mcpReq.signal,
+      );
     },
   );
 
@@ -102,9 +108,10 @@ export function registerLookupTools(
       outputSchema: seasonSchema,
       annotations: READ_ONLY,
     },
-    ({ id, season_number }) => {
-      return requireTmdbCached((onStale) =>
-        tmdb.getTvSeason(id, season_number, undefined, onStale),
+    ({ id, season_number }, ctx) => {
+      return requireTmdbCached(
+        (onStale) => tmdb.getTvSeason(id, season_number, undefined, onStale),
+        ctx.mcpReq.signal,
       );
     },
   );
@@ -127,9 +134,10 @@ export function registerLookupTools(
       outputSchema: episodeSchema,
       annotations: READ_ONLY,
     },
-    ({ id, season_number, episode_number }) => {
-      return requireTmdbCached((onStale) =>
-        tmdb.getTvEpisode(id, season_number, episode_number, undefined, onStale),
+    ({ id, season_number, episode_number }, ctx) => {
+      return requireTmdbCached(
+        (onStale) => tmdb.getTvEpisode(id, season_number, episode_number, undefined, onStale),
+        ctx.mcpReq.signal,
       );
     },
   );

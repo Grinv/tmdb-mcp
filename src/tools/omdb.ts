@@ -55,7 +55,7 @@ export function registerOmdbTools(server: McpServer, omdb: OmdbClient): void {
       outputSchema: ratingsSchema,
       annotations: READ_ONLY,
     },
-    ({ imdb_id, title, year, type }) => {
+    ({ imdb_id, title, year, type }, ctx) => {
       return requireConfiguredCached(
         omdb,
         (onStale) =>
@@ -63,6 +63,7 @@ export function registerOmdbTools(server: McpServer, omdb: OmdbClient): void {
             ? omdb.ratingsByImdbId(imdb_id, onStale)
             : omdb.ratingsByTitle(title!, year, type, onStale),
         () => (!imdb_id && !title ? "Provide either imdb_id or title." : undefined),
+        ctx.mcpReq.signal,
       );
     },
   );

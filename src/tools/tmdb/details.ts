@@ -33,21 +33,15 @@ import {
   page,
   personCreditsLimit,
   personDepartment,
-  regionSchema,
   tmdbId,
   tvIdsBatch,
   expandEpisodes,
-  type RequireTmdb,
-  type RequireTmdbCached,
+  type TmdbToolDeps,
 } from "./fields.js";
 
 export function registerDetailsTools(
   server: McpServer,
-  tmdb: TmdbClient,
-  omdb: OmdbClient,
-  requireTmdb: RequireTmdb,
-  requireTmdbCached: RequireTmdbCached,
-  region: ReturnType<typeof regionSchema>,
+  { tmdb, omdb, requireTmdb, requireTmdbCached, region }: TmdbToolDeps,
 ): void {
   server.registerTool(
     "get_movie",
@@ -73,19 +67,21 @@ export function registerDetailsTools(
       outputSchema: movieDetailEnrichedSchema,
       annotations: READ_ONLY,
     },
-    ({ id, region: r, language: lang, include_ratings }) => {
-      return requireTmdbCached((onStale) =>
-        getEnrichedDetail(
-          "movie",
-          id,
-          r,
-          lang,
-          include_ratings ?? true,
-          tmdb,
-          omdb,
-          false,
-          onStale,
-        ),
+    ({ id, region: r, language: lang, include_ratings }, ctx) => {
+      return requireTmdbCached(
+        (onStale) =>
+          getEnrichedDetail(
+            "movie",
+            id,
+            r,
+            lang,
+            include_ratings ?? true,
+            tmdb,
+            omdb,
+            false,
+            onStale,
+          ),
+        ctx.mcpReq.signal,
       );
     },
   );
@@ -122,19 +118,21 @@ export function registerDetailsTools(
       outputSchema: tvDetailEnrichedSchema,
       annotations: READ_ONLY,
     },
-    ({ id, region: r, language: lang, include_ratings, expand_episodes }) => {
-      return requireTmdbCached((onStale) =>
-        getEnrichedDetail(
-          "tv",
-          id,
-          r,
-          lang,
-          include_ratings ?? true,
-          tmdb,
-          omdb,
-          expand_episodes ?? false,
-          onStale,
-        ),
+    ({ id, region: r, language: lang, include_ratings, expand_episodes }, ctx) => {
+      return requireTmdbCached(
+        (onStale) =>
+          getEnrichedDetail(
+            "tv",
+            id,
+            r,
+            lang,
+            include_ratings ?? true,
+            tmdb,
+            omdb,
+            expand_episodes ?? false,
+            onStale,
+          ),
+        ctx.mcpReq.signal,
       );
     },
   );
@@ -158,7 +156,7 @@ export function registerDetailsTools(
       outputSchema: z.object({ results: z.array(movieCardSchema) }).strict(),
       annotations: READ_ONLY,
     },
-    ({ ids, language: lang, include_ratings }) => {
+    ({ ids, language: lang, include_ratings }, ctx) => {
       return requireTmdbCached(async (onStale) => {
         const settled = await Promise.allSettled(
           ids.map((id) =>
@@ -182,7 +180,7 @@ export function registerDetailsTools(
               : notFoundCard(ids[i]!, errorReason(result.reason)),
           ),
         };
-      });
+      }, ctx.mcpReq.signal);
     },
   );
 
@@ -206,7 +204,7 @@ export function registerDetailsTools(
       outputSchema: z.object({ results: z.array(tvCardSchema) }).strict(),
       annotations: READ_ONLY,
     },
-    ({ ids, language: lang, include_ratings }) => {
+    ({ ids, language: lang, include_ratings }, ctx) => {
       return requireTmdbCached(async (onStale) => {
         const settled = await Promise.allSettled(
           ids.map((id) =>
@@ -230,7 +228,7 @@ export function registerDetailsTools(
               : notFoundCard(ids[i]!, errorReason(result.reason)),
           ),
         };
-      });
+      }, ctx.mcpReq.signal);
     },
   );
 
@@ -246,8 +244,8 @@ export function registerDetailsTools(
       outputSchema: personDetailSchema,
       annotations: READ_ONLY,
     },
-    ({ id, language: lang }) => {
-      return requireTmdbCached((onStale) => tmdb.getPerson(id, lang, onStale));
+    ({ id, language: lang }, ctx) => {
+      return requireTmdbCached((onStale) => tmdb.getPerson(id, lang, onStale), ctx.mcpReq.signal);
     },
   );
 
@@ -262,8 +260,11 @@ export function registerDetailsTools(
       outputSchema: creditsSchema,
       annotations: READ_ONLY,
     },
-    ({ id }) => {
-      return requireTmdbCached((onStale) => tmdb.getMovieCredits(id, undefined, onStale));
+    ({ id }, ctx) => {
+      return requireTmdbCached(
+        (onStale) => tmdb.getMovieCredits(id, undefined, onStale),
+        ctx.mcpReq.signal,
+      );
     },
   );
 
@@ -278,8 +279,11 @@ export function registerDetailsTools(
       outputSchema: creditsSchema,
       annotations: READ_ONLY,
     },
-    ({ id }) => {
-      return requireTmdbCached((onStale) => tmdb.getTvCredits(id, undefined, onStale));
+    ({ id }, ctx) => {
+      return requireTmdbCached(
+        (onStale) => tmdb.getTvCredits(id, undefined, onStale),
+        ctx.mcpReq.signal,
+      );
     },
   );
 
@@ -367,8 +371,11 @@ export function registerDetailsTools(
       outputSchema: collectionSchema,
       annotations: READ_ONLY,
     },
-    ({ id, language: lang }) => {
-      return requireTmdbCached((onStale) => tmdb.getCollection(id, lang, onStale));
+    ({ id, language: lang }, ctx) => {
+      return requireTmdbCached(
+        (onStale) => tmdb.getCollection(id, lang, onStale),
+        ctx.mcpReq.signal,
+      );
     },
   );
 
@@ -400,9 +407,10 @@ export function registerDetailsTools(
       outputSchema: personCreditsSchema,
       annotations: READ_ONLY,
     },
-    ({ id, department, limit }) => {
-      return requireTmdbCached((onStale) =>
-        tmdb.getPersonCredits(id, department, limit, undefined, onStale),
+    ({ id, department, limit }, ctx) => {
+      return requireTmdbCached(
+        (onStale) => tmdb.getPersonCredits(id, department, limit, undefined, onStale),
+        ctx.mcpReq.signal,
       );
     },
   );

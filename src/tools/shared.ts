@@ -55,14 +55,16 @@ export async function requireConfigured(
   fn: () => Promise<Record<string, unknown>>,
   validate?: () => string | undefined,
   getMeta?: () => Record<string, unknown> | undefined,
+  signal?: AbortSignal,
 ): Promise<ToolResult> {
   if (!client.configured) return errorResult(client.notConfiguredMessage);
   const validationError = validate?.();
   if (validationError) return errorResult(validationError);
   try {
-    const data = await fn();
+    const data = await raceAbort(fn(), signal);
     return jsonResult(data, getMeta?.());
   } catch (err) {
+    if (signal?.aborted) return errorResult("Request cancelled.");
     if (err instanceof ApiError) return apiErrorToResult(err);
     return errorResult(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -80,7 +82,34 @@ export function requireConfiguredCached<T extends Record<string, unknown>>(
   client: ConfigurableClient,
   fn: (onStale: () => void) => Promise<T>,
   validate?: () => string | undefined,
+  signal?: AbortSignal,
 ): Promise<ToolResult> {
   const stale = trackStale();
-  return requireConfigured(client, () => fn(stale.onStale), validate, stale.meta);
+  return requireConfigured(client, () => fn(stale.onStale), validate, stale.meta, signal);
+}
+
+/** Resolves/rejects as soon as either `promise` settles or `signal` aborts, so
+ *  a cancelled MCP tool call stops waiting promptly instead of hanging until
+ *  a cache-shared upstream fetch (which may still be serving other concurrent
+ *  callers) finishes. Deliberately does NOT abort the underlying fetch itself:
+ *  TtlCache dedupes concurrent callers for the same key onto one shared
+ *  in-flight request (see lib/cache.ts's #dedupe), so cancelling it here would
+ *  also cancel it for every other caller currently waiting on that same key. */
+function raceAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return promise;
+  if (signal.aborted) return Promise.reject(new Error("Request cancelled."));
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(new Error("Request cancelled."));
+    signal.addEventListener("abort", onAbort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (err: unknown) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(err);
+      },
+    );
+  });
 }

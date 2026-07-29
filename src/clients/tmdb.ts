@@ -749,21 +749,28 @@ export class TmdbClient {
   // parameter — it always returns every provider for the given media type
   // (+ region, if given), so the full list is cached (like getGenres caches
   // its own reference list) and matched against `query` in the shaper.
+  // Precomputes each entry's lowercase name once here, at cache-population
+  // time, rather than in the shaper on every call against a warm cache entry.
   async searchWatchProviders(
     mediaType: "movie" | "tv",
     query: string,
     watchRegion?: string,
+    page?: number,
     onStale?: () => void,
   ): Promise<ReturnType<typeof summarizeWatchProviderMatches>> {
     const providers = await this.#cached(
       cacheKey(`watch-providers:${mediaType}`, { watchRegion }),
       `watch/providers/${mediaType}`,
-      (res: { results?: ProviderEntry[] }) => res.results ?? [],
+      (res: { results?: ProviderEntry[] }) =>
+        (res.results ?? []).map((p) => ({
+          ...p,
+          nameLower: (p.provider_name ?? "").toLowerCase(),
+        })),
       watchRegion ? { watch_region: watchRegion } : {},
       undefined,
       onStale,
     );
-    return summarizeWatchProviderMatches(providers, query);
+    return summarizeWatchProviderMatches(providers, query, page);
   }
 
   // ---- person filmography ---------------------------------------------------
