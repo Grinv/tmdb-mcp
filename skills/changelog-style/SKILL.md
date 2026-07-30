@@ -75,7 +75,7 @@ second states it and stops.
    collapse into one bullet — don't enumerate every commit separately. The
    opposite mistake is just as common and easier to miss: **one commit can
    still contain two distinct user-facing facts** (e.g. "relax title/body to
-   required-only-on-create" *and* "disclose mediaCategories is a full
+   required-only-on-create" _and_ "disclose mediaCategories is a full
    replace" in the same commit). Summarizing "what this commit did" as a
    single sentence joined with "also"/";" is exactly how the ~150-char gut-check
    below gets blown past — it feels natural because it mirrors the commit
