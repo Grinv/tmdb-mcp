@@ -13,6 +13,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 
 - Reject calendar-invalid dates (e.g. `2024-02-30`) passed to `discover_movies`/`discover_tv`'s `release_date_gte`/`release_date_lte` instead of forwarding them to TMDB unchecked ([e880886](https://github.com/Grinv/tmdb-mcp/commit/e880886)).
+- Degrade a malformed date/timestamp field (e.g. an unusual `birthday` on an older person record) to `null` instead of failing the whole tool call ([d74aa30](https://github.com/Grinv/tmdb-mcp/commit/d74aa30)).
 
 ## [0.10.0] - 2026-07-30
 
