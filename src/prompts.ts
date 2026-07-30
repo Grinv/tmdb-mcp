@@ -58,8 +58,9 @@ export function registerPrompts(server: McpServer): void {
                 `3. If that pool has fewer than ${n} good candidates, broaden with discover_movies/` +
                 `discover_tv filtered to the same genres.\n` +
                 `4. Once you've picked the best ${n} ids, call get_movies/get_tv_shows with ` +
-                `include_ratings=true for all of them in one call (not get_movie/get_tv per title) to ` +
-                `get title, year and ratings together. Return each with a one-line reason it fits.`,
+                `include_ratings=true (not get_movie/get_tv per title) to get title, year and ratings ` +
+                `together — get_movies/get_tv_shows caps each call at 20 ids, so split into multiple ` +
+                `calls if ${n} is more than that. Return each with a one-line reason it fits.`,
             },
           },
         ],

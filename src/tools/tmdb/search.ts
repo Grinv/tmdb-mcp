@@ -41,7 +41,11 @@ export function registerSearchTools(
         "region-based availability use get_watch_providers instead.",
       inputSchema: z.strictObject({
         query: z.string().min(1).describe("Movie title to search for."),
-        year: yearFilter("Filter by release year."),
+        year: yearFilter(
+          "Bias results toward this release year — TMDB's search 'year' filter is soft: some " +
+            "results outside this year can still appear (unlike discover_movies' year filter, a " +
+            "hard primary_release_year match). For an exact-year filter, use discover_movies instead.",
+        ),
         include_adult: includeAdult,
         language,
         region,
@@ -175,8 +179,9 @@ export function registerSearchTools(
           .min(1)
           .describe("Service name (or part of it) to look up, e.g. 'Netflix'."),
         media_type: mediaKind.describe(
-          "Whether to search movie or TV providers — the same service can have a different id " +
-            "per media type.",
+          "Whether to search movie or TV providers — a service can be offered for one media type " +
+            "but not the other (its id stays the same either way; a movie-only or TV-only service " +
+            "just returns nothing from the wrong media_type).",
         ),
         watch_region: watchRegion.optional(),
         page: page.optional(),

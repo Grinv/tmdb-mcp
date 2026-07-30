@@ -11,7 +11,7 @@ import {
   watchProvidersSchema,
 } from "../../format.schemas.js";
 import { READ_ONLY } from "../shared.js";
-import { mediaKind, tmdbId, type TmdbToolDeps } from "./fields.js";
+import { mediaKind, seasonNumber, tmdbId, type TmdbToolDeps } from "./fields.js";
 
 export function registerLookupTools(
   server: McpServer,
@@ -48,7 +48,11 @@ export function registerLookupTools(
       title: "Get trailers & videos",
       description:
         "List trailers, teasers and clips for a movie or TV show; YouTube entries include a " +
-        "watch URL. Get the id from search_movies/search_tv.",
+        "watch URL. Get the id from search_movies/search_tv. Results are filtered to the " +
+        "server's configured TMDB_LANGUAGE (default 'en-US') — this tool has no per-call " +
+        "language override, so a title with plenty of videos in other languages can come back " +
+        "with few or none if the server is configured for a different language (verified live: " +
+        "29 results for a title under 'en-US' vs. 2 under 'de-DE').",
       inputSchema: z.strictObject({ media_type: mediaKind, id: tmdbId }),
       outputSchema: videosSchema,
       annotations: READ_ONLY,
@@ -101,7 +105,7 @@ export function registerLookupTools(
         "season's episodes in one call. Get the show id from search_tv.",
       inputSchema: z.strictObject({
         id: tmdbId,
-        season_number: z.int().min(0).describe("Season number (0 = specials)."),
+        season_number: seasonNumber,
       }),
       outputSchema: seasonSchema,
       annotations: READ_ONLY,
@@ -124,7 +128,7 @@ export function registerLookupTools(
         "search_tv.",
       inputSchema: z.strictObject({
         id: tmdbId,
-        season_number: z.int().min(0).describe("Season number (0 = specials)."),
+        season_number: seasonNumber,
         episode_number: z.int().min(1).describe("Episode number within the season."),
       }),
       outputSchema: episodeSchema,

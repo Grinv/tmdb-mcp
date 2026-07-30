@@ -353,8 +353,13 @@ export function registerDetailsTools(
         "broadest genre (e.g. two titles that are both merely tagged 'Drama' among several genres) " +
         "are filtered out per page, since a title with a common genre can otherwise return results " +
         "spanning TMDB's entire catalog; a page can come back thin or empty for a niche title once " +
-        "that filter applies. Try recommendations first for thematically closer picks; use this when " +
-        "you specifically want genre/keyword-adjacent titles. Get the id from search_movies/search_tv.",
+        "that filter applies. `total_pages`/`total_results` reflect TMDB's raw, pre-filter counts, " +
+        "not how many titles actually pass this filter — don't use them to gauge how many genuinely " +
+        "similar titles exist or when to stop paging; expect per-page result counts well under 20, " +
+        "sometimes 0 (verified live: a real title returned total_pages:23897/total_results:477939 " +
+        "but only 3-6 actual results per page). Try recommendations first for thematically closer " +
+        "picks; use this when you specifically want genre/keyword-adjacent titles. Get the id from " +
+        "search_movies/search_tv.",
       inputSchema: z.strictObject({ media_type: mediaKind, id: tmdbId, page: page.optional() }),
       outputSchema: pageSchema(movieOrTvSchema),
       annotations: READ_ONLY,
@@ -371,8 +376,9 @@ export function registerDetailsTools(
     {
       title: "Get user reviews",
       description:
-        "Get user reviews for a movie or TV show (author, their rating, and the review text, " +
-        "clipped to ~1500 characters). Get the id from search_movies/search_tv.",
+        "Get user reviews for a movie or TV show (author, their rating if the reviewer left one — " +
+        "it can be null, and the review text, clipped to ~1500 characters). Get the id from " +
+        "search_movies/search_tv.",
       inputSchema: z.strictObject({ media_type: mediaKind, id: tmdbId, page: page.optional() }),
       outputSchema: pageSchema(reviewSchema),
       annotations: READ_ONLY,

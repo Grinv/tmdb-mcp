@@ -52,6 +52,8 @@ export const page = z
   );
 export const tmdbId = z.int().positive().describe("TMDB numeric id.");
 export const mediaKind = z.enum(["movie", "tv"]).describe("Media type: 'movie' or 'tv'.");
+// Shared by get_tv_season/get_tv_episode.
+export const seasonNumber = z.int().min(0).describe("Season number (0 = specials).");
 // Shared by discover_movies/discover_tv's year filter and search_movies/search_tv's
 // disambiguating year param — same TMDB-supported range, different wording per call site.
 export const yearFilter = (what: string) => z.int().min(1870).max(2100).describe(what).optional();

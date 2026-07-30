@@ -92,7 +92,12 @@ const discoverShared = {
     .string()
     .describe("Comma-separated TMDB keyword ids (use search_keywords to resolve names → ids).")
     .optional(),
-  without_keywords: z.string().describe("Comma-separated TMDB keyword ids to exclude.").optional(),
+  without_keywords: z
+    .string()
+    .describe(
+      "Comma-separated TMDB keyword ids to exclude (use search_keywords to resolve names → ids).",
+    )
+    .optional(),
   with_watch_providers: z
     .string()
     .describe(
@@ -118,8 +123,10 @@ const discoverShared = {
       "Filter by exact age/content certification, e.g. 'PG-13' (movies) or 'TV-Y7' (TV). Requires " +
         "certification_country, and a certification_country TMDB doesn't recognize silently " +
         "disables this filter (returns unfiltered results) instead of erroring or matching nothing " +
-        "— double-check the country actually has data for that rating system. Case-sensitive for " +
-        "movies ('pg-13' matches nothing; use 'PG-13'). Unlike get_movie/get_tv's own certification " +
+        "— double-check the country actually has data for that rating system. Matching is " +
+        "case-insensitive (verified live: 'pg-13' and 'PG-13' return identical results) but must " +
+        "otherwise exactly match one of TMDB's known rating strings for that country's system, " +
+        "punctuation included (e.g. 'PG-13', not 'PG13'). Unlike get_movie/get_tv's own certification " +
         "field (which falls back to the US rating, then any country, when the requested region has " +
         "none), this filter has NO fallback: a title with no certification entry at all for the " +
         "exact country given is silently excluded from results, even if it's certified elsewhere " +
@@ -226,7 +233,12 @@ export const TV_STATUSES = [
   "Pilot",
 ] as const;
 
-// TV discover adds network/type/status filtering.
+// TV discover adds network/type/status filtering. Deliberately no with_cast/
+// with_crew/with_people here (unlike discoverMovieSchema above): verified live
+// via a raw request straight to TMDB's /discover/tv that it silently ignores
+// those params rather than erroring (identical total_results with vs. without
+// with_cast set) — rejecting them at our own schema (a validation error) is
+// strictly more useful than forwarding a param TMDB would just no-op on.
 const discoverTvSchema = {
   ...discoverShared,
   sort_by: z
@@ -434,7 +446,8 @@ export function registerDiscoverTools(
         "person's work in one genre — 'which of this director's/actor's/composer's films are " +
         "animated' — via with_crew/with_cast/with_people + with_genres together; get_person_credits " +
         "has no genre filter, so this combination is the right tool for that question, not that one. " +
-        "Resolve ids with get_movie_genres, search_people, search_keywords, search_companies.",
+        "Resolve ids with get_movie_genres, search_people, search_keywords, search_companies, " +
+        "search_watch_providers.",
       inputSchema: discoverMovieInputSchema,
       outputSchema: pageSchema(movieSummarySchema),
       annotations: READ_ONLY,
@@ -462,7 +475,8 @@ export function registerDiscoverTools(
         "use with_networks for 'HBO shows', with_type='Miniseries' for short/limited series (e.g. " +
         "'best miniseries to binge in a weekend'), with_status='Ended' to exclude shows still " +
         "airing, certification='TV-Y7' + certification_country='US' for 'shows appropriate for a " +
-        "young kid'.",
+        "young kid'. Resolve ids with get_tv_genres, search_companies, search_keywords, " +
+        "search_watch_providers.",
       inputSchema: discoverTvInputSchema,
       outputSchema: pageSchema(tvSummarySchema),
       annotations: READ_ONLY,
