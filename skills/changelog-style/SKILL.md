@@ -19,7 +19,13 @@ and glincker/changelog-generator.
   is stricter here ("a change should be brief and to the point, no more than
   one line long"); we allow a second line for a real rationale. Skip
   mechanism/implementation detail; that belongs in the commit message or PR
-  description, not the changelog.
+  description, not the changelog. Concrete gut-check: after writing an entry,
+  measure the prose (excluding the trailing link) — past ~150 chars you're
+  burying the fact, not stating it; reread it and cut, don't just eyeball
+  "does this look like one line" (a long single physical line with no
+  embedded newline still fails this rule even though it dodges the separate
+  "no dangling link" issue below) — e.g. generalize the affected set instead
+  of enumerating every affected tool/field by name.
 - **Imperative, present tense**: "Add X", "Fix Y" — not "Added X" / "Fixed Y".
 - **Self-describing**: a reader skimming just the bullet — without its
   `### Added` / `### Fixed` category heading for context — should still
