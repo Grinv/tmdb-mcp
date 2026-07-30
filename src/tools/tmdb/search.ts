@@ -20,6 +20,7 @@ import {
   mediaKind,
   page,
   watchRegion,
+  yearFilter,
   type TmdbToolDeps,
 } from "./fields.js";
 
@@ -40,7 +41,7 @@ export function registerSearchTools(
         "region-based availability use get_watch_providers instead.",
       inputSchema: z.strictObject({
         query: z.string().min(1).describe("Movie title to search for."),
-        year: z.int().min(1870).max(2100).describe("Filter by release year.").optional(),
+        year: yearFilter("Filter by release year."),
         include_adult: includeAdult,
         language,
         region,
@@ -62,7 +63,7 @@ export function registerSearchTools(
         "a TV show.",
       inputSchema: z.strictObject({
         query: z.string().min(1).describe("TV show name to search for."),
-        year: z.int().min(1870).max(2100).describe("Filter by first-air-date year.").optional(),
+        year: yearFilter("Filter by first-air-date year."),
         include_adult: includeAdult,
         language,
         page: page.optional(),

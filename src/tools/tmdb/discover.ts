@@ -15,7 +15,14 @@ import {
   tvSummarySchema,
 } from "../../format.schemas.js";
 import { READ_ONLY } from "../shared.js";
-import { includeAdult, language, page, watchRegion, type TmdbToolDeps } from "./fields.js";
+import {
+  includeAdult,
+  language,
+  page,
+  watchRegion,
+  yearFilter,
+  type TmdbToolDeps,
+} from "./fields.js";
 
 const SHARED_SORT_FIELDS = ["popularity", "vote_average", "vote_count"] as const;
 const MOVIE_SORT_BY = [
@@ -50,7 +57,7 @@ const discoverShared = {
       "Comma-separated TMDB genre ids to exclude; get ids from get_movie_genres/get_tv_genres.",
     )
     .optional(),
-  year: z.int().min(1870).max(2100).describe("Release / first-air year.").optional(),
+  year: yearFilter("Release / first-air year."),
   release_date_gte: dateStr("Only entries released on/after this date (YYYY-MM-DD)."),
   release_date_lte: dateStr("Only entries released on/before this date (YYYY-MM-DD)."),
   min_rating: z
