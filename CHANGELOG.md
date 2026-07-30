@@ -14,6 +14,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Reject calendar-invalid dates (e.g. `2024-02-30`) passed to `discover_movies`/`discover_tv`'s `release_date_gte`/`release_date_lte` instead of forwarding them to TMDB unchecked ([e880886](https://github.com/Grinv/tmdb-mcp/commit/e880886)).
 - Degrade a malformed date/timestamp field (e.g. an unusual `birthday` on an older person record) to `null` instead of failing the whole tool call ([d74aa30](https://github.com/Grinv/tmdb-mcp/commit/d74aa30)).
+- Correct `discover_movies`/`discover_tv`'s `certification` field: matching is case-insensitive, not case-sensitive as previously described ([0d90dff](https://github.com/Grinv/tmdb-mcp/commit/0d90dff)).
+- Correct `search_watch_providers`' `media_type` field: a service's id doesn't change between movie and TV, only whether it's offered at all ([0d90dff](https://github.com/Grinv/tmdb-mcp/commit/0d90dff)).
+- Disclose that `get_videos` is pinned to the server's `TMDB_LANGUAGE` with no per-call override, which can shrink its result set ([0d90dff](https://github.com/Grinv/tmdb-mcp/commit/0d90dff)).
+- Disclose that `get_similar`'s `total_pages`/`total_results` are TMDB's raw, pre-filter counts, not the actual per-page result count ([0d90dff](https://github.com/Grinv/tmdb-mcp/commit/0d90dff)).
+- Disclose that `search_movies`' `year` filter is soft, unlike `discover_movies`'/`search_tv`'s hard year filters ([0d90dff](https://github.com/Grinv/tmdb-mcp/commit/0d90dff)).
+- Disclose that a `get_reviews` review's `rating` can be null ([0d90dff](https://github.com/Grinv/tmdb-mcp/commit/0d90dff)).
+- Add `search_watch_providers` to `discover_movies`'/`discover_tv`'s id-resolver roundup (`discover_tv` had none at all), and point `without_keywords` to `search_keywords` like its `with_keywords` sibling ([0d90dff](https://github.com/Grinv/tmdb-mcp/commit/0d90dff)).
 
 ## [0.10.0] - 2026-07-30
 
