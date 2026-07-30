@@ -111,8 +111,8 @@ export const includeRatings = z
 // get_movies/get_tv_shows: capped well under TMDB's own per-request limits
 // (e.g. append_to_response's 20) since, unlike Steam's real batch endpoints,
 // TMDB has no batch API at all — each id here is still its own upstream
-// request under the hood (see docs/api-references.md), just fanned out
-// concurrently through the same rate limiter every other call shares.
+// request under the hood, just fanned out concurrently through the same
+// rate limiter every other call shares.
 export const movieIdsBatch = z
   .array(z.number().int().positive())
   .min(1)
