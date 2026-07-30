@@ -480,7 +480,14 @@ export function summarizeCredits(c: TmdbCredits, castLimit = 20): z.infer<typeof
     .sort((a, b) => (a.order ?? 999) - (b.order ?? 999))
     .slice(0, castLimit)
     .map((x) => ({ id: x.id, name: x.name, character: x.character || null }));
-  // Keep only the headline crew roles; full crew lists are mostly noise.
+  // Keep only the headline crew roles; full crew lists are mostly noise. Shared by both
+  // get_movie_credits and get_tv_credits, but "Director"/"Writer"/"Screenplay"/"Creator" are
+  // effectively movie-only in practice: verified live, TMDB's /tv/{id}/credits crew data never
+  // tags them on several shows checked (Breaking Bad, Stranger Things, Chernobyl, The Queen's
+  // Gambit) — each show's actual creator/writer/director appears only as "Executive Producer".
+  // /movie/{id}/credits does reliably carry them (verified live too, e.g. Inception's Christopher
+  // Nolan as both "Writer" and "Director"). get_tv_credits' own description reflects this gap;
+  // don't assume this set behaves identically for both media types.
   const KEY_JOBS = new Set([
     "Director",
     "Writer",

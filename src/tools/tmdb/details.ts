@@ -92,7 +92,8 @@ export function registerDetailsTools(
       title: "Get TV show details",
       description:
         "Get full details for one TV show by TMDB id: overview, genres, seasons/episodes counts, " +
-        "networks, status, the age/content rating (certification) for `region` — falling back to " +
+        "networks, created_by (the show's creator(s)), status, the age/content rating " +
+        "(certification) for `region` — falling back to " +
         "the US rating, then any available country, when `region` has none; check " +
         "`certification_region` to see which one was used — and links. " +
         "By default also includes IMDb/Rotten Tomatoes/Metacritic ratings, an awards summary " +
@@ -273,8 +274,14 @@ export function registerDetailsTools(
     {
       title: "Get TV cast & crew",
       description:
-        "List the main cast (up to 20) and headline crew (creators, writers, …) of a TV show by " +
-        "TMDB id. Get the id from search_tv.",
+        "List the main cast (up to 20) and production crew (executive producers, producers, " +
+        "composer, DoP, …) of a TV show by TMDB id. TMDB's show-level TV credits data does not " +
+        "reliably expose director/writer/creator credits — verified live across several shows " +
+        "(Breaking Bad, Stranger Things, Chernobyl, The Queen's Gambit): each show's actual " +
+        "creator/head-writer/director appears only as 'Executive Producer', never as 'Writer', " +
+        "'Director' or 'Creator'. For who created the show, use get_tv's own `created_by` field " +
+        "instead; for a specific episode's actual director/writer (which TMDB does track " +
+        "reliably at that level), use get_tv_episode. Get the id from search_tv.",
       inputSchema: z.object({ id: tmdbId }).strict(),
       outputSchema: creditsSchema,
       annotations: READ_ONLY,
