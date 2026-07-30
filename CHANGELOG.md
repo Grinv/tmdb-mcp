@@ -21,6 +21,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Stop shipping contributor-only tooling (`.claude/`, `skills/`, `AGENTS.md`, `glama.json`, etc.) inside the `.mcpb` bundle — 39 files down to 10 ([f23617d](https://github.com/Grinv/tmdb-mcp/commit/f23617d), [9afaa5a](https://github.com/Grinv/tmdb-mcp/commit/9afaa5a)).
 - Reject `min_runtime` greater than `max_runtime` on `discover_movies`/`discover_tv` instead of silently returning an empty result set ([1fe8de8](https://github.com/Grinv/tmdb-mcp/commit/1fe8de8)).
+- Correct `get_tv_credits`' description: TMDB's TV credits data doesn't reliably expose director/writer/creator jobs the way movie credits do ([103e4d1](https://github.com/Grinv/tmdb-mcp/commit/103e4d1)).
+- Disclose that `find_by_imdb_id` silently drops a match for an episode/season-level IMDb id ([c6562e8](https://github.com/Grinv/tmdb-mcp/commit/c6562e8)).
+- Disclose that `discover_tv`'s `with_networks` has no name-based id resolver, unlike its sibling filters ([61bff64](https://github.com/Grinv/tmdb-mcp/commit/61bff64)).
+- Document `get_tv`'s `created_by` field, previously returned but unmentioned in its description ([103e4d1](https://github.com/Grinv/tmdb-mcp/commit/103e4d1)).
+- Point `discover_movies`'s `with_cast`/`with_crew`/`with_people` to `search_people` for id resolution, matching every sibling filter ([61bff64](https://github.com/Grinv/tmdb-mcp/commit/61bff64)).
 
 ### Security
 
