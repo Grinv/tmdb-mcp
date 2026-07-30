@@ -41,7 +41,7 @@ export function registerSearchTools(
       inputSchema: z
         .object({
           query: z.string().min(1).describe("Movie title to search for."),
-          year: z.number().int().min(1870).max(2100).describe("Filter by release year.").optional(),
+          year: z.int().min(1870).max(2100).describe("Filter by release year.").optional(),
           include_adult: includeAdult,
           language,
           region,
@@ -65,13 +65,7 @@ export function registerSearchTools(
       inputSchema: z
         .object({
           query: z.string().min(1).describe("TV show name to search for."),
-          year: z
-            .number()
-            .int()
-            .min(1870)
-            .max(2100)
-            .describe("Filter by first-air-date year.")
-            .optional(),
+          year: z.int().min(1870).max(2100).describe("Filter by first-air-date year.").optional(),
           include_adult: includeAdult,
           language,
           page: page.optional(),

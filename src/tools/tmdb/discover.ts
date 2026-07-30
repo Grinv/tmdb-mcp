@@ -55,7 +55,7 @@ const discoverShared = {
       "Comma-separated TMDB genre ids to exclude; get ids from get_movie_genres/get_tv_genres.",
     )
     .optional(),
-  year: z.number().int().min(1870).max(2100).describe("Release / first-air year.").optional(),
+  year: z.int().min(1870).max(2100).describe("Release / first-air year.").optional(),
   release_date_gte: dateStr("Only entries released on/after this date (YYYY-MM-DD)."),
   release_date_lte: dateStr("Only entries released on/before this date (YYYY-MM-DD)."),
   min_rating: z
@@ -65,19 +65,13 @@ const discoverShared = {
     .describe("Minimum vote average (0-10). Must be <= max_rating if both are given.")
     .optional(),
   max_rating: z.number().min(0).max(10).describe("Maximum vote average (0-10).").optional(),
-  min_votes: z
-    .number()
-    .int()
-    .min(0)
-    .describe("Minimum vote count (filters obscure titles).")
-    .optional(),
+  min_votes: z.int().min(0).describe("Minimum vote count (filters obscure titles).").optional(),
   min_runtime: z
-    .number()
     .int()
     .min(0)
     .describe("Minimum runtime in minutes. Must be <= max_runtime if both are given.")
     .optional(),
-  max_runtime: z.number().int().min(0).describe("Maximum runtime in minutes.").optional(),
+  max_runtime: z.int().min(0).describe("Maximum runtime in minutes.").optional(),
   with_original_language: z
     .string()
     .regex(

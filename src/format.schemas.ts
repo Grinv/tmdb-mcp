@@ -39,7 +39,7 @@ export const movieSummarySchema = z
     title: z.string().optional(),
     original_title: z.string().optional(),
     year: z.number().nullable(),
-    release_date: z.string().nullable(),
+    release_date: z.iso.date().nullable(),
     vote_average: z.number().nullable(),
     vote_count: z.number().nullable(),
     overview: z.string().nullable(),
@@ -68,7 +68,7 @@ export const movieDetailSchema = z
     tagline: z.string().nullable(),
     overview: z.string().nullable(),
     year: z.number().nullable(),
-    release_date: z.string().nullable(),
+    release_date: z.iso.date().nullable(),
     runtime_minutes: z.number().nullable(),
     status: z.string().nullable(),
     genres: z.array(z.string()),
@@ -98,7 +98,7 @@ export const tvSummarySchema = z
     name: z.string().optional(),
     original_name: z.string().optional(),
     year: z.number().nullable(),
-    first_air_date: z.string().nullable(),
+    first_air_date: z.iso.date().nullable(),
     vote_average: z.number().nullable(),
     vote_count: z.number().nullable(),
     overview: z.string().nullable(),
@@ -117,7 +117,7 @@ const episodeBriefSchema = z
     season_number: z.number().nullable(),
     episode_number: z.number().nullable(),
     name: z.string().nullable(),
-    air_date: z.string().nullable(),
+    air_date: z.iso.date().nullable(),
   })
   .strict();
 
@@ -126,7 +126,7 @@ const seasonBriefSchema = z
     season_number: z.number().nullable(),
     name: z.string().nullable(),
     episode_count: z.number().nullable(),
-    air_date: z.string().nullable(),
+    air_date: z.iso.date().nullable(),
   })
   .strict();
 
@@ -143,8 +143,8 @@ export const tvDetailSchema = z
     tagline: z.string().nullable(),
     overview: z.string().nullable(),
     type: z.string().nullable(),
-    first_air_date: z.string().nullable(),
-    last_air_date: z.string().nullable(),
+    first_air_date: z.iso.date().nullable(),
+    last_air_date: z.iso.date().nullable(),
     status: z.string().nullable(),
     in_production: z.boolean().nullable(),
     next_episode_to_air: episodeBriefSchema.nullable(),
@@ -178,8 +178,8 @@ export const personDetailSchema = z
     known_for_department: z.string().nullable(),
     gender: z.string().nullable(),
     biography: z.string().nullable(),
-    birthday: z.string().nullable(),
-    deathday: z.string().nullable(),
+    birthday: z.iso.date().nullable(),
+    deathday: z.iso.date().nullable(),
     place_of_birth: z.string().nullable(),
     popularity: z.number().nullable(),
     homepage: z.string().nullable(),
@@ -257,7 +257,7 @@ export const reviewSchema = z
   .object({
     author: z.string().nullable(),
     rating: z.number().nullable(),
-    created_at: z.string().nullable(),
+    created_at: z.iso.datetime().nullable(),
     content: z.string().nullable(),
     url: z.string().nullable(),
   })
@@ -375,7 +375,7 @@ export const videosSchema = z
           site: z.string().nullable(),
           official: z.boolean().nullable(),
           url: z.string().nullable(),
-          published_at: z.string().nullable(),
+          published_at: z.iso.datetime().nullable(),
         })
         .strict(),
     ),
@@ -408,7 +408,7 @@ export const seasonSchema = z
   .object({
     season_number: z.number().nullable(),
     name: z.string().nullable(),
-    air_date: z.string().nullable(),
+    air_date: z.iso.date().nullable(),
     overview: z.string().nullable(),
     poster_url: z.string().nullable(),
     episode_count: z.number(),
@@ -417,7 +417,7 @@ export const seasonSchema = z
         .object({
           episode_number: z.number().nullable(),
           name: z.string().nullable(),
-          air_date: z.string().nullable(),
+          air_date: z.iso.date().nullable(),
           runtime_minutes: z.number().nullable(),
           vote_average: z.number().nullable(),
           overview: z.string().nullable(),
@@ -432,7 +432,7 @@ export const episodeSchema = z
     season_number: z.number().nullable(),
     episode_number: z.number().nullable(),
     name: z.string().nullable(),
-    air_date: z.string().nullable(),
+    air_date: z.iso.date().nullable(),
     runtime_minutes: z.number().nullable(),
     vote_average: z.number().nullable(),
     overview: z.string().nullable(),

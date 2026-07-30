@@ -32,13 +32,7 @@ export function registerOmdbTools(server: McpServer, omdb: OmdbClient): void {
             .min(1)
             .describe("Movie/show title (used when imdb_id is absent).")
             .optional(),
-          year: z
-            .number()
-            .int()
-            .min(1870)
-            .max(2100)
-            .describe("Year, to disambiguate a title.")
-            .optional(),
+          year: z.int().min(1870).max(2100).describe("Year, to disambiguate a title.").optional(),
           type: z
             .enum(["movie", "series", "episode"])
             .describe(

@@ -44,14 +44,13 @@ export interface TmdbToolDeps {
 }
 
 export const page = z
-  .number()
   .int()
   .min(1)
   .max(500)
   .describe(
     "1-based page number for pagination (TMDB returns up to 20 results per page, max 500).",
   );
-export const tmdbId = z.number().int().positive().describe("TMDB numeric id.");
+export const tmdbId = z.int().positive().describe("TMDB numeric id.");
 export const mediaKind = z.enum(["movie", "tv"]).describe("Media type: 'movie' or 'tv'.");
 // Shared by discover_*'s with_watch_providers pairing and search_watch_providers:
 // watch-provider availability (and even a provider's own numeric id) is
@@ -86,7 +85,6 @@ export const personDepartment = z
   )
   .optional();
 export const personCreditsLimit = z
-  .number()
   .int()
   .min(1)
   .max(100)
@@ -116,7 +114,7 @@ export const includeRatings = z
 // request under the hood, just fanned out concurrently through the same
 // rate limiter every other call shares.
 export const movieIdsBatch = z
-  .array(z.number().int().positive())
+  .array(z.int().positive())
   .min(1)
   .max(20)
   .describe(
@@ -124,7 +122,7 @@ export const movieIdsBatch = z
       "get_movie_recommendations/etc.",
   );
 export const tvIdsBatch = z
-  .array(z.number().int().positive())
+  .array(z.int().positive())
   .min(1)
   .max(20)
   .describe(

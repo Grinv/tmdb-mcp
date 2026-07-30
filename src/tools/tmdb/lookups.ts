@@ -106,7 +106,7 @@ export function registerLookupTools(
       inputSchema: z
         .object({
           id: tmdbId,
-          season_number: z.number().int().min(0).describe("Season number (0 = specials)."),
+          season_number: z.int().min(0).describe("Season number (0 = specials)."),
         })
         .strict(),
       outputSchema: seasonSchema,
@@ -131,8 +131,8 @@ export function registerLookupTools(
       inputSchema: z
         .object({
           id: tmdbId,
-          season_number: z.number().int().min(0).describe("Season number (0 = specials)."),
-          episode_number: z.number().int().min(1).describe("Episode number within the season."),
+          season_number: z.int().min(0).describe("Season number (0 = specials)."),
+          episode_number: z.int().min(1).describe("Episode number within the season."),
         })
         .strict(),
       outputSchema: episodeSchema,
