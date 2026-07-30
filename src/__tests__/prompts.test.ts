@@ -3,18 +3,16 @@ import assert from "node:assert/strict";
 import { connectServer, contentText } from "./helpers.js";
 
 describe("recommend_similar prompt", () => {
-  test("is advertised via prompts/list", async (t) => {
-    const { client, close } = await connectServer({});
-    t.after(close);
+  test("is advertised via prompts/list", async () => {
+    await using client = await connectServer({});
     const { prompts } = await client.listPrompts();
     const p = prompts.find((p) => p.name === "recommend_similar");
     assert.ok(p, "recommend_similar should be listed");
     assert.ok(p!.arguments?.some((a) => a.name === "title" && a.required));
   });
 
-  test("builds a plan message naming the title and default count", async (t) => {
-    const { client, close } = await connectServer({});
-    t.after(close);
+  test("builds a plan message naming the title and default count", async () => {
+    await using client = await connectServer({});
     const res = await client.getPrompt({
       name: "recommend_similar",
       arguments: { title: "The Man from Earth" },
@@ -29,9 +27,8 @@ describe("recommend_similar prompt", () => {
     assert.match(text, /get_similar/);
   });
 
-  test("honors media_type and a custom count", async (t) => {
-    const { client, close } = await connectServer({});
-    t.after(close);
+  test("honors media_type and a custom count", async () => {
+    await using client = await connectServer({});
     const res = await client.getPrompt({
       name: "recommend_similar",
       arguments: { title: "Forrest Gump", media_type: "movie", count: "3" },
@@ -41,9 +38,8 @@ describe("recommend_similar prompt", () => {
     assert.match(text, /Recommend 3/);
   });
 
-  test("rejects a non-numeric count via the argument schema", async (t) => {
-    const { client, close } = await connectServer({});
-    t.after(close);
+  test("rejects a non-numeric count via the argument schema", async () => {
+    await using client = await connectServer({});
     await assert.rejects(() =>
       client.getPrompt({
         name: "recommend_similar",
@@ -54,18 +50,16 @@ describe("recommend_similar prompt", () => {
 });
 
 describe("top_by_entity prompt", () => {
-  test("is advertised via prompts/list", async (t) => {
-    const { client, close } = await connectServer({});
-    t.after(close);
+  test("is advertised via prompts/list", async () => {
+    await using client = await connectServer({});
     const { prompts } = await client.listPrompts();
     const p = prompts.find((p) => p.name === "top_by_entity");
     assert.ok(p, "top_by_entity should be listed");
     assert.ok(p!.arguments?.some((a) => a.name === "name" && a.required));
   });
 
-  test("builds a plan message naming the entity and default count", async (t) => {
-    const { client, close } = await connectServer({});
-    t.after(close);
+  test("builds a plan message naming the entity and default count", async () => {
+    await using client = await connectServer({});
     const res = await client.getPrompt({
       name: "top_by_entity",
       arguments: { name: "A24" },
@@ -82,9 +76,8 @@ describe("top_by_entity prompt", () => {
     assert.match(text, /get_person_credits/);
   });
 
-  test("honors entity_type, genre, media_type and a custom count", async (t) => {
-    const { client, close } = await connectServer({});
-    t.after(close);
+  test("honors entity_type, genre, media_type and a custom count", async () => {
+    await using client = await connectServer({});
     const res = await client.getPrompt({
       name: "top_by_entity",
       arguments: {
@@ -106,9 +99,8 @@ describe("top_by_entity prompt", () => {
     assert.doesNotMatch(text, /discover_tv/);
   });
 
-  test("media_type=tv drops the movies-only branch", async (t) => {
-    const { client, close } = await connectServer({});
-    t.after(close);
+  test("media_type=tv drops the movies-only branch", async () => {
+    await using client = await connectServer({});
     const res = await client.getPrompt({
       name: "top_by_entity",
       arguments: { name: "Shonda Rhimes", media_type: "tv" },
@@ -124,9 +116,8 @@ describe("top_by_entity prompt", () => {
     assert.doesNotMatch(text, /min_votes floor/);
   });
 
-  test("rejects a non-numeric count via the argument schema", async (t) => {
-    const { client, close } = await connectServer({});
-    t.after(close);
+  test("rejects a non-numeric count via the argument schema", async () => {
+    await using client = await connectServer({});
     await assert.rejects(() =>
       client.getPrompt({
         name: "top_by_entity",
@@ -135,9 +126,8 @@ describe("top_by_entity prompt", () => {
     );
   });
 
-  test("a company + genre + media_type=tv combo still applies the genre to discover_tv", async (t) => {
-    const { client, close } = await connectServer({});
-    t.after(close);
+  test("a company + genre + media_type=tv combo still applies the genre to discover_tv", async () => {
+    await using client = await connectServer({});
     const res = await client.getPrompt({
       name: "top_by_entity",
       arguments: {

@@ -187,9 +187,8 @@ describe("manifest.json/server.json stay in sync with the running server", () =>
   // count against manifest.tools.length), this closes the triangle: built
   // binary count === manifest.json count === in-memory server names (a strictly
   // stronger check than count, since it also catches a rename/swap).
-  test("manifest.json tools list matches the server's registered tools", async (t) => {
-    const { client, close } = await connectServer(DEFAULT_ENV);
-    t.after(close);
+  test("manifest.json tools list matches the server's registered tools", async () => {
+    await using client = await connectServer(DEFAULT_ENV);
     const { tools } = await client.listTools();
     const serverToolCount = tools.length;
     assert.equal(
@@ -200,9 +199,8 @@ describe("manifest.json/server.json stay in sync with the running server", () =>
     assert.deepEqual(tools.map((tl) => tl.name).sort(), manifest.tools.map((tl) => tl.name).sort());
   });
 
-  test("manifest.json's prompts match every registered prompt", async (t) => {
-    const { client, close } = await connectServer(DEFAULT_ENV);
-    t.after(close);
+  test("manifest.json's prompts match every registered prompt", async () => {
+    await using client = await connectServer(DEFAULT_ENV);
     const { prompts } = await client.listPrompts();
     // Same name set first (catches an added/removed/renamed prompt regardless
     // of how many there are), then description + argument names per prompt.

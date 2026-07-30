@@ -32,8 +32,7 @@ describe("get_ratings", () => {
       t,
       mockFetch(() => jsonResponse(OMDB_OK)),
     );
-    const { client, close } = await connectServer(ENV);
-    t.after(close);
+    await using client = await connectServer(ENV);
     const res = await client.callTool({
       name: "get_ratings",
       arguments: { imdb_id: "tt0133093" },
@@ -54,8 +53,7 @@ describe("get_ratings", () => {
         return jsonResponse(OMDB_OK);
       }),
     );
-    const { client, close } = await connectServer({ ...ENV, HTTP_RETRIES: "0", CACHE_TTL_MS: "1" });
-    t.after(close);
+    await using client = await connectServer({ ...ENV, HTTP_RETRIES: "0", CACHE_TTL_MS: "1" });
 
     const first = await client.callTool({
       name: "get_ratings",
@@ -79,8 +77,7 @@ describe("get_ratings", () => {
   test("looks up ratings by title and year, not imdb_id", async (t) => {
     const mock = mockFetch(() => jsonResponse(OMDB_OK));
     installFetch(t, mock);
-    const { client, close } = await connectServer(ENV);
-    t.after(close);
+    await using client = await connectServer(ENV);
     const res = await client.callTool({
       name: "get_ratings",
       arguments: { title: "The Matrix", year: 1999 },
@@ -97,8 +94,7 @@ describe("get_ratings", () => {
   test("passes type through to OMDb when looking up by title", async (t) => {
     const mock = mockFetch(() => jsonResponse(OMDB_OK));
     installFetch(t, mock);
-    const { client, close } = await connectServer(ENV);
-    t.after(close);
+    await using client = await connectServer(ENV);
     const res = await client.callTool({
       name: "get_ratings",
       arguments: { title: "Chuck", type: "movie" },
@@ -113,8 +109,7 @@ describe("get_ratings", () => {
       t,
       mockFetch(() => jsonResponse(OMDB_OK)),
     );
-    const { client, close } = await connectServer(ENV);
-    t.after(close);
+    await using client = await connectServer(ENV);
     const res = await client.callTool({
       name: "get_ratings",
       arguments: { title: "Chuck", type: "documentary" },
@@ -128,8 +123,7 @@ describe("get_ratings", () => {
       t,
       mockFetch(() => jsonResponse({ Response: "False", Error: "Movie not found!" })),
     );
-    const { client, close } = await connectServer(ENV);
-    t.after(close);
+    await using client = await connectServer(ENV);
     const res = await client.callTool({ name: "get_ratings", arguments: { imdb_id: "tt0000000" } });
     assert.notEqual(res.isError, true);
     const s = res.structuredContent as { found: boolean; reason: string };
@@ -146,8 +140,7 @@ describe("get_ratings", () => {
         t,
         mockFetch(() => jsonResponse({})),
       );
-      const { client, close } = await connectServer({ TMDB_API_TOKEN: "t" }); // no OMDB_API_KEY
-      t.after(close);
+      await using client = await connectServer({ TMDB_API_TOKEN: "t" }); // no OMDB_API_KEY
       const res = await client.callTool({ name: "get_ratings", arguments: {} });
       assert.equal(res.isError, true);
       const text = toolText(res);
@@ -159,8 +152,7 @@ describe("get_ratings", () => {
         t,
         mockFetch(() => jsonResponse({})),
       );
-      const { client, close } = await connectServer(ENV);
-      t.after(close);
+      await using client = await connectServer(ENV);
       const res = await client.callTool({ name: "get_ratings", arguments: {} });
       assert.equal(res.isError, true);
       const text = toolText(res);

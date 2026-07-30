@@ -107,10 +107,13 @@ export function hangingFetch(opts: { onStart?: () => void; onAbort?: () => void 
   );
 }
 
-/** Build the server and connect an in-memory client for end-to-end tool tests. */
+/** Build the server and connect an in-memory client for end-to-end tool tests.
+ *  The returned client is itself disposable (`await using client = await
+ *  connectServer(...)`) — closing both the client and server is wired up as
+ *  its `Symbol.asyncDispose`, so callers don't need a separate `t.after()`. */
 export async function connectServer(
   env: NodeJS.ProcessEnv = {},
-): Promise<{ client: Client; close: () => Promise<void> }> {
+): Promise<Client & AsyncDisposable> {
   const server = buildServer(loadConfig(env), silentLogger());
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test", version: "0" });
@@ -120,11 +123,10 @@ export async function connectServer(
   // already populated, so every callTool() in the suite doubles as an
   // outputSchema conformance check instead of silently skipping validation.
   await client.listTools();
-  return {
-    client,
-    close: async () => {
+  return Object.assign(client, {
+    async [Symbol.asyncDispose]() {
       await client.close();
       await server.close();
     },
-  };
+  });
 }
