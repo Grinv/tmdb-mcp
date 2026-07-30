@@ -6,6 +6,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Tighten every date/timestamp field in tool output schemas from a bare string to a proper ISO date/date-time format ([ba90249](https://github.com/Grinv/tmdb-mcp/commit/ba90249)).
+
 ## [0.10.0] - 2026-07-30
 
 ### Added
