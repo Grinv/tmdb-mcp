@@ -191,7 +191,7 @@ npm run check:api    # live upstream health-check (needs the env credentials)
 npm run inspector    # run under the MCP Inspector
 ```
 
-Runtime requires Node ≥ 20.9. Contributor/agent guidance lives in
+Runtime requires Node ≥ 20.11. Contributor/agent guidance lives in
 [AGENTS.md](https://github.com/Grinv/tmdb-mcp/blob/main/AGENTS.md).
 
 ## Updating

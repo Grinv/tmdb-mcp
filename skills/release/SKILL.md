@@ -18,7 +18,7 @@ easy to do in the wrong order (a v0.9.0 release once shipped tagged with
 atomic with the version bump itself, so there's no ordering to get wrong.
 `sync-version.mjs` and `preversion-check.mjs` locate the repo root via
 `fileURLToPath(import.meta.url)` + `dirname()` — no Node-version floor above
-the package's own `engines.node` (≥ 20) applies to running `npm version`
+the package's own `engines.node` (≥ 20.11) applies to running `npm version`
 yourself.
 
 A `preversion` hook (`scripts/preversion-check.mjs`) runs first, with two checks:
