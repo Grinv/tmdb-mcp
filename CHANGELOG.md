@@ -12,7 +12,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- Raise runtime floor to Node ≥ 20.9 (was ≥ 20) — the release Node 20 became Active LTS ([0630a1a](https://github.com/Grinv/tmdb-mcp/commit/0630a1a)).
+- Raise runtime floor to Node ≥ 20.11 (was ≥ 20) ([0630a1a](https://github.com/Grinv/tmdb-mcp/commit/0630a1a), [d22c35b](https://github.com/Grinv/tmdb-mcp/commit/d22c35b)).
 
 ### Security
 
