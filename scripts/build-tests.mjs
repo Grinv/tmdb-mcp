@@ -1,6 +1,6 @@
 // Transpile every src/**/*.ts (tests + sources) to dist-tests/ as ESM,
 // preserving the directory layout so relative ".js" imports resolve.
-// Decoupled from the runtime: lets `node --test` run on any Node >=20
+// Decoupled from the runtime: lets `node --test` run on any Node >=20.9
 // regardless of native TS type-stripping support.
 import { build } from "esbuild";
 import { readdirSync, rmSync } from "node:fs";

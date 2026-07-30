@@ -24,7 +24,7 @@
     "url": "git+https://github.com/Grinv/tmdb-mcp.git"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20.9.0"
   },
   "bin": {
     "tmdb-mcp": "dist/index.js"

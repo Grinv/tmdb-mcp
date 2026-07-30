@@ -71,13 +71,17 @@ export class HttpClient {
     // so with a fully-mocked fetch (no real socket keeping the loop alive) the
     // process can exit before it ever fires. A real setTimeout here always
     // fires, mocked fetch or not.
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    const onAbort = () => controller.abort();
-    options.signal?.addEventListener("abort", onAbort, { once: true });
-    // A signal already aborted before we started listening (e.g. cancelled
-    // while awaiting the rate limiter) never fires its 'abort' event again.
-    if (options.signal?.aborted) onAbort();
+    const timeoutController = new AbortController();
+    const timer = setTimeout(() => timeoutController.abort(), timeoutMs);
+    // AbortSignal.any() (Node >=20.3) composes the caller's cancellation with
+    // our own timeout into the one signal fetch() takes, including the
+    // already-aborted case (e.g. cancelled while awaiting the rate limiter) —
+    // no manual relay listener needed. The two inputs stay independently
+    // inspectable below via their own .aborted, so we can still tell "caller
+    // cancelled" from "we timed out".
+    const signal = options.signal
+      ? AbortSignal.any([options.signal, timeoutController.signal])
+      : timeoutController.signal;
 
     let res: Response;
     try {
@@ -90,7 +94,7 @@ export class HttpClient {
           ...options.headers,
         },
         ...(options.body === undefined ? {} : { body: options.body }),
-        signal: controller.signal,
+        signal,
       });
     } catch (err) {
       if (options.signal?.aborted) {
@@ -98,7 +102,7 @@ export class HttpClient {
         // — propagate as a non-retryable abort, distinct from our own timeout.
         throw new ApiError({ code: "network", message: "Request aborted by caller", cause: err });
       }
-      if (controller.signal.aborted) {
+      if (timeoutController.signal.aborted) {
         throw new ApiError({
           code: "timeout",
           message: `Request timed out after ${timeoutMs}ms`,
@@ -109,7 +113,6 @@ export class HttpClient {
       throw toNetworkError(err);
     } finally {
       clearTimeout(timer);
-      options.signal?.removeEventListener("abort", onAbort);
     }
 
     if (!res.ok) throw await toHttpError(res);

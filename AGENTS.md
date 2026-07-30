@@ -52,7 +52,8 @@ npm run inspector      # run under the MCP Inspector
 
 - **Docs and in-code text are English** (README, docs, comments, tool
   descriptions, error messages).
-- Runtime floor is **Node ≥ 20** (global `fetch`, stable `node:test`); tsup
+- Runtime floor is **Node ≥ 20.9** (the first Node 20 release under Active
+  LTS; also global `fetch`, stable `node:test`, `AbortSignal.any()`); tsup
   targets `node20`. (Contributors running `npm version` need Node ≥ 20.11 —
   see [skills/release/SKILL.md](skills/release/SKILL.md).)
 - Log to **stderr only** — stdout is the MCP protocol channel. Use the logger;
