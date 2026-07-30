@@ -34,7 +34,7 @@ const castMemberSchema = z.strictObject({
 // ---- summarizeMovie / detailMovie -------------------------------------------
 
 export const movieSummarySchema = z.strictObject({
-  id: z.number(),
+  id: z.number().brand<"MovieId">(),
   media_type: z.literal("movie"),
   title: z.string().optional(),
   original_title: z.string().optional(),
@@ -53,7 +53,7 @@ const collectionRefSchema = z.strictObject({
 });
 
 export const movieDetailSchema = z.strictObject({
-  id: z.number(),
+  id: z.number().brand<"MovieId">(),
   imdb_id: z.string().nullable(),
   media_type: z.literal("movie"),
   certification: z.string().nullable(),
@@ -87,7 +87,7 @@ export const movieDetailSchema = z.strictObject({
 // ---- summarizeTv / detailTv --------------------------------------------------
 
 export const tvSummarySchema = z.strictObject({
-  id: z.number(),
+  id: z.number().brand<"TvId">(),
   media_type: z.literal("tv"),
   name: z.string().optional(),
   original_name: z.string().optional(),
@@ -120,7 +120,7 @@ const seasonBriefSchema = z.strictObject({
 });
 
 export const tvDetailSchema = z.strictObject({
-  id: z.number(),
+  id: z.number().brand<"TvId">(),
   imdb_id: z.string().nullable(),
   media_type: z.literal("tv"),
   certification: z.string().nullable(),
@@ -157,7 +157,7 @@ export const tvDetailSchema = z.strictObject({
 // ---- detailPerson -------------------------------------------------------------
 
 export const personDetailSchema = z.strictObject({
-  id: z.number(),
+  id: z.number().brand<"PersonId">(),
   imdb_id: z.string().nullable(),
   name: z.string().optional(),
   also_known_as: z.array(z.string()),
@@ -191,7 +191,7 @@ export const creditsSchema = z.strictObject({
 // ---- summarizePerson ----------------------------------------------------------
 
 export const personSummarySchema = z.strictObject({
-  id: z.number(),
+  id: z.number().brand<"PersonId">(),
   media_type: z.literal("person"),
   name: z.string().optional(),
   known_for_department: z.string().nullable(),
