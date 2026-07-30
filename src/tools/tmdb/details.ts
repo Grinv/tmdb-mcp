@@ -61,9 +61,12 @@ export function registerDetailsTools(
         "call. If you only need the headline info (title/year/genres/vote average) — for one id or " +
         "several — use get_movies instead; it's trimmed on purpose and skips the rest of this " +
         "payload. Get the id from search_movies.",
-      inputSchema: z
-        .object({ id: tmdbId, region, language, include_ratings: includeRatings })
-        .strict(),
+      inputSchema: z.strictObject({
+        id: tmdbId,
+        region,
+        language,
+        include_ratings: includeRatings,
+      }),
       outputSchema: movieDetailEnrichedSchema,
       annotations: READ_ONLY,
     },
@@ -107,15 +110,13 @@ export function registerDetailsTools(
         "(name/year/genres/vote average, season/episode counts) — for one id or several — use " +
         "get_tv_shows instead; it's trimmed on purpose and skips the rest of this payload. Get the " +
         "id from search_tv.",
-      inputSchema: z
-        .object({
-          id: tmdbId,
-          region,
-          language,
-          include_ratings: includeRatings,
-          expand_episodes: expandEpisodes,
-        })
-        .strict(),
+      inputSchema: z.strictObject({
+        id: tmdbId,
+        region,
+        language,
+        include_ratings: includeRatings,
+        expand_episodes: expandEpisodes,
+      }),
       outputSchema: tvDetailEnrichedSchema,
       annotations: READ_ONLY,
     },
@@ -151,10 +152,12 @@ export function registerDetailsTools(
         "region-specific certification). A bad/unknown id " +
         "never fails the whole call — that entry comes back `{id, found:false, reason}` instead, in " +
         "the same order as `ids`.",
-      inputSchema: z
-        .object({ ids: movieIdsBatch, language, include_ratings: includeRatingsBatch })
-        .strict(),
-      outputSchema: z.object({ results: z.array(movieCardSchema) }).strict(),
+      inputSchema: z.strictObject({
+        ids: movieIdsBatch,
+        language,
+        include_ratings: includeRatingsBatch,
+      }),
+      outputSchema: z.strictObject({ results: z.array(movieCardSchema) }),
       annotations: READ_ONLY,
     },
     ({ ids, language: lang, include_ratings }, ctx) => {
@@ -199,10 +202,12 @@ export function registerDetailsTools(
         "when you need the full details for a title (including region-specific certification). A " +
         "bad/unknown id never fails the whole call — " +
         "that entry comes back `{id, found:false, reason}` instead, in the same order as `ids`.",
-      inputSchema: z
-        .object({ ids: tvIdsBatch, language, include_ratings: includeRatingsBatch })
-        .strict(),
-      outputSchema: z.object({ results: z.array(tvCardSchema) }).strict(),
+      inputSchema: z.strictObject({
+        ids: tvIdsBatch,
+        language,
+        include_ratings: includeRatingsBatch,
+      }),
+      outputSchema: z.strictObject({ results: z.array(tvCardSchema) }),
       annotations: READ_ONLY,
     },
     ({ ids, language: lang, include_ratings }, ctx) => {
@@ -241,7 +246,7 @@ export function registerDetailsTools(
         "Get full details for one person by TMDB id: biography, birthday/deathday, department, and " +
         "links (TMDB + IMDb). Does not include filmography — use get_person_credits for that. Get " +
         "the id from search_people or a credits list.",
-      inputSchema: z.object({ id: tmdbId, language }).strict(),
+      inputSchema: z.strictObject({ id: tmdbId, language }),
       outputSchema: personDetailSchema,
       annotations: READ_ONLY,
     },
@@ -257,7 +262,7 @@ export function registerDetailsTools(
       description:
         "List the top-billed cast (up to 20) and the headline crew (director, writers, composer, " +
         "DoP, …) of a movie by TMDB id. Get the id from search_movies.",
-      inputSchema: z.object({ id: tmdbId }).strict(),
+      inputSchema: z.strictObject({ id: tmdbId }),
       outputSchema: creditsSchema,
       annotations: READ_ONLY,
     },
@@ -282,7 +287,7 @@ export function registerDetailsTools(
         "'Director' or 'Creator'. For who created the show, use get_tv's own `created_by` field " +
         "instead; for a specific episode's actual director/writer (which TMDB does track " +
         "reliably at that level), use get_tv_episode. Get the id from search_tv.",
-      inputSchema: z.object({ id: tmdbId }).strict(),
+      inputSchema: z.strictObject({ id: tmdbId }),
       outputSchema: creditsSchema,
       annotations: READ_ONLY,
     },
@@ -304,7 +309,7 @@ export function registerDetailsTools(
         "list. Prefer this over get_similar as the default choice; get_similar matches on shared " +
         "genres/keywords, a blunter heuristic that can surface tonally unrelated titles. Get the " +
         "id from search_movies.",
-      inputSchema: z.object({ id: tmdbId, page: page.optional() }).strict(),
+      inputSchema: z.strictObject({ id: tmdbId, page: page.optional() }),
       outputSchema: pageSchema(movieSummarySchema),
       annotations: READ_ONLY,
     },
@@ -325,7 +330,7 @@ export function registerDetailsTools(
         "list. Prefer this over get_similar as the default choice; get_similar matches on shared " +
         "genres/keywords, a blunter heuristic that can surface tonally unrelated titles. Get the " +
         "id from search_tv.",
-      inputSchema: z.object({ id: tmdbId, page: page.optional() }).strict(),
+      inputSchema: z.strictObject({ id: tmdbId, page: page.optional() }),
       outputSchema: pageSchema(tvSummarySchema),
       annotations: READ_ONLY,
     },
@@ -350,7 +355,7 @@ export function registerDetailsTools(
         "spanning TMDB's entire catalog; a page can come back thin or empty for a niche title once " +
         "that filter applies. Try recommendations first for thematically closer picks; use this when " +
         "you specifically want genre/keyword-adjacent titles. Get the id from search_movies/search_tv.",
-      inputSchema: z.object({ media_type: mediaKind, id: tmdbId, page: page.optional() }).strict(),
+      inputSchema: z.strictObject({ media_type: mediaKind, id: tmdbId, page: page.optional() }),
       outputSchema: pageSchema(movieOrTvSchema),
       annotations: READ_ONLY,
     },
@@ -368,7 +373,7 @@ export function registerDetailsTools(
       description:
         "Get user reviews for a movie or TV show (author, their rating, and the review text, " +
         "clipped to ~1500 characters). Get the id from search_movies/search_tv.",
-      inputSchema: z.object({ media_type: mediaKind, id: tmdbId, page: page.optional() }).strict(),
+      inputSchema: z.strictObject({ media_type: mediaKind, id: tmdbId, page: page.optional() }),
       outputSchema: pageSchema(reviewSchema),
       annotations: READ_ONLY,
     },
@@ -386,7 +391,7 @@ export function registerDetailsTools(
       description:
         "Get a movie collection/franchise and all its parts in release order (e.g. the whole " +
         "'The Dark Knight Collection'). Get the collection id from a movie's `collection` field in get_movie.",
-      inputSchema: z.object({ id: tmdbId, language: language.optional() }).strict(),
+      inputSchema: z.strictObject({ id: tmdbId, language: language.optional() }),
       outputSchema: collectionSchema,
       annotations: READ_ONLY,
     },
@@ -420,9 +425,11 @@ export function registerDetailsTools(
         "all — so for a person's TV work in one genre, call this tool and check the returned " +
         "media_type 'tv' entries' genres yourself, e.g. via get_tv_shows). Get the id from " +
         "search_people.",
-      inputSchema: z
-        .object({ id: tmdbId, department: personDepartment, limit: personCreditsLimit })
-        .strict(),
+      inputSchema: z.strictObject({
+        id: tmdbId,
+        department: personDepartment,
+        limit: personCreditsLimit,
+      }),
       outputSchema: personCreditsSchema,
       annotations: READ_ONLY,
     },

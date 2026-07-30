@@ -26,13 +26,11 @@ export function registerLookupTools(
         "(JustWatch data via TMDB). Returns provider names per access type for that country; if it " +
         "has no data, returns `available:false` plus `available_regions` to retry with. Get the id " +
         "from search_movies/search_tv.",
-      inputSchema: z
-        .object({
-          media_type: mediaKind,
-          id: tmdbId,
-          region,
-        })
-        .strict(),
+      inputSchema: z.strictObject({
+        media_type: mediaKind,
+        id: tmdbId,
+        region,
+      }),
       outputSchema: watchProvidersSchema,
       annotations: READ_ONLY,
     },
@@ -51,7 +49,7 @@ export function registerLookupTools(
       description:
         "List trailers, teasers and clips for a movie or TV show; YouTube entries include a " +
         "watch URL. Get the id from search_movies/search_tv.",
-      inputSchema: z.object({ media_type: mediaKind, id: tmdbId }).strict(),
+      inputSchema: z.strictObject({ media_type: mediaKind, id: tmdbId }),
       outputSchema: videosSchema,
       annotations: READ_ONLY,
     },
@@ -74,14 +72,12 @@ export function registerLookupTools(
         "episodes (verified live, e.g. Breaking Bad's pilot 'tt0959621'), which this tool does " +
         "not resolve — such an id comes back with every result list empty, indistinguishable " +
         "from a genuinely unknown id.",
-      inputSchema: z
-        .object({
-          imdb_id: z
-            .string()
-            .regex(/^(tt|nm)\d+$/, "IMDb ids look like 'tt0133093' or 'nm0000206'.")
-            .describe("IMDb title (tt…) or name (nm…) id."),
-        })
-        .strict(),
+      inputSchema: z.strictObject({
+        imdb_id: z
+          .string()
+          .regex(/^(tt|nm)\d+$/, "IMDb ids look like 'tt0133093' or 'nm0000206'.")
+          .describe("IMDb title (tt…) or name (nm…) id."),
+      }),
       outputSchema: findSchema,
       annotations: READ_ONLY,
     },
@@ -103,12 +99,10 @@ export function registerLookupTools(
         "true total). Season 0 is usually specials, which can run to hundreds of bonus clips on a " +
         "long-running show. Use get_tv with expand_episodes=true instead if you need every " +
         "season's episodes in one call. Get the show id from search_tv.",
-      inputSchema: z
-        .object({
-          id: tmdbId,
-          season_number: z.int().min(0).describe("Season number (0 = specials)."),
-        })
-        .strict(),
+      inputSchema: z.strictObject({
+        id: tmdbId,
+        season_number: z.int().min(0).describe("Season number (0 = specials)."),
+      }),
       outputSchema: seasonSchema,
       annotations: READ_ONLY,
     },
@@ -128,13 +122,11 @@ export function registerLookupTools(
         "Get one episode of a TV show by show id + season number + episode number: overview, air " +
         "date, runtime, rating, guest stars (up to 15) and director/writer. Get the show id from " +
         "search_tv.",
-      inputSchema: z
-        .object({
-          id: tmdbId,
-          season_number: z.int().min(0).describe("Season number (0 = specials)."),
-          episode_number: z.int().min(1).describe("Episode number within the season."),
-        })
-        .strict(),
+      inputSchema: z.strictObject({
+        id: tmdbId,
+        season_number: z.int().min(0).describe("Season number (0 = specials)."),
+        episode_number: z.int().min(1).describe("Episode number within the season."),
+      }),
       outputSchema: episodeSchema,
       annotations: READ_ONLY,
     },

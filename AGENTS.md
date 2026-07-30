@@ -90,9 +90,11 @@ npm run inspector      # run under the MCP Inspector
   on anonymous/aliased object types, never on named interfaces. Changing it to
   an `interface` compiles fine in isolation but breaks every call site that
   passes a `Page<...>` through that boundary.
-- Every schema in `format.schemas.ts` must be `.strict()` — a non-strict
-  schema silently drops unknown keys instead of failing, which defeats the
-  shaper/schema drift check above.
+- Every schema in `format.schemas.ts` must reject unknown keys — `z.strictObject(...)`
+  normally, or `.strict()` when the shape comes from `.pick()`/`.extend()` and
+  no `z.strictObject` equivalent exists (e.g. `movieCardSchema`/`tvCardSchema`).
+  A non-strict schema silently drops unknown keys instead of failing, which
+  defeats the shaper/schema drift check above.
 - Never use `z.date()`/`z.bigint()`/`z.nan()`/`.transform()`/`z.map()`/`z.set()`/
   `z.symbol()` in a tool's `inputSchema` or `outputSchema` (or anything they're
   built from, e.g. `format.schemas.ts`). `@modelcontextprotocol/server` converts

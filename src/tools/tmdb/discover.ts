@@ -331,12 +331,10 @@ function checkDiscoverFilterPairs(
 }
 
 const discoverMovieInputSchema = z
-  .object(discoverMovieSchema)
-  .strict()
+  .strictObject(discoverMovieSchema)
   .superRefine(checkDiscoverFilterPairs);
 const discoverTvInputSchema = z
-  .object(discoverTvSchema)
-  .strict()
+  .strictObject(discoverTvSchema)
   .superRefine(checkDiscoverFilterPairs);
 
 export function registerDiscoverTools(
@@ -352,19 +350,17 @@ export function registerDiscoverTools(
         "is the trending period (today vs this week). Good for 'what's popular right now'. Each " +
         "result row carries its own media_type ('movie' | 'tv' | 'person') — check it to route to " +
         "the right get_* tool, especially when media_type is left at 'all'.",
-      inputSchema: z
-        .object({
-          media_type: z
-            .enum(["all", "movie", "tv", "person"])
-            .describe("Which kind of entity to rank. Defaults to 'all'.")
-            .optional(),
-          time_window: z
-            .enum(["day", "week"])
-            .describe("Trending period: 'day' or 'week'. Defaults to 'week'.")
-            .optional(),
-          page: page.optional(),
-        })
-        .strict(),
+      inputSchema: z.strictObject({
+        media_type: z
+          .enum(["all", "movie", "tv", "person"])
+          .describe("Which kind of entity to rank. Defaults to 'all'.")
+          .optional(),
+        time_window: z
+          .enum(["day", "week"])
+          .describe("Trending period: 'day' or 'week'. Defaults to 'week'.")
+          .optional(),
+        page: page.optional(),
+      }),
       outputSchema: pageSchema(multiItemSchema),
       annotations: READ_ONLY,
     },
@@ -389,7 +385,7 @@ export function registerDiscoverTools(
       description:
         "List TMDB movie genres with their numeric ids and names (reference data; rarely changes). " +
         "Feed the ids into discover_movies' with_genres/without_genres.",
-      inputSchema: z.object({}).strict(),
+      inputSchema: z.strictObject({}),
       outputSchema: genresSchema,
       annotations: READ_ONLY,
     },
@@ -408,7 +404,7 @@ export function registerDiscoverTools(
       description:
         "List TMDB TV genres with their numeric ids and names (reference data; rarely changes). " +
         "Feed the ids into discover_tv's with_genres/without_genres.",
-      inputSchema: z.object({}).strict(),
+      inputSchema: z.strictObject({}),
       outputSchema: genresSchema,
       annotations: READ_ONLY,
     },
