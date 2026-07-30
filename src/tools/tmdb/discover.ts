@@ -41,8 +41,6 @@ const withGenres = z
 // TMDB's with_original_language discover filter, unlike `language` above,
 // takes a plain ISO-639-1 code with no region suffix.
 const originalLanguageRegex = /^[a-z]{2}$/;
-const idList = (what: string) =>
-  z.string().describe(`Comma-separated TMDB ${what} ids.`).optional();
 const dateStr = (what: string) =>
   z
     .string()
@@ -154,9 +152,27 @@ const discoverMovieSchema = {
     .enum(MOVIE_SORT_BY)
     .describe("Sort order. Defaults to TMDB's own default (roughly popularity-based) if omitted.")
     .optional(),
-  with_cast: idList("cast (actor)"),
-  with_crew: idList("crew (e.g. a director)"),
-  with_people: idList("person (cast or crew)"),
+  with_cast: z
+    .string()
+    .describe(
+      "Comma-separated TMDB person ids, restricted to cast (actor) roles. Use search_people to " +
+        "resolve an actor's name to their id.",
+    )
+    .optional(),
+  with_crew: z
+    .string()
+    .describe(
+      "Comma-separated TMDB person ids, restricted to crew roles (e.g. a director). Use " +
+        "search_people to resolve a name to their id.",
+    )
+    .optional(),
+  with_people: z
+    .string()
+    .describe(
+      "Comma-separated TMDB person ids, matching either a cast or crew role. Use search_people " +
+        "to resolve a name to their id.",
+    )
+    .optional(),
   // TMDB's own docs describe this as picking which country's release date
   // counts as a movie's release date for date-based filtering/sorting — but
   // verified live, combining it with release_date_gte/lte, year, or
@@ -225,7 +241,15 @@ const discoverTvSchema = {
         "'original_title'/'primary_release_date', and no 'revenue' (TMDB doesn't track it per-show).",
     )
     .optional(),
-  with_networks: idList("TV network, e.g. HBO or Netflix"),
+  with_networks: z
+    .string()
+    .describe(
+      "Comma-separated TMDB TV network ids, e.g. HBO=49, Netflix=213 (verified live). Unlike " +
+        "with_companies/with_keywords/with_people, this server has no name-based resolver for " +
+        "networks — supply the raw TMDB network id directly; a well-known network's id may " +
+        "already be known, otherwise there's no in-server way to look one up.",
+    )
+    .optional(),
   with_type: z
     .enum(TV_TYPES)
     .describe(
