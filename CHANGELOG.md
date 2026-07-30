@@ -8,15 +8,23 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- Add `search_watch_providers` — resolves a streaming/rental service name (e.g. "Netflix") to its TMDB numeric provider id, for `discover_movies`/`discover_tv`'s `with_watch_providers` filter. TMDB has no name-based lookup of its own (hundreds of providers, ids vary by region), so this was previously a guess-the-id gap ([79123a5](https://github.com/Grinv/tmdb-mcp/commit/79123a5)).
+- Add `search_watch_providers` — resolves a streaming/rental service name (e.g. "Netflix") to its TMDB numeric provider id, for `discover_movies`/`discover_tv`'s `with_watch_providers` filter, paginated 20-per-page like every sibling `search_*` tool. TMDB has no name-based lookup of its own (hundreds of providers, ids vary by region), so this was previously a guess-the-id gap ([79123a5](https://github.com/Grinv/tmdb-mcp/commit/79123a5), [5243541](https://github.com/Grinv/tmdb-mcp/commit/5243541)).
+- Add `PRIVACY.md` and `SECURITY.md` policies, both linked from the README ([b84340b](https://github.com/Grinv/tmdb-mcp/commit/b84340b), [16b375c](https://github.com/Grinv/tmdb-mcp/commit/16b375c), [bf55ff9](https://github.com/Grinv/tmdb-mcp/commit/bf55ff9)).
+- Add an original icon for the MCPB submission ([ce59d35](https://github.com/Grinv/tmdb-mcp/commit/ce59d35)).
 
 ### Changed
 
 - Raise runtime floor to Node ≥ 20.11 (was ≥ 20) ([0630a1a](https://github.com/Grinv/tmdb-mcp/commit/0630a1a), [d22c35b](https://github.com/Grinv/tmdb-mcp/commit/d22c35b)).
+- Let a cancelled MCP tool call stop waiting immediately instead of hanging until the upstream request finishes, for every tool, not just cached ones ([5243541](https://github.com/Grinv/tmdb-mcp/commit/5243541), [0d32b03](https://github.com/Grinv/tmdb-mcp/commit/0d32b03)).
+
+### Fixed
+
+- Stop shipping contributor-only tooling (`.claude/`, `skills/`, `AGENTS.md`, `glama.json`, etc.) inside the `.mcpb` bundle — 39 files down to 10 ([f23617d](https://github.com/Grinv/tmdb-mcp/commit/f23617d), [9afaa5a](https://github.com/Grinv/tmdb-mcp/commit/9afaa5a)).
+- Reject `min_runtime` greater than `max_runtime` on `discover_movies`/`discover_tv` instead of silently returning an empty result set ([1fe8de8](https://github.com/Grinv/tmdb-mcp/commit/1fe8de8)).
 
 ### Security
 
-- Redact OMDb's `apikey` query parameter from log output, closing a gap where a retried request's logged URL could leak `OMDB_API_KEY` under `LOG_LEVEL=debug` ([573a4cf](https://github.com/Grinv/tmdb-mcp/commit/573a4cf)).
+- Redact OMDb's `apikey` query parameter from log output and, now, from tool-result error text too, closing gaps where a retried request's logged URL or an upstream error echoing the request back could leak `OMDB_API_KEY` ([573a4cf](https://github.com/Grinv/tmdb-mcp/commit/573a4cf), [c70a80d](https://github.com/Grinv/tmdb-mcp/commit/c70a80d)).
 
 ## [0.9.0] - 2026-07-29
 
