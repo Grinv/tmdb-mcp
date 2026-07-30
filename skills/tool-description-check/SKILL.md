@@ -164,6 +164,12 @@ Purpose Clarity — double-check those two first on any new or edited tool.
   additionally accepts a raw `title` lookup with no `imdb_id` at all — check
   that path's own match/no-match behavior independently instead of assuming
   it degrades identically to the `imdb_id`-only path the other two use.
+  Even *identical* shared code (e.g. `get_movie_credits`/`get_tv_credits`
+  both filter through `summarizeCredits()`'s same `KEY_JOBS`) can still
+  diverge per media type because the upstream data itself differs — verify
+  each variant live rather than trusting shared code as proof of shared
+  behavior (found live: TMDB's `/tv/{id}/credits` crew never carries
+  "Director"/"Writer"/"Creator" the way `/movie/{id}/credits` does).
 - Disclose the return shape's real substance, not just the auth/key caveat —
   fixed caps, ordering, and which nested fields a specific tool omits that a
   same-shaped sibling includes. This server already does this precisely
