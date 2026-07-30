@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-07-30
+
 ### Added
 
 - Add `search_watch_providers` — resolves a streaming/rental service name (e.g. "Netflix") to its TMDB numeric provider id, for `discover_movies`/`discover_tv`'s `with_watch_providers` filter, paginated 20-per-page like every sibling `search_*` tool. TMDB has no name-based lookup of its own (hundreds of providers, ids vary by region), so this was previously a guess-the-id gap ([79123a5](https://github.com/Grinv/tmdb-mcp/commit/79123a5), [5243541](https://github.com/Grinv/tmdb-mcp/commit/5243541)).
