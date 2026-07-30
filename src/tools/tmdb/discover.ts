@@ -41,12 +41,7 @@ const withGenres = z
 // TMDB's with_original_language discover filter, unlike `language` above,
 // takes a plain ISO-639-1 code with no region suffix.
 const originalLanguageRegex = /^[a-z]{2}$/;
-const dateStr = (what: string) =>
-  z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "Use an ISO date YYYY-MM-DD.")
-    .describe(what)
-    .optional();
+const dateStr = (what: string) => z.iso.date().describe(what).optional();
 const discoverShared = {
   with_genres: withGenres,
   without_genres: z
