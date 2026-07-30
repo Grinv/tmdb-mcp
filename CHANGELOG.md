@@ -10,6 +10,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Add `search_watch_providers` — resolves a streaming/rental service name (e.g. "Netflix") to its TMDB numeric provider id, for `discover_movies`/`discover_tv`'s `with_watch_providers` filter. TMDB has no name-based lookup of its own (hundreds of providers, ids vary by region), so this was previously a guess-the-id gap ([79123a5](https://github.com/Grinv/tmdb-mcp/commit/79123a5)).
 
+### Changed
+
+- Raise runtime floor to Node ≥ 20.9 (was ≥ 20) — the release Node 20 became Active LTS ([0630a1a](https://github.com/Grinv/tmdb-mcp/commit/0630a1a)).
+
 ### Security
 
 - Redact OMDb's `apikey` query parameter from log output, closing a gap where a retried request's logged URL could leak `OMDB_API_KEY` under `LOG_LEVEL=debug` ([573a4cf](https://github.com/Grinv/tmdb-mcp/commit/573a4cf)).
