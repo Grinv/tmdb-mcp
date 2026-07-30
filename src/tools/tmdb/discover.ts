@@ -73,7 +73,12 @@ const discoverShared = {
     .min(0)
     .describe("Minimum vote count (filters obscure titles).")
     .optional(),
-  min_runtime: z.number().int().min(0).describe("Minimum runtime in minutes.").optional(),
+  min_runtime: z
+    .number()
+    .int()
+    .min(0)
+    .describe("Minimum runtime in minutes. Must be <= max_runtime if both are given.")
+    .optional(),
   max_runtime: z.number().int().min(0).describe("Maximum runtime in minutes.").optional(),
   with_original_language: z
     .string()
@@ -260,6 +265,8 @@ function checkDiscoverFilterPairs(
   val: {
     min_rating?: number;
     max_rating?: number;
+    min_runtime?: number;
+    max_runtime?: number;
     with_watch_providers?: string;
     watch_region?: string;
     certification?: string;
@@ -276,6 +283,17 @@ function checkDiscoverFilterPairs(
       code: "custom",
       message: "min_rating must be <= max_rating.",
       path: ["min_rating"],
+    });
+  }
+  if (
+    val.min_runtime !== undefined &&
+    val.max_runtime !== undefined &&
+    val.min_runtime > val.max_runtime
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      message: "min_runtime must be <= max_runtime.",
+      path: ["min_runtime"],
     });
   }
   if (val.with_watch_providers !== undefined && val.watch_region === undefined) {

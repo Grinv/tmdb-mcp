@@ -1088,6 +1088,17 @@ describe("discover_movies/discover_tv reject incomplete filter pairs", () => {
     assert.equal(res.isError, true);
     assert.match(toolText(res), /min_rating/);
   });
+
+  test("min_runtime greater than max_runtime is rejected", async (t) => {
+    installFetch(t, mockFetch(router));
+    await using client = await connectServer(ENV);
+    const res = await client.callTool({
+      name: "discover_movies",
+      arguments: { min_runtime: 180, max_runtime: 60 },
+    });
+    assert.equal(res.isError, true);
+    assert.match(toolText(res), /min_runtime/);
+  });
 });
 
 describe("discover_tv", () => {
