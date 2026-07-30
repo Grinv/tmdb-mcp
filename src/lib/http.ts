@@ -1,7 +1,7 @@
 // Thin fetch wrapper shared by both API clients: timeouts, bounded retries
 // with exponential backoff (honoring Retry-After), a default User-Agent, and
 // uniform mapping of failures to ApiError.
-import { ApiError, classifyStatus } from "./errors.js";
+import { ApiError, classifyStatus, redact } from "./errors.js";
 import type { Logger } from "./logger.js";
 import { USER_AGENT } from "../version.js";
 
@@ -151,7 +151,11 @@ async function toHttpError(res: Response): Promise<ApiError> {
     /* ignore body read errors */
   }
   // Prefer a structured `message`/`error` field; fall back to the raw body.
-  const detail = parseErrorMessage(raw) ?? raw.slice(0, 500);
+  // Redacted here, not just at the logger boundary: this message also flows
+  // into the tool result the calling model sees (see lib/result.ts's
+  // messageFor), and some upstreams echo the request URL — apikey and all —
+  // back in an error body.
+  const detail = redact(parseErrorMessage(raw) ?? raw.slice(0, 500));
   const retryAfter = parseRetryAfter(res.headers.get("retry-after"));
   return new ApiError({
     code,
@@ -181,7 +185,7 @@ function toNetworkError(err: unknown): ApiError {
   if (err instanceof ApiError) return err;
   return new ApiError({
     code: "network",
-    message: err instanceof Error ? `Network error: ${err.message}` : "Network error",
+    message: err instanceof Error ? `Network error: ${redact(err.message)}` : "Network error",
     retryable: true,
     cause: err,
   });

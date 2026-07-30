@@ -55,6 +55,24 @@ describe("error mapping by status/body", () => {
     );
   });
 
+  test("redacts a credential the upstream echoes back in an error body", async (t) => {
+    const mock = mockFetch(() =>
+      jsonResponse(
+        { error: "invalid request: https://www.omdbapi.com/?apikey=SECRETKEY&i=tt0111161" },
+        { status: 400 },
+      ),
+    );
+    installFetch(t, mock);
+    await assert.rejects(
+      () => client({ retries: 0 }).getJson("thing"),
+      (err: unknown) =>
+        err instanceof ApiError &&
+        err.code === "bad_request" &&
+        !err.message.includes("SECRETKEY") &&
+        err.message.includes("apikey=***"),
+    );
+  });
+
   test("maps a persistent 5xx to a retryable server_error once retries are exhausted", async (t) => {
     const mock = mockFetch(() => jsonResponse({ error: "down" }, { status: 503 }));
     installFetch(t, mock);
