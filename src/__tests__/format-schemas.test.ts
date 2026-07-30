@@ -84,6 +84,11 @@ describe("movieSummarySchema / movieDetailSchema", () => {
       ),
     );
   });
+
+  test("a malformed release_date degrades to null instead of throwing", () => {
+    const movie = summarizeMovie({ id: 1, release_date: "1990" });
+    assert.equal(movie.release_date, null);
+  });
 });
 
 describe("tvSummarySchema / tvDetailSchema", () => {
@@ -129,6 +134,12 @@ describe("tvSummarySchema / tvDetailSchema", () => {
 describe("personDetailSchema", () => {
   test("detailPerson's output on a bare-minimum person does not throw", () => {
     assert.doesNotThrow(() => detailPerson({ id: 1 }));
+  });
+
+  test("a malformed birthday/deathday degrades to null instead of throwing", () => {
+    const person = detailPerson({ id: 1, birthday: "1950", deathday: "not-a-date" });
+    assert.equal(person.birthday, null);
+    assert.equal(person.deathday, null);
   });
 });
 
