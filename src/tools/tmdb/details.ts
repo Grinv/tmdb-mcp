@@ -302,7 +302,10 @@ export function registerDetailsTools(
       annotations: READ_ONLY,
     },
     ({ id, page: pg }, ctx) =>
-      requireTmdb(() => tmdb.getRecommendations("movie", id, pg, undefined, ctx.mcpReq.signal)),
+      requireTmdb(
+        () => tmdb.getRecommendations("movie", id, pg, undefined, ctx.mcpReq.signal),
+        ctx.mcpReq.signal,
+      ),
   );
 
   server.registerTool(
@@ -320,7 +323,10 @@ export function registerDetailsTools(
       annotations: READ_ONLY,
     },
     ({ id, page: pg }, ctx) =>
-      requireTmdb(() => tmdb.getRecommendations("tv", id, pg, undefined, ctx.mcpReq.signal)),
+      requireTmdb(
+        () => tmdb.getRecommendations("tv", id, pg, undefined, ctx.mcpReq.signal),
+        ctx.mcpReq.signal,
+      ),
   );
 
   server.registerTool(
@@ -342,7 +348,10 @@ export function registerDetailsTools(
       annotations: READ_ONLY,
     },
     ({ media_type, id, page: pg }, ctx) =>
-      requireTmdb(() => tmdb.getSimilar(media_type, id, pg, undefined, ctx.mcpReq.signal)),
+      requireTmdb(
+        () => tmdb.getSimilar(media_type, id, pg, undefined, ctx.mcpReq.signal),
+        ctx.mcpReq.signal,
+      ),
   );
 
   server.registerTool(
@@ -357,7 +366,10 @@ export function registerDetailsTools(
       annotations: READ_ONLY,
     },
     ({ media_type, id, page: pg }, ctx) =>
-      requireTmdb(() => tmdb.getReviews(media_type, id, pg, undefined, ctx.mcpReq.signal)),
+      requireTmdb(
+        () => tmdb.getReviews(media_type, id, pg, undefined, ctx.mcpReq.signal),
+        ctx.mcpReq.signal,
+      ),
   );
 
   server.registerTool(

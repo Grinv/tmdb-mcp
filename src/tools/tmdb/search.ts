@@ -51,7 +51,7 @@ export function registerSearchTools(
       outputSchema: pageSchema(movieSummarySchema),
       annotations: READ_ONLY,
     },
-    (args, ctx) => requireTmdb(() => tmdb.searchMovies(args, ctx.mcpReq.signal)),
+    (args, ctx) => requireTmdb(() => tmdb.searchMovies(args, ctx.mcpReq.signal), ctx.mcpReq.signal),
   );
 
   server.registerTool(
@@ -80,7 +80,7 @@ export function registerSearchTools(
       outputSchema: pageSchema(tvSummarySchema),
       annotations: READ_ONLY,
     },
-    (args, ctx) => requireTmdb(() => tmdb.searchTv(args, ctx.mcpReq.signal)),
+    (args, ctx) => requireTmdb(() => tmdb.searchTv(args, ctx.mcpReq.signal), ctx.mcpReq.signal),
   );
 
   server.registerTool(
@@ -103,7 +103,7 @@ export function registerSearchTools(
       outputSchema: pageSchema(multiItemSchema),
       annotations: READ_ONLY,
     },
-    (args, ctx) => requireTmdb(() => tmdb.searchMulti(args, ctx.mcpReq.signal)),
+    (args, ctx) => requireTmdb(() => tmdb.searchMulti(args, ctx.mcpReq.signal), ctx.mcpReq.signal),
   );
 
   server.registerTool(
@@ -125,7 +125,7 @@ export function registerSearchTools(
       outputSchema: pageSchema(personSummarySchema),
       annotations: READ_ONLY,
     },
-    (args, ctx) => requireTmdb(() => tmdb.searchPeople(args, ctx.mcpReq.signal)),
+    (args, ctx) => requireTmdb(() => tmdb.searchPeople(args, ctx.mcpReq.signal), ctx.mcpReq.signal),
   );
 
   server.registerTool(
@@ -145,7 +145,7 @@ export function registerSearchTools(
       annotations: READ_ONLY,
     },
     ({ query, page: pg }, ctx) =>
-      requireTmdb(() => tmdb.searchKeywords(query, pg, ctx.mcpReq.signal)),
+      requireTmdb(() => tmdb.searchKeywords(query, pg, ctx.mcpReq.signal), ctx.mcpReq.signal),
   );
 
   server.registerTool(
@@ -168,7 +168,7 @@ export function registerSearchTools(
       annotations: READ_ONLY,
     },
     ({ query, page: pg }, ctx) =>
-      requireTmdb(() => tmdb.searchCompanies(query, pg, ctx.mcpReq.signal)),
+      requireTmdb(() => tmdb.searchCompanies(query, pg, ctx.mcpReq.signal), ctx.mcpReq.signal),
   );
 
   server.registerTool(

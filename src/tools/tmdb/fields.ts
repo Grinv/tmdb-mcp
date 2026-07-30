@@ -14,13 +14,15 @@ import type { ToolResult } from "../../lib/result.js";
 // requireTmdbCached, a fresh staleness tracker per call) and passes them into
 // each register*Tools function below — these are just the shapes. `signal`,
 // when given, is a per-call AbortSignal (from the calling tool handler's own
-// `ctx.mcpReq.signal`) — requireTmdb's existing callers forward it straight
-// into the underlying (uncached, unshared) client call instead, so it's
-// listed here only on RequireTmdbCached, which has no other way to expose it
-// without risking cancelling the same in-flight fetch for a different,
-// still-waiting caller (see tools/shared.ts's requireConfiguredCached).
+// `ctx.mcpReq.signal`). requireTmdb's callers also forward it straight into
+// the underlying (uncached, unshared) client call, which is what actually
+// aborts the fetch — but requireConfigured needs its own copy too, purely so
+// its catch block can recognize the resulting rejection as a cancellation
+// (`signal?.aborted`) and return "Request cancelled." instead of misreading
+// the abort as a generic upstream network error.
 export type RequireTmdb = <T extends Record<string, unknown>>(
   fn: () => Promise<T>,
+  signal?: AbortSignal,
   getMeta?: () => Record<string, unknown> | undefined,
 ) => Promise<ToolResult>;
 export type RequireTmdbCached = <T extends Record<string, unknown>>(

@@ -23,8 +23,8 @@ export function registerTmdbTools(
 ): void {
   // Every TMDB tool needs the token; short-circuit with one clear message
   // instead of letting each call round-trip to a 401.
-  const requireTmdb: TmdbToolDeps["requireTmdb"] = (fn, getMeta) =>
-    requireConfigured(tmdb, fn, undefined, getMeta);
+  const requireTmdb: TmdbToolDeps["requireTmdb"] = (fn, signal, getMeta) =>
+    requireConfigured(tmdb, fn, undefined, getMeta, signal);
   // For a cached client method: wires up staleness tracking automatically
   // instead of the caller hand-assembling trackStale()/onStale/meta — see
   // requireConfiguredCached's own doc comment for why. `signal`, when a

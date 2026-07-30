@@ -332,8 +332,18 @@ export function registerDiscoverTools(
       outputSchema: pageSchema(multiItemSchema),
       annotations: READ_ONLY,
     },
-    ({ media_type, time_window, page: pg }) =>
-      requireTmdb(() => tmdb.getTrending(media_type ?? "all", time_window ?? "week", pg)),
+    ({ media_type, time_window, page: pg }, ctx) =>
+      requireTmdb(
+        () =>
+          tmdb.getTrending(
+            media_type ?? "all",
+            time_window ?? "week",
+            pg,
+            undefined,
+            ctx.mcpReq.signal,
+          ),
+        ctx.mcpReq.signal,
+      ),
   );
 
   server.registerTool(
@@ -395,7 +405,8 @@ export function registerDiscoverTools(
       outputSchema: pageSchema(movieSummarySchema),
       annotations: READ_ONLY,
     },
-    (args, ctx) => requireTmdb(() => tmdb.discover("movie", args, ctx.mcpReq.signal)),
+    (args, ctx) =>
+      requireTmdb(() => tmdb.discover("movie", args, ctx.mcpReq.signal), ctx.mcpReq.signal),
   );
 
   server.registerTool(
@@ -422,6 +433,7 @@ export function registerDiscoverTools(
       outputSchema: pageSchema(tvSummarySchema),
       annotations: READ_ONLY,
     },
-    (args, ctx) => requireTmdb(() => tmdb.discover("tv", args, ctx.mcpReq.signal)),
+    (args, ctx) =>
+      requireTmdb(() => tmdb.discover("tv", args, ctx.mcpReq.signal), ctx.mcpReq.signal),
   );
 }

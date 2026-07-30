@@ -670,11 +670,13 @@ export class TmdbClient {
     window: TrendingWindow,
     pg?: number,
     language?: string,
+    signal?: AbortSignal,
   ): Promise<Page<ReturnType<typeof summarizeMultiItem>>> {
     const res = await this.#get<TmdbPage<TmdbMultiItem>>(
       `trending/${mediaType}/${window}`,
       { page: pg },
       language,
+      signal,
     );
     return page(res, summarizeMultiItem);
   }
