@@ -10,6 +10,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Tighten every date/timestamp field in tool output schemas from a bare string to a proper ISO date/date-time format ([ba90249](https://github.com/Grinv/tmdb-mcp/commit/ba90249)).
 
+### Fixed
+
+- Reject calendar-invalid dates (e.g. `2024-02-30`) passed to `discover_movies`/`discover_tv`'s `release_date_gte`/`release_date_lte` instead of forwarding them to TMDB unchecked ([e880886](https://github.com/Grinv/tmdb-mcp/commit/e880886)).
+
 ## [0.10.0] - 2026-07-30
 
 ### Added
