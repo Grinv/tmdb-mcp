@@ -53,7 +53,11 @@ npm run inspector      # run under the MCP Inspector
 - **Docs and in-code text are English** (README, docs, comments, tool
   descriptions, error messages).
 - Runtime floor is **Node ≥ 20.11** (global `fetch`, stable `node:test`,
-  `AbortSignal.any()`); tsup targets `node20`.
+  `AbortSignal.any()`); tsup targets `node20`. This is the floor for the
+  _shipped server_. The _dev_ toolchain needs **Node ≥ 20.19** (eslint's own
+  `engines`), so `lint` runs only on the Node 24 CI job while build/test run on
+  the 20.11 floor too — don't raise `engines` to 20.19 to "fix" that mismatch,
+  it would warn end users whose runtime is fine.
 - Log to **stderr only** — stdout is the MCP protocol channel. Use the logger;
   it redacts credentials.
 - Tool failures return `{ isError: true }` results (via `requireConfigured()` /
@@ -90,11 +94,13 @@ npm run inspector      # run under the MCP Inspector
   on anonymous/aliased object types, never on named interfaces. Changing it to
   an `interface` compiles fine in isolation but breaks every call site that
   passes a `Page<...>` through that boundary.
-- Every schema in `format.schemas.ts` must reject unknown keys — `z.strictObject(...)`
-  normally, or `.strict()` when the shape comes from `.pick()`/`.extend()` and
-  no `z.strictObject` equivalent exists (e.g. `movieCardSchema`/`tvCardSchema`).
-  A non-strict schema silently drops unknown keys instead of failing, which
-  defeats the shaper/schema drift check above.
+- Every schema in `format.schemas.ts` must reject unknown keys, via
+  `z.strictObject(...)`. A non-strict schema silently drops unknown keys instead
+  of failing, which defeats the shaper/schema drift check above. Note (verified
+  on Zod 4.4.3): `.pick()`/`.extend()` on a `strictObject` **preserve** its
+  unknown-key rejection, so the derived `movieCardSchema`/`tvCardSchema` are
+  already strict; their trailing `.strict()` is defensive, not load-bearing —
+  don't "reconcile" it away on the assumption pick/extend produce a loose shape.
 - Never use `z.date()`/`z.bigint()`/`z.nan()`/`.transform()`/`z.map()`/`z.set()`/
   `z.symbol()` in a tool's `inputSchema` or `outputSchema` (or anything they're
   built from, e.g. `format.schemas.ts`). `@modelcontextprotocol/server` converts
