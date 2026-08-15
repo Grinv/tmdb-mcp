@@ -142,5 +142,32 @@ function checkChangelog() {
   process.exit(1);
 }
 
+// Build/lint/test gate. `npm version` creates the release commit + tag from the
+// working tree, and the release skill pushes it right after — so without this,
+// a broken build/failing test only surfaces in the post-push Release workflow,
+// after the tag is already public. Runs after the cheap checks above so a
+// trivial changelog/tag mistake fails fast before the slow build. Bypass with
+// SKIP_PREVERSION_GATE=1 for a deliberate exception.
+function checkReleaseGate() {
+  if (process.env.SKIP_PREVERSION_GATE === "1") {
+    console.log("preversion-check: SKIP_PREVERSION_GATE=1 set — skipping build/lint/test gate.");
+    return;
+  }
+  const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+  for (const args of [["run", "build"], ["test"], ["run", "lint"]]) {
+    console.log(`preversion-check: running \`npm ${args.join(" ")}\` …`);
+    try {
+      execFileSync(npm, args, { cwd: root, stdio: "inherit" });
+    } catch {
+      console.error(
+        `preversion-check: \`npm ${args.join(" ")}\` failed — refusing to tag a release on a ` +
+          "broken tree. Fix it, or set SKIP_PREVERSION_GATE=1 to bypass deliberately, then retry.",
+      );
+      process.exit(1);
+    }
+  }
+}
+
 checkUnpushedTagRace();
 checkChangelog();
+checkReleaseGate();
