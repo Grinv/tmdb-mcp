@@ -978,6 +978,35 @@ describe("discover_movies", () => {
     assert.match(toolText(res), /region/);
   });
 
+  test("rejects a non-numeric with_genres up front instead of silently no-opping at TMDB", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    await using client = await connectServer(ENV);
+    // A genre NAME (not an id) would pass an unvalidated z.string() and be
+    // forwarded verbatim, where TMDB matches nothing and returns
+    // total_results:0 — indistinguishable from a real empty answer. The id-list
+    // regex must reject it locally instead.
+    const res = await client.callTool({
+      name: "discover_movies",
+      arguments: { with_genres: "action" },
+    });
+    assert.equal(res.isError, true);
+    assert.ok(!mock.calls.some((c) => c.url.includes("/discover/movie")), "must not reach TMDB");
+  });
+
+  test("accepts a valid comma-separated with_genres id list", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    await using client = await connectServer(ENV);
+    const res = await client.callTool({
+      name: "discover_movies",
+      arguments: { with_genres: "28,878" },
+    });
+    assert.notEqual(res.isError, true);
+    const u = mock.calls.find((c) => c.url.includes("/discover/movie"))!.url;
+    assert.match(u, /with_genres=28(%2C|,)878/);
+  });
+
   test("accepts a movie-only sort_by value (revenue.desc)", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);

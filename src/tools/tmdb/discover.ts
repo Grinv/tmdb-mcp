@@ -41,22 +41,33 @@ const TV_SORT_BY = [
   "first_air_date.asc",
   "first_air_date.desc",
 ] as const;
-const withGenres = z
-  .string()
-  .describe("Comma-separated TMDB genre ids (AND); get ids from get_movie_genres/get_tv_genres.")
-  .optional();
+// Every discover id-list filter (with_genres, with_companies, with_cast, …) is
+// a comma-separated list of numeric TMDB ids. Verified live: TMDB does not
+// error on an unparseable id, it matches nothing — with_genres="action",
+// with_companies="pixar" and with_watch_providers="netflix" each come back
+// total_results:0, indistinguishable from a filter that legitimately found
+// nothing. A stray genre name or typo therefore reads as a real empty answer,
+// which is worse than a loud failure — so reject non-numeric input here
+// instead (mirrors with_original_language's own regex guard below).
+const idListRegex = /^\d+(?:,\d+)*$/;
+const idList = (desc: string) =>
+  z
+    .string()
+    .regex(idListRegex, 'Expected comma-separated numeric TMDB ids, e.g. "28,12".')
+    .describe(desc)
+    .optional();
+const withGenres = idList(
+  "Comma-separated TMDB genre ids (AND); get ids from get_movie_genres/get_tv_genres.",
+);
 // TMDB's with_original_language discover filter, unlike `language` above,
 // takes a plain ISO-639-1 code with no region suffix.
 const originalLanguageRegex = /^[a-z]{2}$/;
 const dateStr = (what: string) => z.iso.date().describe(what).optional();
 const discoverShared = {
   with_genres: withGenres,
-  without_genres: z
-    .string()
-    .describe(
-      "Comma-separated TMDB genre ids to exclude; get ids from get_movie_genres/get_tv_genres.",
-    )
-    .optional(),
+  without_genres: idList(
+    "Comma-separated TMDB genre ids to exclude; get ids from get_movie_genres/get_tv_genres.",
+  ),
   year: yearFilter("Release / first-air year."),
   release_date_gte: dateStr("Only entries released on/after this date (YYYY-MM-DD)."),
   release_date_lte: dateStr("Only entries released on/before this date (YYYY-MM-DD)."),
@@ -82,29 +93,19 @@ const discoverShared = {
     )
     .describe("ISO-639-1 original-language code, e.g. 'en', 'ja'.")
     .optional(),
-  with_companies: z
-    .string()
-    .describe(
-      "Comma-separated TMDB production company ids (use search_companies to resolve names → ids).",
-    )
-    .optional(),
-  with_keywords: z
-    .string()
-    .describe("Comma-separated TMDB keyword ids (use search_keywords to resolve names → ids).")
-    .optional(),
-  without_keywords: z
-    .string()
-    .describe(
-      "Comma-separated TMDB keyword ids to exclude (use search_keywords to resolve names → ids).",
-    )
-    .optional(),
-  with_watch_providers: z
-    .string()
-    .describe(
-      "Comma-separated TMDB watch-provider ids (use search_watch_providers to resolve a " +
-        "service name, e.g. 'Netflix', to its numeric id); requires watch_region to also be set.",
-    )
-    .optional(),
+  with_companies: idList(
+    "Comma-separated TMDB production company ids (use search_companies to resolve names → ids).",
+  ),
+  with_keywords: idList(
+    "Comma-separated TMDB keyword ids (use search_keywords to resolve names → ids).",
+  ),
+  without_keywords: idList(
+    "Comma-separated TMDB keyword ids to exclude (use search_keywords to resolve names → ids).",
+  ),
+  with_watch_providers: idList(
+    "Comma-separated TMDB watch-provider ids (use search_watch_providers to resolve a " +
+      "service name, e.g. 'Netflix', to its numeric id); requires watch_region to also be set.",
+  ),
   watch_region: watchRegion.optional(),
   // Shared, not movie-only: verified live against the real /discover/tv (not
   // just /discover/movie) — an unsupported/nonsense certification value
@@ -155,27 +156,18 @@ const discoverMovieSchema = {
     .enum(MOVIE_SORT_BY)
     .describe("Sort order. Defaults to TMDB's own default (roughly popularity-based) if omitted.")
     .optional(),
-  with_cast: z
-    .string()
-    .describe(
-      "Comma-separated TMDB person ids, restricted to cast (actor) roles. Use search_people to " +
-        "resolve an actor's name to their id.",
-    )
-    .optional(),
-  with_crew: z
-    .string()
-    .describe(
-      "Comma-separated TMDB person ids, restricted to crew roles (e.g. a director). Use " +
-        "search_people to resolve a name to their id.",
-    )
-    .optional(),
-  with_people: z
-    .string()
-    .describe(
-      "Comma-separated TMDB person ids, matching either a cast or crew role. Use search_people " +
-        "to resolve a name to their id.",
-    )
-    .optional(),
+  with_cast: idList(
+    "Comma-separated TMDB person ids, restricted to cast (actor) roles. Use search_people to " +
+      "resolve an actor's name to their id.",
+  ),
+  with_crew: idList(
+    "Comma-separated TMDB person ids, restricted to crew roles (e.g. a director). Use " +
+      "search_people to resolve a name to their id.",
+  ),
+  with_people: idList(
+    "Comma-separated TMDB person ids, matching either a cast or crew role. Use search_people " +
+      "to resolve a name to their id.",
+  ),
   // TMDB's own docs describe this as picking which country's release date
   // counts as a movie's release date for date-based filtering/sorting — but
   // verified live, combining it with release_date_gte/lte, year, or
@@ -249,15 +241,12 @@ const discoverTvSchema = {
         "'original_title'/'primary_release_date', and no 'revenue' (TMDB doesn't track it per-show).",
     )
     .optional(),
-  with_networks: z
-    .string()
-    .describe(
-      "Comma-separated TMDB TV network ids, e.g. HBO=49, Netflix=213 (verified live). Unlike " +
-        "with_companies/with_keywords/with_people, this server has no name-based resolver for " +
-        "networks — supply the raw TMDB network id directly; a well-known network's id may " +
-        "already be known, otherwise there's no in-server way to look one up.",
-    )
-    .optional(),
+  with_networks: idList(
+    "Comma-separated TMDB TV network ids, e.g. HBO=49, Netflix=213 (verified live). Unlike " +
+      "with_companies/with_keywords/with_people, this server has no name-based resolver for " +
+      "networks — supply the raw TMDB network id directly; a well-known network's id may " +
+      "already be known, otherwise there's no in-server way to look one up.",
+  ),
   with_type: z
     .enum(TV_TYPES)
     .describe(
