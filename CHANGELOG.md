@@ -6,6 +6,26 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Trim redundant text from several tool and prompt descriptions to cut per-request token cost ([153d2fd](https://github.com/Grinv/tmdb-mcp/commit/153d2fd)).
+
+### Fixed
+
+- Drop OMDb enrichment whose release year is unrelated to TMDB's, instead of attaching another title's ratings and awards when TMDB's `imdb_id` is stale ([d5a95f3](https://github.com/Grinv/tmdb-mcp/commit/d5a95f3)).
+- Reject non-numeric ids in `discover_*`'s id-list filters, which TMDB answers with an empty result set indistinguishable from a real one ([99db051](https://github.com/Grinv/tmdb-mcp/commit/99db051)).
+- Give `get_movies`/`get_tv_shows`' per-id `reason` the same friendly text as every other error surface, not the raw upstream body ([0ca3c4e](https://github.com/Grinv/tmdb-mcp/commit/0ca3c4e)).
+- Stop `expand_episodes` evicting later seasons over specials it could never return in full: a 39-season show now returns 250 episodes, not 228 ([bb917ad](https://github.com/Grinv/tmdb-mcp/commit/bb917ad)).
+- Act on `top_by_entity`'s `entity_type` in the generated plan's steps, not just its intro line ([2e9cf21](https://github.com/Grinv/tmdb-mcp/commit/2e9cf21)).
+- Report an `imdb_id` OMDb doesn't recognize as no match, rather than as an upstream failure ([cc80432](https://github.com/Grinv/tmdb-mcp/commit/cc80432)).
+- Disclose that `search_tv`'s `year` is a hard first-air-year match, unlike `search_movies`' soft filter ([fda9199](https://github.com/Grinv/tmdb-mcp/commit/fda9199)).
+- Disclose that `expand_episodes` spends its 250-episode budget from season 0 up, so specials are served before later seasons ([bb917ad](https://github.com/Grinv/tmdb-mcp/commit/bb917ad)).
+
+### Security
+
+- Redact the fatal startup error, which ran before the logger existed ([8743788](https://github.com/Grinv/tmdb-mcp/commit/8743788)).
+- Cap the upstream response body read and bound a forwarded upstream error message ([811d4f2](https://github.com/Grinv/tmdb-mcp/commit/811d4f2)).
+
 ## [0.10.1] - 2026-07-30
 
 ### Changed
