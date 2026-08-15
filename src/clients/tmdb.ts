@@ -14,6 +14,7 @@ import {
   detailPerson,
   detailTv,
   page,
+  parseSeasons,
   summarizeCollection,
   summarizeCompany,
   summarizeCredits,
@@ -463,10 +464,13 @@ export class TmdbClient {
           episode_count: s.episode_count ?? 0,
           episodes: [],
         }));
+        // parseSeasons re-validates the fetched/capped/skipped merge through
+        // seasonSchema, so this aggregate path gets the same drift/degrade
+        // guarantee the direct shapers have (the skipped entries above are
+        // hand-built and would otherwise skip validation entirely).
         return {
-          seasons: capTotalEpisodesBySize(
-            [...fetched, ...skippedSeasons],
-            MAX_EXPANDED_EPISODES_CHARS,
+          seasons: parseSeasons(
+            capTotalEpisodesBySize([...fetched, ...skippedSeasons], MAX_EXPANDED_EPISODES_CHARS),
           ),
         };
       },

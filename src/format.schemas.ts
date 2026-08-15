@@ -105,7 +105,7 @@ export const movieOrTvSchema = z.discriminatedUnion("media_type", [
   tvSummarySchema,
 ]);
 
-const episodeBriefSchema = z.strictObject({
+export const episodeBriefSchema = z.strictObject({
   season_number: z.number().nullable(),
   episode_number: z.number().nullable(),
   name: z.string().nullable(),

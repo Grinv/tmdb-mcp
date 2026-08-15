@@ -18,6 +18,7 @@ import {
   companySchema,
   creditsSchema,
   personDetailSchema,
+  episodeBriefSchema,
   episodeSchema,
   findSchema,
   genresSchema,
@@ -79,18 +80,19 @@ function clip(text: string | null | undefined, max: number): string | null {
 }
 
 // Compact form of a TV show's next_/last_episode_to_air — the handful of fields
-// worth surfacing ("when does the next episode air", which one was last).
-// Validated as part of the enclosing detailTv's tvDetailSchema.parse(), not
-// separately — it's a nested piece, not one of format.schemas.ts's top-level
-// per-tool schemas.
-function episodeBrief(e: TmdbEpisodeBrief | null | undefined): Record<string, unknown> | null {
+// worth surfacing ("when does the next episode air", which one was last). Built
+// through episodeBriefSchema.parse() like every other shaper, so a schema/shaper
+// drift throws here rather than only inside the enclosing tvDetailSchema.parse().
+function episodeBrief(
+  e: TmdbEpisodeBrief | null | undefined,
+): z.infer<typeof episodeBriefSchema> | null {
   if (!e) return null;
-  return {
+  return episodeBriefSchema.parse({
     season_number: e.season_number ?? null,
     episode_number: e.episode_number ?? null,
     name: e.name || null,
     air_date: e.air_date || null,
-  };
+  });
 }
 
 // Build a { country → certification } map from a movie's release_dates. A country
@@ -618,12 +620,7 @@ export interface KeywordsResponse {
 
 // Keyword ids feed discover_*'s `with_keywords`/`without_keywords` filters.
 export function summarizeKeywords(r: KeywordsResponse): z.infer<typeof keywordsSchema> {
-  return keywordsSchema.parse({
-    results: (r.results ?? []).map((k) => ({ id: k.id, name: k.name })),
-    page: r.page ?? 1,
-    total_pages: r.total_pages ?? 1,
-    total_results: r.total_results ?? r.results?.length ?? 0,
-  });
+  return keywordsSchema.parse(page(r, (k) => ({ id: k.id, name: k.name })));
 }
 
 export interface TmdbCompany {
@@ -953,6 +950,15 @@ export function summarizeSeason(
       overview: includeEpisodeOverview ? e.overview || null : null,
     })),
   });
+}
+
+// Re-validate a seasons array assembled outside the direct summarizeSeason
+// path — the expand_episodes flow in clients/tmdb.ts fetches, caps, and merges
+// in hand-built "skipped" season objects, none of which re-run seasonSchema on
+// the final array. Running it here gives that aggregate the same drift/degrade
+// guarantee the per-season shaper has.
+export function parseSeasons(seasons: unknown): z.infer<typeof seasonSchema>[] {
+  return seasonSchema.array().parse(seasons);
 }
 
 export function summarizeEpisode(
