@@ -123,6 +123,19 @@ run's exact calls verbatim:
   going null is exactly the kind of thing a "count capped at N" description
   never warns about, and a nearby test comment asserting "same contract as a
   trimmed item" can be flat wrong without a test actually failing.
+- **Claims about upstream behavior, wherever they live**: a `.describe()` is
+  not the only place this repo asserts "TMDB does X" — source comments,
+  test comments and CHANGELOG entries justify guards the same way, and none
+  of them is checked by any test. When a live call exercises a guard's
+  scenario, verify the stated _reason_ for the guard too, not just that the
+  guard fires. A real miss: three separate places claimed TMDB "silently
+  ignores an unparseable id and applies no filter at all", while
+  `with_genres="action"`, `with_companies="pixar"` and
+  `with_watch_providers="netflix"` each return `total_results:0` — the
+  opposite failure mode, and one an existing CHANGELOG entry for a sibling
+  filter had already described correctly. Grep a corrected claim across
+  `src/**`, `src/__tests__/**` and `CHANGELOG.md`; it is rarely written down
+  only once.
 - **Unicode / adult / locale weirdness**: emoji-only queries, non-Latin
   scripts, `include_adult` toggling, a fake 2-letter region/language that's
   shaped correctly but doesn't exist.
