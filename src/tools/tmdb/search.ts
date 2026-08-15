@@ -4,7 +4,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/server";
 import {
-  companySchema,
+  companiesSchema,
   keywordsSchema,
   multiItemSchema,
   pageSchema,
@@ -151,7 +151,7 @@ export function registerSearchTools(
         query: z.string().min(1).describe("Company name to look up."),
         page: page.optional(),
       }),
-      outputSchema: pageSchema(companySchema),
+      outputSchema: companiesSchema,
       annotations: READ_ONLY,
     },
     ({ query, page: pg }, ctx) =>
