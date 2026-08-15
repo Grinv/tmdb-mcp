@@ -1,6 +1,11 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { TmdbClient, MAX_EXPANDED_EPISODES, MAX_EXPANDED_EPISODES_CHARS } from "../clients/tmdb.js";
+import {
+  TmdbClient,
+  MAX_EXPANDED_EPISODES,
+  MAX_EXPANDED_EPISODES_CHARS,
+  MAX_SEASON_EPISODES,
+} from "../clients/tmdb.js";
 import { ApiError } from "../lib/errors.js";
 import { loadConfig } from "../config.js";
 import {
@@ -201,6 +206,59 @@ describe("TmdbClient: getTv(expand_episodes) on a show with more than 20 seasons
     assert.equal(seasonsDetail[0]!.episodes.length, EPISODES_PER_SEASON);
     // Some later season must have been truncated (25 * 30 = 750 > MAX_EXPANDED_EPISODES).
     assert.ok(seasonsDetail.some((x) => x.episodes.length < EPISODES_PER_SEASON));
+  });
+
+  test("charges season 0's specials only what they can contribute, not their true episode_count", async (t) => {
+    // The Simpsons shape: season 0 "Specials" reports 200 episodes but can only
+    // ever contribute MAX_SEASON_EPISODES (50). Charging the full 200 against
+    // the 250 budget used to evict seasons 2-4 that comfortably fit.
+    const SPECIALS_COUNT = 200;
+    const seasons = [
+      { season_number: 0, name: "Specials", episode_count: SPECIALS_COUNT },
+      ...Array.from({ length: 4 }, (_, i) => ({
+        season_number: i + 1,
+        name: `Season ${i + 1}`,
+        episode_count: MAX_SEASON_EPISODES,
+      })),
+    ];
+    const requestedSeasonNumbers: number[] = [];
+    const mock = mockFetch((url) => {
+      if (!url.includes("append_to_response=season")) {
+        return jsonResponse({ id: 1, name: "Long Runner", seasons });
+      }
+      const requested = decodeURIComponent(/append_to_response=([^&]+)/.exec(url)![1]!).split(",");
+      const body: Record<string, unknown> = {};
+      for (const key of requested) {
+        const n = Number(key.split("/")[1]);
+        requestedSeasonNumbers.push(n);
+        const count = n === 0 ? SPECIALS_COUNT : MAX_SEASON_EPISODES;
+        body[key] = {
+          season_number: n,
+          name: `S${n}`,
+          episodes: Array.from({ length: count }, (_, i) => ({ episode_number: i + 1 })),
+        };
+      }
+      return jsonResponse(body);
+    });
+    installFetch(t, mock);
+    const s = await client().getTv(1, "US", undefined, true);
+    // Every season fetched: 50 (capped specials) + 4 x 50 = exactly the budget.
+    assert.deepEqual(
+      requestedSeasonNumbers.sort((a, b) => a - b),
+      [0, 1, 2, 3, 4],
+    );
+    const seasonsDetail = s.seasons_detail!;
+    assert.equal(seasonsDetail.find((x) => x.season_number === 0)!.episodes.length, 50);
+    for (const n of [1, 2, 3, 4]) {
+      const season = seasonsDetail.find((x) => x.season_number === n)!;
+      assert.equal(
+        season.episodes.length,
+        MAX_SEASON_EPISODES,
+        `season ${n} should survive the budget in full`,
+      );
+    }
+    const total = seasonsDetail.reduce((sum, x) => sum + x.episodes.length, 0);
+    assert.equal(total, MAX_EXPANDED_EPISODES);
   });
 
   test("skips fetching seasons known (via episode_count) to fall entirely beyond the budget", async (t) => {

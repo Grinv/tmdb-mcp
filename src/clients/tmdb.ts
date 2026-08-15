@@ -73,6 +73,14 @@ const MAX_APPEND_TO_RESPONSE = 20;
 // once its episodes are truncated to fit.
 export const MAX_EXPANDED_EPISODES = 250;
 
+// Per-season cap applied by summarizeSeason to each season's episode list.
+// Named here because getTvSeasonsBulk's pre-fetch budget must charge a season
+// what it will actually RETURN (min(episode_count, this)), not its true
+// episode_count: season 0 "Specials" routinely reports 80+ episodes but can
+// only ever contribute 50, and charging the full 80+ used to evict later
+// seasons that would have fit.
+export const MAX_SEASON_EPISODES = 50;
+
 // The actual constraint MAX_EXPANDED_EPISODES approximates is serialized
 // response SIZE, not episode count — an episode count alone doesn't bound
 // size if `name` runs unusually long. 500 (then 250) episodes were tried as a
@@ -439,7 +447,11 @@ export class TmdbClient {
         for (const s of seasons) {
           if (remaining > 0 || s.episode_count == null) {
             toFetch.push(s.season_number);
-            remaining -= s.episode_count ?? 0;
+            // Charge what this season can actually contribute, not its raw
+            // episode_count — summarizeSeason below trims it to
+            // MAX_SEASON_EPISODES, so charging more evicts later seasons that
+            // would have fit (season 0's 80+ specials being the usual culprit).
+            remaining -= Math.min(s.episode_count ?? 0, MAX_SEASON_EPISODES);
           } else {
             skipped.push(s);
           }
@@ -454,7 +466,9 @@ export class TmdbClient {
               { append_to_response: append },
               language,
             );
-            return numbers.map((n) => summarizeSeason(res[`season/${n}`] ?? {}, 50, false));
+            return numbers.map((n) =>
+              summarizeSeason(res[`season/${n}`] ?? {}, MAX_SEASON_EPISODES, false),
+            );
           }),
         );
         const fetched = capTotalEpisodes(chunkResults.flat(), MAX_EXPANDED_EPISODES);
