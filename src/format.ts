@@ -129,9 +129,14 @@ function resolveCertification(
   if (certifications[region])
     return { certification: certifications[region], certification_region: region };
   if (certifications.US) return { certification: certifications.US, certification_region: "US" };
-  const [fallbackRegion] = Object.keys(certifications).sort();
-  return fallbackRegion
-    ? { certification: certifications[fallbackRegion]!, certification_region: fallbackRegion }
+  // Object.entries keeps the value paired with its key, so the fallback needs
+  // no `certifications[key]!` index-then-assert (safe, but the non-null relies
+  // on a non-local invariant). Sort mirrors the previous `Object.keys().sort()`.
+  const [fallback] = Object.entries(certifications).sort(([a], [b]) =>
+    a < b ? -1 : a > b ? 1 : 0,
+  );
+  return fallback
+    ? { certification: fallback[1], certification_region: fallback[0] }
     : { certification: null, certification_region: region };
 }
 
