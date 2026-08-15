@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-08-15
+
 ### Changed
 
 - Trim redundant text from several tool and prompt descriptions to cut per-request token cost ([153d2fd](https://github.com/Grinv/tmdb-mcp/commit/153d2fd)).
