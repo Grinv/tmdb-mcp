@@ -126,6 +126,37 @@ describe("top_by_entity prompt", () => {
     );
   });
 
+  test("entity_type=company resolves straight to search_companies, with no person branch", async () => {
+    await using client = await connectServer({});
+    const res = await client.getPrompt({
+      name: "top_by_entity",
+      arguments: { name: "Pixar", entity_type: "company" },
+    });
+    const text = contentText(res.messages[0]!.content);
+    // entity_type is the caller's answer to "person or company?" — the plan
+    // must act on it, not restate the guess and keep both branches alive.
+    assert.doesNotMatch(text, /guess from context/);
+    assert.doesNotMatch(text, /search_people/);
+    assert.doesNotMatch(text, /get_person_credits/);
+    assert.match(text, /search_companies/);
+  });
+
+  test("entity_type=person keeps only the person branch of the TV step", async () => {
+    await using client = await connectServer({});
+    const res = await client.getPrompt({
+      name: "top_by_entity",
+      arguments: { name: "Shonda Rhimes", entity_type: "person", media_type: "tv" },
+    });
+    const text = contentText(res.messages[0]!.content);
+    assert.doesNotMatch(text, /guess from context/);
+    assert.doesNotMatch(text, /search_companies/);
+    // discover_tv can't filter by person, so a known-person TV plan must go
+    // straight to get_person_credits without the "if this is a COMPANY" fork.
+    assert.doesNotMatch(text, /if this is a COMPANY/i);
+    assert.doesNotMatch(text, /with_companies/);
+    assert.match(text, /get_person_credits/);
+  });
+
   test("a company + genre + media_type=tv combo still applies the genre to discover_tv", async () => {
     await using client = await connectServer({});
     const res = await client.getPrompt({
