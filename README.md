@@ -15,7 +15,7 @@ The server speaks standard MCP over stdio, so it works with any MCP client
 (Claude Desktop/Code, Cursor, VS Code, Cline, …).
 
 Once it's connected, just ask your agent in natural language (needs a free TMDB
-token — see [Getting your credentials](#getting-your-credentials)):
+token; see [Getting your credentials](#getting-your-credentials)):
 
 ```
 "Search for the movie Dune: Part Two and show its overview, genres and runtime."
@@ -60,16 +60,16 @@ Add it to your MCP client's config. The only required credential is a TMDB v4
       "args": ["-y", "tmdb-mcp"],
       "env": {
         "TMDB_API_TOKEN": "your-tmdb-v4-read-access-token (required)",
-        "OMDB_API_KEY": "your-omdb-key (optional — IMDb/RT/Metacritic ratings)",
-        "TMDB_LANGUAGE": "en-US (optional — localize, e.g. ru-RU)",
-        "TMDB_REGION": "US (optional — region for certifications, e.g. RU)"
+        "OMDB_API_KEY": "your-omdb-key (optional: IMDb/RT/Metacritic ratings)",
+        "TMDB_LANGUAGE": "en-US (optional: localize, e.g. ru-RU)",
+        "TMDB_REGION": "US (optional: region for certifications, e.g. RU)"
       }
     }
   }
 }
 ```
 
-> Replace each value with your own. Only `TMDB_API_TOKEN` is required — delete the
+> Replace each value with your own. Only `TMDB_API_TOKEN` is required; delete the
 > lines marked optional if you don't need them.
 
 **As a `.mcpb` bundle (easiest for Claude Desktop):** download `tmdb-mcp.mcpb`
@@ -99,7 +99,7 @@ See [docs/clients.md](https://github.com/Grinv/tmdb-mcp/blob/main/docs/clients.m
 | `get_trending`                                         | What's popular now (movies / TV / people, day or week)                                                       |
 | `get_movie_genres` / `get_tv_genres`                   | Genre id ↔ name reference                                                                                    |
 | `discover_movies`                                      | Filter by genre, year/date range, rating, cast/crew/people, companies, keywords, providers, certification, … |
-| `discover_tv`                                          | Same, plus networks/type/status — but no cast/crew/person filter (use `get_person_credits` for that)         |
+| `discover_tv`                                          | Same, plus networks/type/status, but no cast/crew/person filter (use `get_person_credits` for that)          |
 | `get_watch_providers`                                  | Where to stream/rent/buy, by region (JustWatch via TMDB)                                                     |
 | `get_person_credits`                                   | A person's filmography (cast & crew)                                                                         |
 | `get_videos`                                           | Trailers/teasers/clips (YouTube links)                                                                       |
@@ -118,20 +118,19 @@ search for titles similar to one the user liked, driving `get_similar` /
 `get_movie_recommendations` / `get_tv_recommendations` / `discover_movies` /
 `discover_tv` instead of relying on the model's own knowledge. `top_by_entity`
 (`name`, optional `entity_type`, `genre`, `media_type`, `count`) finds the
-best-regarded titles from a person or a production company/studio — e.g. "A24's
-top movies" or "Tarantino's best crime films" — via `discover_movies`/
+best-regarded titles from a person or a production company/studio (e.g. "A24's
+top movies" or "Tarantino's best crime films") via `discover_movies`/
 `discover_tv`, and for a person's TV work specifically falls back to
 `get_person_credits` (TMDB's own `/discover/tv` can't filter by person at all).
 
 **Backbone vs. enrichment.** TMDB is the primary source (search, metadata,
 people, trending). OMDb is optional enrichment: `get_movie`/`get_tv` chain the
-`imdb_id` TMDB returns into an OMDb lookup so ratings — plus a free-text
-awards summary (major-award wins/nominations, e.g. Oscars for a film or Emmys
-for a show, for the title as a whole, not attributed to any one person) and
-OMDb's own age rating (`ratings.rated`, separate from this server's own
-`certification`) — come back in one call. Without an OMDb key the TMDB data
-still works; the `ratings` field just
-reports that it is unconfigured.
+`imdb_id` TMDB returns into an OMDb lookup, so ratings come back in one call,
+along with a free-text awards summary (major-award wins/nominations, e.g. Oscars
+for a film or Emmys for a show, for the title as a whole, not attributed to any
+one person) and OMDb's own age rating (`ratings.rated`, separate from this
+server's own `certification`). Without an OMDb key the TMDB data still works;
+the `ratings` field just reports that it is unconfigured.
 
 **Localization.** Set `TMDB_LANGUAGE` (e.g. `ru-RU`) and `TMDB_REGION` (e.g.
 `RU`) to get localized titles/overviews/genre names and region-specific
@@ -155,12 +154,12 @@ One token is required (TMDB); the OMDb key is optional. Both are free.
    and TV details. Without it, everything else still works.
 
 Put these in your MCP client config's `env` block (see
-[docs/clients.md](https://github.com/Grinv/tmdb-mcp/blob/main/docs/clients.md) for per-client snippets) — never commit them.
+[docs/clients.md](https://github.com/Grinv/tmdb-mcp/blob/main/docs/clients.md) for per-client snippets). Never commit them.
 `TMDB_LANGUAGE` / `TMDB_REGION` optionally set default locale/region (e.g. `ru-RU`, `RU`).
 
 ### Advanced tuning (env-only, no install-UI equivalent)
 
-Sensible defaults; only set these if you know you need to. Env var only — not
+Sensible defaults; only set these if you know you need to. Env var only, not
 exposed in Claude Desktop's install form, so CLI/Docker users set them directly.
 
 | Variable               | Default                        | Purpose                                            |
@@ -204,13 +203,13 @@ This product uses the TMDB API but is not endorsed or certified by TMDB.
 
 ## Privacy Policy
 
-`tmdb-mcp` runs entirely on your own machine and collects no data of its own —
-see [PRIVACY.md](PRIVACY.md) for exactly what it sends to TMDB/OMDb and what
+`tmdb-mcp` runs entirely on your own machine and collects no data of its own.
+See [PRIVACY.md](PRIVACY.md) for exactly what it sends to TMDB/OMDb and what
 (if anything) it stores locally.
 
 ## Security
 
-Read-only, two fixed upstream hosts, credentials never persisted — see
+Read-only, two fixed upstream hosts, credentials never persisted. See
 [SECURITY.md](SECURITY.md) for the full breakdown and how to report a
 vulnerability.
 

@@ -3,9 +3,8 @@
 `tmdb-mcp` is a local [Model Context Protocol](https://modelcontextprotocol.io)
 server: it runs as a process on your own machine (via `npx` or a local clone),
 speaking stdio to your MCP client (Claude Desktop, Claude Code, etc.). It has
-no server component of its own, no telemetry, and no analytics — this policy
-covers exactly what it does with data, in full, because there isn't more to
-say beyond it.
+no server component of its own, no telemetry, and no analytics, so there isn't
+much for this policy to cover.
 
 ## Data collection
 
@@ -28,21 +27,21 @@ The only inputs it handles are:
 Each tool call results in an outbound HTTPS request to exactly one of two
 third-party APIs, carrying only what that specific call needs:
 
-- **TMDB** (`api.themoviedb.org`) — `TMDB_API_TOKEN` as an `Authorization:
+- **TMDB** (`api.themoviedb.org`): `TMDB_API_TOKEN` as an `Authorization:
 Bearer` header, plus the search/lookup parameters the tool call supplies.
-  Used for essentially every tool. Governed by
+  Used by almost every tool. Governed by
   [TMDB's own Privacy Policy](https://www.themoviedb.org/privacy-policy) and
   [API Terms of Use](https://www.themoviedb.org/api-terms-of-use) once your
   request reaches them.
-- **OMDb** (`omdbapi.com`) — `OMDB_API_KEY` as an `apikey` query parameter,
+- **OMDb** (`omdbapi.com`): `OMDB_API_KEY` as an `apikey` query parameter,
   plus an IMDb id or title/year. Only reached when `OMDB_API_KEY` is set and
   a ratings-enrichment path is used (`get_movie`/`get_tv`'s ratings, or the
   standalone `get_ratings`). OMDb doesn't publish a page dedicated solely to
   privacy; its combined [Terms/legal page](https://www.omdbapi.com/legal.htm)
   governs your request once it reaches them.
 
-`tmdb-mcp` sends data to no other destination — no analytics vendor, no
-logging service, no server operated by its maintainer.
+`tmdb-mcp` sends data to no other destination: no analytics vendor, no
+logging service, and no server run by its maintainer.
 
 ## Storage and retention
 
