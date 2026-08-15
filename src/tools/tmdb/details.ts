@@ -30,6 +30,8 @@ import {
   tvDetailEnrichedSchema,
   tvSummarySchema,
 } from "../../format.schemas.js";
+import { ApiError } from "../../lib/errors.js";
+import { apiErrorMessage } from "../../lib/result.js";
 import { READ_ONLY } from "../shared.js";
 import {
   includeRatings,
@@ -455,8 +457,15 @@ export function registerDetailsTools(
   );
 }
 
-/** get_movies/get_tv_shows: a rejected per-id fetch becomes that entry's `reason`. */
+/** get_movies/get_tv_shows: a rejected per-id fetch becomes that entry's `reason`.
+ *
+ * An ApiError goes through the same messageFor() mapping every other error
+ * surface uses (lib/result.ts), so a bad id reads "No matching resource was
+ * found (404)." here exactly as it does from get_movie — not the raw
+ * `HTTP 404 : {"success":false,"status_code":34,...}` wire payload that
+ * ApiError.message carries. */
 function errorReason(reason: unknown): string {
+  if (reason instanceof ApiError) return apiErrorMessage(reason);
   return reason instanceof Error ? reason.message : String(reason);
 }
 

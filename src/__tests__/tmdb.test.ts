@@ -769,6 +769,27 @@ describe("get_movies", () => {
     assert.equal(s.results[1]!.id, 999);
     assert.match((s.results[1] as { reason: string }).reason, /404/);
   });
+
+  test("a failed id's reason is the friendly message, not the raw upstream body", async (t) => {
+    const mock = mockFetch((url) => {
+      if (url.includes("/movie/999")) {
+        return jsonResponse(
+          { success: false, status_code: 34, status_message: "The resource you requested…" },
+          { status: 404 },
+        );
+      }
+      return router(url);
+    });
+    installFetch(t, mock);
+    await using client = await connectServer({ ...ENV, HTTP_RETRIES: "0" });
+    const res = await client.callTool({ name: "get_movies", arguments: { ids: [999] } });
+    const { reason } = (res.structuredContent as { results: { reason: string }[] }).results[0]!;
+    // Same text get_movie returns for the same 404 — not ApiError.message's
+    // `HTTP 404 : {"success":false,...}` wire payload, which is what the agent
+    // used to receive here while every other error surface stayed friendly.
+    assert.equal(reason, "No matching resource was found (404).");
+    assert.doesNotMatch(reason, /status_code|success|HTTP 404 :/);
+  });
 });
 
 describe("get_tv", () => {

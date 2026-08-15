@@ -41,6 +41,16 @@ export function apiErrorToResult(err: ApiError): ToolResult {
   return errorResult(messageFor(err));
 }
 
+/** The same friendly text as apiErrorToResult, for a caller that needs the
+ * string rather than a whole ToolResult — e.g. get_movies/get_tv_shows, where
+ * a single failed id becomes that entry's `reason` inside an otherwise
+ * successful batch result rather than failing the call. Without this, such a
+ * caller falls back to the raw `Error.message` (`HTTP 404 : {"success":false,
+ * ...}`), which is the upstream's wire payload, not an actionable message. */
+export function apiErrorMessage(err: ApiError): string {
+  return messageFor(err);
+}
+
 function messageFor(err: ApiError): string {
   switch (err.code) {
     case "unauthorized":
