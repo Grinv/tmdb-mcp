@@ -57,7 +57,7 @@ don't rely on the `preversion` hook alone to catch a skipped one:
    every file + commits `"release: vX.Y.Z"` + tags `vX.Y.Z`.
 5. `git push --follow-tags` — pushing the tag triggers `.github/workflows/release.yml`.
 
-The tag push (`v*`) runs the **Release** workflow: `check:api` gate → build → test
+The tag push (`v*`) runs the **Release** workflow: build → test
 → pack `.mcpb` → extract `CHANGELOG.md`'s section for this version (fails loudly,
 not silently, if that section is empty — the workflow's own safety net for
 whatever slipped past `sync-version.mjs`/`preversion-check.mjs`) → GitHub Release

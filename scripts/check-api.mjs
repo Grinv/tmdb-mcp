@@ -1,6 +1,9 @@
-// Pre-deploy health check for the upstream APIs this server depends on. Each
-// check asserts a 200 plus a minimal response shape, so a release can be gated
-// against upstream drift. Wired into release.yml before packing.
+// Manual health check for the upstream APIs this server depends on. Each check
+// asserts a 200 plus a minimal response shape, so you can confirm upstream is
+// healthy (and matches the shapes the shapers expect) before cutting a release.
+// Run it by hand — it is deliberately NOT a CI release gate (the release
+// workflow has no repo secrets to feed it, so wiring it there would either be a
+// false-green no-op or a hard blocker on every release).
 //
 // Credentials come from the environment:
 //   TMDB_API_TOKEN  — TMDB v4 Read Access Token (required for TMDB checks)

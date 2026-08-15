@@ -20,8 +20,6 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Health-check upstream APIs (gate)
-        run: npm run check:api
       - run: npm run build
       - run: npm test
       - name: Pack .mcpb bundle
