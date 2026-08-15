@@ -67,7 +67,10 @@ export function registerSearchTools(
         "a TV show.",
       inputSchema: z.strictObject({
         query: z.string().min(1).describe("TV show name to search for."),
-        year: yearFilter("Filter by first-air-date year."),
+        year: yearFilter(
+          "Filter by first-air-date year. Unlike search_movies' soft year filter, this is a hard " +
+            "first-air-year match (verified live). For a first-air-date range, use discover_tv.",
+        ),
         include_adult: includeAdult,
         language,
         page: page.optional(),
