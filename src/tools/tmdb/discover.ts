@@ -283,6 +283,11 @@ const discoverTvSchema = {
 // definition silently win, narrowing the merged type to TV-only values and
 // breaking assignability from a real discover_movies call's args. Re-widen it
 // explicitly to the union of both, matching what discoverQuery actually forwards.
+//
+// Non-strict `z.object` (not strictObject) on purpose: this schema exists only
+// as the z.infer source for the DiscoverParams type — it never .parse()s
+// untrusted input. The actual per-tool input validation is the strict
+// discoverMovieInputSchema/discoverTvInputSchema (strictObject + superRefine).
 export const discoverParamsSchema = z.object({
   ...discoverMovieSchema,
   ...discoverTvSchema,

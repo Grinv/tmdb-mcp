@@ -7,6 +7,12 @@
 // Acquisitions are ordered through a tail-promise chain, so only one runs at a
 // time and the window bookkeeping stays consistent. In-flight network time still
 // overlaps because acquire() resolves before the request itself runs.
+//
+// NOTE: no caller currently supplies `rules` — createUpstream (lib/upstream.ts)
+// constructs every limiter with only a min-interval, and Config exposes only
+// TMDB_MIN_INTERVAL_MS/OMDB_MIN_INTERVAL_MS. The sliding-window machinery below
+// is therefore latent headroom for an upstream that later publishes a
+// per-minute/hour quota; the min-interval path is the only one exercised today.
 
 export interface RateRule {
   /** Max granted acquisitions allowed within any `windowMs` span. */

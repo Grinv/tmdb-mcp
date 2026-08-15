@@ -180,6 +180,9 @@ export type TrendingWindow = "day" | "week";
 
 export type { DiscoverParams };
 
+// TMDB's /find endpoint supports all three, but only "imdb_id" is currently
+// plumbed to a tool (find_by_imdb_id); "tvdb_id"/"wikidata_id" are latent
+// capability for a future find-by-tvdb/wikidata tool.
 export type ExternalSource = "imdb_id" | "tvdb_id" | "wikidata_id";
 
 // Shared by every method that dispatches on a runtime "movie" | "tv" media

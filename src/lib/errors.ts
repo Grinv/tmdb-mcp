@@ -6,7 +6,7 @@ export type ApiErrorCode =
   | "unauthorized" // 401 — token missing/expired/invalid
   | "forbidden" // 403 — insufficient permissions/scope
   | "not_found" // 404 — no such resource
-  | "not_modified" // 304 — cached content still fresh (conditional request)
+  | "not_modified" // 304 — currently unreachable (this client sends no conditional requests); kept for completeness
   | "rate_limited" // 429 — slow down
   | "server_error" // 5xx — upstream broke
   | "network" // connection failed

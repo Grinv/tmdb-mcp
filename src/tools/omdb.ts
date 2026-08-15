@@ -50,6 +50,8 @@ export function registerOmdbTools(server: McpServer, omdb: OmdbClient): void {
     ({ imdb_id, title, year, type }, ctx) => {
       return requireConfiguredCached(
         omdb,
+        // title! is safe: the validate() callback below runs before this fn and
+        // rejects the both-absent case, so a falsy imdb_id here means title is set.
         (onStale) =>
           imdb_id
             ? omdb.ratingsByImdbId(imdb_id, onStale)

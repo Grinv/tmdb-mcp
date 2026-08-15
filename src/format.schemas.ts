@@ -7,9 +7,7 @@
 // the same order as the shapers they mirror so the two files are still easy
 // to eyeball side by side.
 //
-// Every object rejects unknown keys — `z.strictObject(...)`, or `.strict()`
-// where the shape comes from `.pick()`/`.extend()` and no `z.strictObject`
-// equivalent exists (movieCardSchema/tvCardSchema below): a shaper that
+// Every object rejects unknown keys via `z.strictObject(...)`: a shaper that
 // starts returning a field this file doesn't know about must fail validation
 // (both here and in the real client-side outputSchema check) instead of
 // silently dropping the extra key, which is Zod's — and JSON Schema's —
@@ -464,6 +462,9 @@ export const movieCardSchema = z.discriminatedUnion("found", [
   movieDetailSchema
     .pick({ id: true, title: true, year: true, genres: true, vote_average: true, vote_count: true })
     .extend({ found: z.literal(true), ratings: cardRatingsSchema.optional() })
+    // Defensive: pick/extend already preserve strictObject's unknown-key
+    // rejection on Zod 4.4.3 (see AGENTS.md), so this only guards a future
+    // Zod that might change that.
     .strict(),
   cardNotFoundSchema,
 ]);
