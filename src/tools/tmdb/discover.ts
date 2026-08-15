@@ -433,9 +433,8 @@ export function registerDiscoverTools(
         "year or release-date range, rating range, vote count, runtime range, original language, " +
         "cast/crew/people, companies, keywords, watch providers, certification, a region code " +
         "(minor effect only — see its own description), an adult-content toggle, and sort order. " +
-        "certification and with_watch_providers each error if given with no certification_country/" +
-        "watch_region at all, but an unrecognized certification_country still silently disables the " +
-        "filter instead of erroring — see certification's own description. Use for " +
+        "certification/with_watch_providers have validation and silent-fallback rules — see their " +
+        "own field descriptions. Use for " +
         "'popular sci-fi from the 1990s rated above 7 available on Netflix', or for a specific " +
         "person's work in one genre — 'which of this director's/actor's/composer's films are " +
         "animated' — via with_crew/with_cast/with_people + with_genres together; get_person_credits " +
@@ -462,10 +461,8 @@ export function registerDiscoverTools(
         "params for TV at all (calling with them is a validation error, not a silent no-op) " +
         "because TMDB's own /discover/tv would silently ignore them anyway, unlike /discover/movie; " +
         "to find TV shows featuring someone, call get_person_credits instead and filter its results " +
-        "to media_type 'tv'. certification and " +
-        "with_watch_providers each error if given with no certification_country/watch_region at " +
-        "all, but an unrecognized certification_country still silently disables the filter instead " +
-        "of erroring — see certification's own description. The TV counterpart of discover_movies; " +
+        "to media_type 'tv'. certification/with_watch_providers have validation and silent-fallback " +
+        "rules — see their own field descriptions. The TV counterpart of discover_movies; " +
         "use with_networks for 'HBO shows', with_type='Miniseries' for short/limited series (e.g. " +
         "'best miniseries to binge in a weekend'), with_status='Ended' to exclude shows still " +
         "airing, certification='TV-Y7' + certification_country='US' for 'shows appropriate for a " +

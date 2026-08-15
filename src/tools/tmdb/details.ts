@@ -61,9 +61,8 @@ export function registerDetailsTools(
         "vote average, the age/content rating (certification) for `region` — falling back to the " +
         "US rating, then any available country, when `region` has none; check `certification_region` " +
         "to see which one was used — and links (TMDB + IMDb). " +
-        "By default also includes IMDb/Rotten Tomatoes/Metacritic ratings, an awards summary " +
-        "(major-award wins/nominations — Oscars, Emmys, Golden Globes, etc.; free text, not a " +
-        "structured count, for the whole film/show, not one person), and OMDb's own age rating " +
+        "By default also includes IMDb/Rotten Tomatoes/Metacritic ratings and an awards summary " +
+        "(see include_ratings), plus OMDb's own age rating " +
         "(`ratings.rated` — separate from this tool's own `certification` above; the two can differ) " +
         "from OMDb (set include_ratings=false to skip); if unavailable (no OMDB_API_KEY, no imdb_id, or the " +
         "OMDb lookup fails), `ratings` degrades to `{found:false, reason}` instead of failing the " +
@@ -108,9 +107,8 @@ export function registerDetailsTools(
         "(certification) for `region` — falling back to " +
         "the US rating, then any available country, when `region` has none; check " +
         "`certification_region` to see which one was used — and links. " +
-        "By default also includes IMDb/Rotten Tomatoes/Metacritic ratings, an awards summary " +
-        "(major-award wins/nominations — Oscars, Emmys, Golden Globes, etc.; free text, not a " +
-        "structured count, for the whole film/show, not one person), and OMDb's own age rating " +
+        "By default also includes IMDb/Rotten Tomatoes/Metacritic ratings and an awards summary " +
+        "(see include_ratings), plus OMDb's own age rating " +
         "(`ratings.rated` — separate from this tool's own `certification` above; the two can differ) " +
         "from OMDb (set include_ratings=false to skip); if unavailable (no OMDB_API_KEY, no imdb_id, or the " +
         "OMDb lookup fails), `ratings` degrades to `{found:false, reason}` instead of failing the " +

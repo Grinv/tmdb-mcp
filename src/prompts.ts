@@ -16,11 +16,10 @@ export function registerPrompts(server: McpServer): void {
     {
       title: "Recommend similar movies/TV",
       description:
-        "Plan a search for movies or TV shows similar to a given title, using TMDB's " +
-        "similarity/recommendation data (and discover as a fallback) rather than the " +
-        "model's own knowledge. Use this instead of calling get_similar/get_movie_recommendations " +
-        "yourself when you want the merged, ranked shortlist in one step; call those tools " +
-        "directly only if you already have a specific TMDB id and just need its raw candidate list.",
+        "Plan a merged, ranked shortlist of movies/TV similar to a given title, using TMDB's " +
+        "similarity/recommendation data (with discover as fallback) rather than model memory. Use " +
+        "instead of calling get_similar/get_movie_recommendations yourself; call those directly " +
+        "only when you already have a TMDB id and just want its raw candidate list.",
       argsSchema: z.object({
         title: z.string().min(1).describe("A movie or TV show title the user liked."),
         media_type: z
@@ -73,14 +72,12 @@ export function registerPrompts(server: McpServer): void {
     {
       title: "Top titles from a person or studio",
       description:
-        "Find the best-regarded movies/TV from a specific person (actor, director, composer, …) " +
-        "or production company/studio, optionally restricted to one genre — 'A24's top movies', " +
-        "'Tarantino's best films', 'which of Joe Hisaishi's scores are for animated films'. " +
-        "Resolves the name to a TMDB id (search_people/search_companies) then ranks with " +
-        "discover_movies/discover_tv, filtering out low-vote noise; for a person's TV work " +
-        "specifically it goes through get_person_credits instead, since discover_tv can't filter " +
-        "by person at all. Use this instead of doing that yourself when you want the ranked " +
-        "shortlist in one step.",
+        "Rank a person's or studio's best-regarded movies/TV, optionally within one genre — " +
+        "'A24's top movies', 'Tarantino's best films', 'which of Joe Hisaishi's scores are for " +
+        "animated films'. Resolves the name to a TMDB id (search_people/search_companies), then " +
+        "ranks via discover_movies/discover_tv (a person's TV work goes through get_person_credits, " +
+        "since discover_tv can't filter by person). Use instead of doing that multi-step lookup " +
+        "yourself.",
       argsSchema: z.object({
         name: z
           .string()
