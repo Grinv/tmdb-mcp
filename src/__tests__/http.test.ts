@@ -55,6 +55,34 @@ describe("error mapping by status/body", () => {
     );
   });
 
+  test("rejects a response whose Content-Length exceeds the body cap", async (t) => {
+    const mock = mockFetch(
+      () =>
+        new Response("{}", {
+          status: 200,
+          headers: { "content-length": String(64 * 1024 * 1024) },
+        }),
+    );
+    installFetch(t, mock);
+    await assert.rejects(
+      () => client().getJson("huge"),
+      (err: unknown) => err instanceof ApiError && /too large/i.test(err.message),
+    );
+  });
+
+  test("caps a verbose structured error `message` at 500 chars in the tool-facing detail", async (t) => {
+    const long = "x".repeat(1000);
+    const mock = mockFetch(() => jsonResponse({ message: long }, { status: 400 }));
+    installFetch(t, mock);
+    await assert.rejects(
+      () => client({ retries: 0 }).getJson("thing"),
+      (err: unknown) =>
+        err instanceof ApiError &&
+        err.message.includes("x".repeat(500)) &&
+        !err.message.includes("x".repeat(501)),
+    );
+  });
+
   test("redacts a credential the upstream echoes back in an error body", async (t) => {
     const mock = mockFetch(() =>
       jsonResponse(

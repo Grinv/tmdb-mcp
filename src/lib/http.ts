@@ -41,6 +41,10 @@ export class HttpClient {
     return this.requestJson<T>(path, { ...options, method: options.method ?? "GET" });
   }
 
+  // Every caller today goes through getJson() (GET, no body) — this server is
+  // read-only. The generic method/body/headers support in RequestOptions is
+  // latent for a future write endpoint; keep requestJson's surface minimal in
+  // spirit until one exists.
   async requestJson<T>(path: string, options: RequestOptions = {}): Promise<T> {
     const url = this.#buildUrl(path, options.query);
     const retries = options.retries ?? this.#opts.retries ?? 2;
@@ -118,6 +122,7 @@ export class HttpClient {
     if (!res.ok) throw await toHttpError(res);
 
     if (res.status === 204) return undefined as T;
+    assertBodyWithinCap(res);
     const text = await res.text();
     if (text.length === 0) return undefined as T;
     try {
@@ -142,10 +147,29 @@ export class HttpClient {
   }
 }
 
+// Defense-in-depth cap on how much of an upstream body we buffer into memory.
+// The two hosts are fixed, trusted APIs (see SECURITY.md), so this is not an
+// agent-reachable path — it only guards against a misconfigured/MITM'd/
+// operator-overridden base URL streaming a pathologically large body. The cap
+// is far above any real TMDB/OMDb response (expand_episodes is already byte-
+// capped upstream), so it never trips on legitimate traffic.
+const MAX_BODY_BYTES = 16 * 1024 * 1024;
+
+function assertBodyWithinCap(res: Response): void {
+  const len = Number(res.headers.get("content-length"));
+  if (Number.isFinite(len) && len > MAX_BODY_BYTES) {
+    throw new ApiError({
+      code: "unknown",
+      message: `Upstream response too large (${len} bytes > ${MAX_BODY_BYTES} cap)`,
+    });
+  }
+}
+
 async function toHttpError(res: Response): Promise<ApiError> {
   const { code, retryable } = classifyStatus(res.status);
   let raw = "";
   try {
+    assertBodyWithinCap(res);
     raw = await res.text();
   } catch {
     /* ignore body read errors */
@@ -173,8 +197,11 @@ function parseErrorMessage(raw: string): string | undefined {
     const obj: unknown = JSON.parse(raw);
     if (obj === null || typeof obj !== "object") return undefined;
     const rec = obj as Record<string, unknown>;
-    if (typeof rec.message === "string") return rec.message;
-    if (typeof rec.error === "string") return rec.error;
+    // Bound the structured message the same way the raw-body fallback is
+    // sliced (toHttpError) — a verbose upstream `message`/`error` otherwise
+    // becomes unbounded tool-facing error text.
+    if (typeof rec.message === "string") return rec.message.slice(0, 500);
+    if (typeof rec.error === "string") return rec.error.slice(0, 500);
     return undefined;
   } catch {
     return undefined; // not JSON — caller falls back to the raw body
