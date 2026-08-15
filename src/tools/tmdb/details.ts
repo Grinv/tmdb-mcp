@@ -7,7 +7,14 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/server";
 import type { TmdbClient } from "../../clients/tmdb.js";
 import type { OmdbClient } from "../../clients/omdb.js";
-import { movieCard, notFoundCard, summarizeRatings, tvCard } from "../../format.js";
+import {
+  movieCard,
+  notFoundCard,
+  ratingsNotFound,
+  ratingsYearConflict,
+  summarizeRatings,
+  tvCard,
+} from "../../format.js";
 import {
   collectionSchema,
   creditsSchema,
@@ -517,16 +524,35 @@ export async function maybeEnrich<T extends Record<string, unknown>>(
 ): Promise<T & { ratings?: ReturnType<typeof summarizeRatings> }> {
   if (!wantRatings) return shaped;
   if (!omdb.configured) {
-    return { ...shaped, ratings: { found: false, reason: "OMDB_API_KEY not configured" } };
+    return { ...shaped, ratings: ratingsNotFound("OMDB_API_KEY not configured") };
   }
   if (!imdbId) {
-    return { ...shaped, ratings: { found: false, reason: "No imdb_id available from TMDB" } };
+    return { ...shaped, ratings: ratingsNotFound("No imdb_id available from TMDB") };
   }
   // OMDb failures must not sink the TMDB result; degrade to found:false.
   try {
     const ratings = await omdb.ratingsByImdbId(imdbId, onStale);
+    // TMDB's imdb_id is occasionally stale/wrong; an id lookup then silently
+    // returns an unrelated title's ratings. Guard against attaching those:
+    // if the OMDb release year is far from TMDB's, treat it as no match rather
+    // than reporting another work's ratings as this title's (year is
+    // language-independent, unlike the localized titles we can't compare).
+    if (
+      ratings.found &&
+      ratingsYearConflict(
+        (shaped.release_date ?? shaped.first_air_date) as string | null | undefined,
+        ratings.year,
+      )
+    ) {
+      return {
+        ...shaped,
+        ratings: ratingsNotFound(
+          "OMDb entry looks unrelated to this title (release-year mismatch — likely a stale imdb_id from TMDB)",
+        ),
+      };
+    }
     return { ...shaped, ratings };
   } catch {
-    return { ...shaped, ratings: { found: false, reason: "OMDb lookup failed" } };
+    return { ...shaped, ratings: ratingsNotFound("OMDb lookup failed") };
   }
 }

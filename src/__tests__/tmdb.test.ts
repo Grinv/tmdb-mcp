@@ -80,6 +80,24 @@ const OMDB_OK = {
   ],
 };
 
+// Breaking Bad's real OMDb shape — used for the TV enrichment path (imdb
+// tt0903747). Kept distinct from OMDB_OK so the fixture's release year matches
+// the TV_DETAIL first_air_date (2008), mirroring real upstream: an id lookup
+// returns *that* title's data, not another work's.
+const OMDB_BB = {
+  Response: "True",
+  Title: "Breaking Bad",
+  Year: "2008–2013",
+  Rated: "TV-MA",
+  Runtime: "49 min",
+  imdbRating: "9.5",
+  imdbVotes: "2,300,000",
+  imdbID: "tt0903747",
+  Metascore: "N/A",
+  Type: "series",
+  Ratings: [{ Source: "Internet Movie Database", Value: "9.5/10" }],
+};
+
 const WATCH_PROVIDERS = {
   id: 603,
   results: {
@@ -341,6 +359,9 @@ function router(url: string) {
     return jsonResponse(TV_SEASONS_APPENDED);
   }
   if (url.includes("omdbapi.com") || url.includes("/?apikey")) {
+    // Route by imdb id so each title gets its own (year-consistent) OMDb data,
+    // matching real upstream — an id lookup returns that work, not another's.
+    if (url.includes("tt0903747")) return jsonResponse(OMDB_BB);
     return jsonResponse(OMDB_OK);
   }
   if (/\/tv\/\d+/.test(url)) return jsonResponse(TV_DETAIL);
@@ -534,6 +555,31 @@ describe("get_movie", () => {
     assert.equal(s.imdb_id, "tt0133093"); // TMDB data still came through
     assert.equal(s.ratings.found, false);
     assert.equal(s.ratings.reason, "OMDb lookup failed");
+  });
+
+  test("drops OMDb enrichment when its release year is unrelated to TMDB's (stale imdb_id)", async (t) => {
+    // TMDB gives release_date 1999 for id 603, but OMDb returns a 1975 entry
+    // for the same imdb_id — the stale-imdb_id failure mode. The guard must not
+    // attach the unrelated work's ratings as if they were this movie's.
+    const mock = mockFetch((url) => {
+      if (url.includes("apikey")) {
+        return jsonResponse({
+          Response: "True",
+          Title: "Some Unrelated Movie",
+          Year: "1975",
+          imdbID: "tt0133093",
+          imdbRating: "6.0",
+        });
+      }
+      return router(url);
+    });
+    installFetch(t, mock);
+    await using client = await connectServer(ENV);
+    const res = await client.callTool({ name: "get_movie", arguments: { id: 603 } });
+    assert.notEqual(res.isError, true);
+    const s = res.structuredContent as { ratings: { found: boolean; reason: string } };
+    assert.equal(s.ratings.found, false);
+    assert.match(s.ratings.reason, /mismatch/i);
   });
 
   test("surfaces a TMDB failure as an actionable tool error, not a thrown exception", async (t) => {

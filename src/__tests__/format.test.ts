@@ -10,6 +10,8 @@ import {
   summarizeFind,
   summarizePerson,
   summarizePersonCredits,
+  ratingsNotFound,
+  ratingsYearConflict,
   summarizeRatings,
   summarizeReview,
   summarizeSeason,
@@ -575,5 +577,36 @@ describe("summarizeRatings", () => {
     assert.equal(s.imdb_id, null);
     assert.equal(s.title, null);
     assert.equal(s.year, null);
+  });
+});
+
+describe("ratingsNotFound", () => {
+  test("returns a schema-validated { found:false, reason }", () => {
+    assert.deepEqual(ratingsNotFound("nope"), { found: false, reason: "nope" });
+  });
+});
+
+describe("ratingsYearConflict", () => {
+  test("a far year gap is a conflict (stale-imdb-id signal)", () => {
+    // TMDB 2026 title vs OMDb's 1985 entry — the real repro shape.
+    assert.equal(ratingsYearConflict("2026-01-01", "1985"), true);
+  });
+
+  test("an exact or near (<=2y) year match is not a conflict", () => {
+    assert.equal(ratingsYearConflict("2008-01-20", "2008"), false);
+    // Region-rollout skew: a year or two off is still the same work.
+    assert.equal(ratingsYearConflict("1999-03-31", "2001"), false);
+  });
+
+  test("parses a 4-digit year out of an OMDb range like '2008–2013'", () => {
+    assert.equal(ratingsYearConflict("2008-01-20", "2008–2013"), false);
+    assert.equal(ratingsYearConflict("1990-01-01", "2008–2013"), true);
+  });
+
+  test("missing either year never conflicts (never drops a hit over missing data)", () => {
+    assert.equal(ratingsYearConflict(null, "1999"), false);
+    assert.equal(ratingsYearConflict("1999-01-01", null), false);
+    assert.equal(ratingsYearConflict(undefined, undefined), false);
+    assert.equal(ratingsYearConflict("", ""), false);
   });
 });

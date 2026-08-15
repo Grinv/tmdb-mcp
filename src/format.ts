@@ -1037,3 +1037,33 @@ export function summarizeRatings(r: OmdbResponse): z.infer<typeof ratingsSchema>
     ratings,
   });
 }
+
+// A validated { found: false } ratings object. Enrichment builds several of
+// these "couldn't enrich" outcomes by hand (key not configured, no imdb_id,
+// lookup failed, title mismatch); routing them through here keeps them inside
+// the same ratingsSchema.parse guarantee as the success path.
+export function ratingsNotFound(reason: string): z.infer<typeof ratingsSchema> {
+  return ratingsSchema.parse({ found: false, reason });
+}
+
+function fourDigitYear(s: string | null | undefined): number | null {
+  const m = typeof s === "string" ? s.match(/\d{4}/) : null;
+  return m ? Number(m[0]) : null;
+}
+
+// Does an OMDb-by-imdb_id hit look like a *different* work than the TMDB entry
+// it is enriching? TMDB's imdb_id is occasionally stale/wrong, and an id lookup
+// then silently returns an unrelated title's ratings/awards. Titles can't be
+// compared reliably (TMDB localizes them), but release years are
+// language-independent: a gap wider than a couple of years is a strong
+// "wrong id" signal. Returns false whenever either year is unknown, so a
+// legitimate hit is never dropped over missing data.
+export function ratingsYearConflict(
+  tmdbDate: string | null | undefined,
+  omdbYear: string | null | undefined,
+): boolean {
+  const a = fourDigitYear(tmdbDate);
+  const b = fourDigitYear(omdbYear);
+  if (a === null || b === null) return false;
+  return Math.abs(a - b) > 2;
+}
