@@ -16,8 +16,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 20.11.0 pins the actual floor (package.json "engines"), not just
-        # "latest 20.x" — proves the stated minimum genuinely builds/passes.
+        # 20.11.0 pins the actual runtime floor (package.json "engines"), not
+        # just "latest 20.x" — proves the stated minimum genuinely builds/passes.
+        # This job runs build + test only; lint runs in `quality` (Node 24)
+        # because eslint's own engines require >=20.19 (dev-tooling floor, not a
+        # runtime one — see AGENTS.md).
         node: ["20.11.0", 22, 24]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0

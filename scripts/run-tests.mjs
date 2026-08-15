@@ -21,7 +21,18 @@ const supportsThreshold = major > 22 || (major === 22 && minor >= 8);
 const args = ["--test", ...passthrough];
 if (coverage) {
   args.push("--experimental-test-coverage");
-  if (supportsThreshold) args.push(`--test-coverage-lines=${COVERAGE_LINES_THRESHOLD}`);
+  if (supportsThreshold) {
+    args.push(`--test-coverage-lines=${COVERAGE_LINES_THRESHOLD}`);
+  } else {
+    // Make the un-enforced case loud, so a local `test:coverage` pass on the
+    // Node 20 floor isn't mistaken for the gate having actually run. CI enforces
+    // it on Node 24 (.github/workflows/ci.yml).
+    console.warn(
+      `run-tests: Node ${process.versions.node} predates --test-coverage-lines (22.8) — ` +
+        `coverage is REPORTED but the ${COVERAGE_LINES_THRESHOLD}% threshold is NOT enforced here. ` +
+        "CI enforces it on Node 24.",
+    );
+  }
 }
 
 const child = spawn(process.execPath, args, { cwd: "dist-tests", stdio: "inherit" });
