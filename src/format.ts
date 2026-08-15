@@ -1018,7 +1018,13 @@ export interface OmdbResponse {
 // instead of throwing, so enrichment never fails a TMDB lookup.
 export function summarizeRatings(r: OmdbResponse): z.infer<typeof ratingsSchema> {
   if (r.Response === "False") {
-    return ratingsSchema.parse({ found: false, reason: r.Error || "No OMDb match" });
+    // OMDb returns a clear "Movie not found!" for a title miss, but the generic
+    // "Error getting data." for an unrecognized imdb_id — which reads as an
+    // upstream failure rather than "no such id". Map it to a clearer reason so a
+    // caller can tell the two apart.
+    const reason =
+      r.Error === "Error getting data." ? "No OMDb match for this imdb_id/title" : r.Error;
+    return ratingsSchema.parse({ found: false, reason: reason || "No OMDb match" });
   }
   const ratings = (r.Ratings ?? []).map((x) => ({ source: x.Source, value: x.Value }));
   const rt = ratings.find((x) => x.source === "Rotten Tomatoes")?.value || null;

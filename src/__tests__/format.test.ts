@@ -567,6 +567,11 @@ describe("summarizeRatings", () => {
     assert.deepEqual(s, { found: false, reason: "Movie not found!" });
   });
 
+  test("maps OMDb's generic 'Error getting data.' (unrecognized imdb_id) to a clearer reason", () => {
+    const s = summarizeRatings({ Response: "False", Error: "Error getting data." });
+    assert.deepEqual(s, { found: false, reason: "No OMDb match for this imdb_id/title" });
+  });
+
   test("empty-string imdb_id/title/year and Error degrade to null/the default reason", () => {
     const notFound = summarizeRatings({ Response: "False", Error: "" });
     assert.ok(!notFound.found);
