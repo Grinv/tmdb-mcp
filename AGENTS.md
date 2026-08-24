@@ -34,6 +34,13 @@ src/
 scripts/          # build-tests.mjs, run-tests.mjs (generic), check-api.mjs (domain),
                   # sync-version.mjs (npm version hook), preversion-check.mjs (npm version
                   # gate — see .agents/skills/release/SKILL.md)
+.agents/skills/   # reusable agent workflows for this repo (e.g. live-audit/) — plain Markdown
+                  # with a YAML frontmatter name/description, not tied to any one tool's
+                  # orchestration features. Same skill name/layout as this project's sibling
+                  # MCP servers (steam-games-mcp, mal-mcp, anilist-mcp-server) — sync
+                  # improvements both ways rather than letting them drift. `.claude/skills` is
+                  # a symlink here (Codex CLI/Gemini CLI read `.agents/skills` directly,
+                  # Claude Code the symlink)
 ```
 
 ## Commands
