@@ -33,7 +33,7 @@ src/
   __tests__/      # node:test (*.test.ts) + helpers.ts
 scripts/          # build-tests.mjs, run-tests.mjs (generic), check-api.mjs (domain),
                   # sync-version.mjs (npm version hook), preversion-check.mjs (npm version
-                  # gate — see skills/release/SKILL.md)
+                  # gate — see .agents/skills/release/SKILL.md)
 ```
 
 ## Commands
@@ -68,7 +68,8 @@ npm run inspector      # run under the MCP Inspector
   specific order, e.g. `get_ratings` in `tools/omdb.ts`.
 - Mocked-`fetch` test fixtures must mirror the real upstream response shape
   for that exact endpoint, not just whatever fields make the current code
-  pass — see [skills/fixture-accuracy-check/SKILL.md](skills/fixture-accuracy-check/SKILL.md).
+  pass — see
+  [.agents/skills/fixture-accuracy-check/SKILL.md](.agents/skills/fixture-accuracy-check/SKILL.md).
 - Keep clients fetch+cache only; all raw→agent-facing shaping lives in
   `src/format.ts`. Trim responses for token efficiency.
 - Every cached `TmdbClient`/`OmdbClient` method takes a trailing optional
@@ -139,16 +140,18 @@ npm run inspector      # run under the MCP Inspector
 
 For a full audit of the currently published package — build/test/lint plus
 hammering the live MCP tools with edge cases, cross-checked against source —
-follow [skills/live-audit/SKILL.md](skills/live-audit/SKILL.md).
+follow [.agents/skills/live-audit/SKILL.md](.agents/skills/live-audit/SKILL.md).
 
 ## Before opening a PR
 
 Run `npm run build && npm test && npm run lint && npm run format:check`.
 Update `CHANGELOG.md` (Unreleased section) — see
-[skills/changelog-style/SKILL.md](skills/changelog-style/SKILL.md) for entry style.
+[.agents/skills/changelog-style/SKILL.md](.agents/skills/changelog-style/SKILL.md)
+for entry style.
 
 ## Releasing
 
 `package.json` is the single source of truth for the version; `npm version`
 bumps + syncs every derived file + tags the release. See
-[skills/release/SKILL.md](skills/release/SKILL.md) for the full steps and MCP Registry details.
+[.agents/skills/release/SKILL.md](.agents/skills/release/SKILL.md) for the
+full steps and MCP Registry details.

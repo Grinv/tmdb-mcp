@@ -174,8 +174,8 @@ truth for this checklist (README's tool table, manifest.json/server.json's
 `PRIVACY.md`/`SECURITY.md` accuracy against the current code). Don't rely on
 a stale inline copy of it here — this section used to duplicate that
 checklist verbatim and drifted (it still pointed at a `docs/changelog-style.md`
-that had since moved to `skills/changelog-style/SKILL.md`), which is exactly
-the kind of drift `docs-consistency-check` itself exists to catch.
+that had since moved to `.agents/skills/changelog-style/SKILL.md`), which is
+exactly the kind of drift `docs-consistency-check` itself exists to catch.
 
 ## 4. Report, then fix only what's confirmed
 
