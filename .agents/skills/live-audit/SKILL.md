@@ -100,6 +100,18 @@ run's exact calls verbatim:
   `with_watch_providers`+`watch_region`, `min_rating`>`max_rating`) — these
   must error via the tool's own validation, not reach TMDB and look like "the
   filter was applied" when it wasn't.
+- **The same fact from two tools must agree.** Ratings reach the caller by more
+  than one path and a per-tool sweep passes while the paths disagree, because
+  each answer looks reasonable alone. `get_movie`/`get_tv` fold OMDb in **by
+  `imdb_id`**, while `get_ratings` resolves by **title (+year)** when given no id
+  (`src/tools/omdb.ts`) — and a title lookup can land a different film of the
+  same name. Call both for one film (one by id, one by title alone) and diff the
+  numbers; pick a remake or a same-title pair where the title path is most likely
+  to pick wrong. Second pairing, in a single response: `vote_average` is TMDB's
+  own 0–10 while `ratings.*` are IMDb/RT/Metacritic on other scales entirely, and
+  `search_*`/`discover_*`/`get_trending` carry only the former. Check that no
+  `.describe()` invites comparing across the two, and grep `src/format.ts` for a
+  shaper reporting one under a name that suggests the other.
 - **Not-found / empty-result paths**: nonexistent-but-well-formed ids (movie,
   TV, person, collection, keyword), a batch call mixing valid + invalid +
   duplicate ids, a search query returning zero results, a title genuinely
@@ -192,6 +204,26 @@ that file — don't invent a new assertion pattern), then re-run the full
 **Note:** the running MCP server is a separate process from your edit — it
 won't pick up source changes until restarted. Verify a fix via the unit test
 suite, not by re-calling the live tool against unrestarted code.
+
+**When the bug is "we read the wrong source for a fact", measure how often the
+wrong one is actually wrong before switching sources — and check what the
+replacement gets wrong.** Generalizing from the one example that exposed the bug
+produces a worse bug. Found in steam-games-mcp, whose two price sources this
+cost two wrong fixes: over a 500-item sample (421 priced), the legacy source was
+wrong for 2 while the "modern" one answered with a multi-game bundle's price for
+5, so the obvious "use the newer API" swap broke more than it fixed. Sample a few
+hundred ids, diff the two sources, and read the disagreements one by one — they
+are usually several distinct causes wearing one symptom, needing a rule rather
+than a swap.
+
+**Measure the cost you cite to justify a design, in the unit that matters.** In
+the same repo a narrow follow-up request was justified on payload size (~2.2 KB →
+~10.2 KB per item) with nobody timing it; measured interleaved, asking up front
+cost ~+40 ms on a 50-item batch — inside run-to-run noise — against ~+300 ms for
+the extra round-trip, so the "optimization" was a pessimization plus an extra
+failure path. Interleave the A/B runs (5 each, compare medians AND minimums):
+sequential blocks drift enough on these APIs to invent a difference that isn't
+there.
 
 ## 5. Commit + changelog, if asked
 
