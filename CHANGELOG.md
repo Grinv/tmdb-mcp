@@ -6,6 +6,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Return the episode's own `imdb_id`/`imdb_url` from `get_tv_episode`, making a per-episode IMDb rating reachable via `get_ratings` for the first time — appended to the request the tool already makes, so it costs no extra round trip. `get_tv_season`/`expand_episodes` still omit it: TMDB's season payload carries no per-episode IMDb ids, so it would cost one request per episode ([7f22649](https://github.com/Grinv/tmdb-mcp/commit/7f22649)).
+
 ### Fixed
 
 - Stop `get_tv_season`/`get_tv_episode`/`expand_episodes` promising episode "ratings" when they return TMDB's own `vote_average` — in this server `ratings` names the IMDb/RT/Metacritic object specifically ([3e6b4c5](https://github.com/Grinv/tmdb-mcp/commit/3e6b4c5)).
