@@ -6,6 +6,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Stop `get_tv_season`/`get_tv_episode`/`expand_episodes` promising episode "ratings" when they return TMDB's own `vote_average` — in this server `ratings` names the IMDb/RT/Metacritic object specifically ([3e6b4c5](https://github.com/Grinv/tmdb-mcp/commit/3e6b4c5)).
+- Disclose that `get_ratings`' title lookup can silently resolve to a different work of the same name, and name the safer route: a bare `title:'Halloween'` returns the 1978 original, not the identically titled 2018 film ([3e6b4c5](https://github.com/Grinv/tmdb-mcp/commit/3e6b4c5)).
+- Name the source and scale of every score field in tool output schemas, so `vote_average` (TMDB 0-10) is no longer indistinguishable from the `ratings` values beside it (IMDb 0-10, Metacritic 0-100, Rotten Tomatoes percentage) ([3e6b4c5](https://github.com/Grinv/tmdb-mcp/commit/3e6b4c5)).
+- Say which score `get_person_credits`, `get_reviews` and the `top_by_entity` prompt mean, where a bare "rating" could have been TMDB's aggregate, one reviewer's own score, or an IMDb/RT/Metacritic value ([3e6b4c5](https://github.com/Grinv/tmdb-mcp/commit/3e6b4c5)).
+
 ## [0.11.0] - 2026-08-15
 
 ### Changed
