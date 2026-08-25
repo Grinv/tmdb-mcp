@@ -110,8 +110,11 @@ run's exact calls verbatim:
   to pick wrong. Second pairing, in a single response: `vote_average` is TMDB's
   own 0–10 while `ratings.*` are IMDb/RT/Metacritic on other scales entirely, and
   `search_*`/`discover_*`/`get_trending` carry only the former. Check that no
-  `.describe()` invites comparing across the two, and grep `src/format.ts` for a
-  shaper reporting one under a name that suggests the other.
+  `.describe()` invites comparing across the two, and grep for either family
+  named as the other — in `src/format.ts`'s shapers _and_ in every tool
+  `description`/`.describe()`, where the miss is likelier (found live:
+  `get_tv_season`/`get_tv_episode`/`expand_episodes` all promised episode
+  "ratings" while returning only TMDB `vote_average`).
 - **Not-found / empty-result paths**: nonexistent-but-well-formed ids (movie,
   TV, person, collection, keyword), a batch call mixing valid + invalid +
   duplicate ids, a search query returning zero results, a title genuinely
