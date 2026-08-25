@@ -168,6 +168,12 @@ const SEASON = {
   ],
 };
 
+// Distinct from SEASON's episode rows on purpose: only the single-episode
+// endpoint carries external_ids (appended by getTvEpisode), and only there does
+// it hold an imdb_id. Key set mirrors a real
+// /tv/1396/season/5/episode/14?append_to_response=external_ids response —
+// freebase_*/tvrage_* really do come back null, and the season endpoint's own
+// external_ids has no imdb_id key at all.
 const EPISODE = {
   episode_number: 1,
   name: "Pilot",
@@ -177,6 +183,14 @@ const EPISODE = {
   vote_average: 8.1,
   guest_stars: [{ id: 9, name: "Guest", character: "Stranger" }],
   crew: [{ id: 7, name: "Director Person", job: "Director" }],
+  external_ids: {
+    imdb_id: "tt0959621",
+    freebase_mid: "/m/0qzvm2x",
+    freebase_id: null,
+    tvdb_id: 4553040,
+    tvrage_id: null,
+    wikidata_id: "Q15015260",
+  },
 };
 
 // Fixture for the bulk `append_to_response=season/1,season/2` call
@@ -1674,6 +1688,26 @@ describe("tv season & episode", () => {
     assert.equal(s.season_number, 1);
     assert.equal(s.guest_stars[0]!.name, "Guest");
     assert.equal(s.crew[0]!.job, "Director");
+  });
+
+  // The episode's own imdb_id is the only route to a per-episode IMDb rating
+  // (get_ratings keys OMDb on it), and it arrives only because getTvEpisode
+  // appends external_ids — assert both the id and that the append is actually
+  // requested, so dropping the append can't pass as "TMDB had no id".
+  test("get_tv_episode returns the episode's own IMDb id, appended to the same request", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    await using client = await connectServer(ENV);
+    const res = await client.callTool({
+      name: "get_tv_episode",
+      arguments: { id: 1396, season_number: 1, episode_number: 1 },
+    });
+    const s = res.structuredContent as { imdb_id: string; imdb_url: string };
+    assert.equal(s.imdb_id, "tt0959621");
+    assert.equal(s.imdb_url, "https://www.imdb.com/title/tt0959621/");
+    const episodeCalls = mock.calls.filter((c) => /\/season\/\d+\/episode\/\d+/.test(c.url));
+    assert.equal(episodeCalls.length, 1, "should not cost an extra request");
+    assert.match(episodeCalls[0]!.url, /append_to_response=external_ids/);
   });
 });
 

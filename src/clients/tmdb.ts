@@ -881,7 +881,15 @@ export class TmdbClient {
       // Inject season_number in case the episode payload omits it.
       (res: Parameters<typeof summarizeEpisode>[0]) =>
         summarizeEpisode({ ...res, season_number: res.season_number ?? season }),
-      {},
+      // external_ids carries the episode's own imdb_id — the only route to a
+      // per-episode IMDb rating (via get_ratings), since OMDb keys on that id
+      // and TMDB puts it nowhere else. Appended to this same request, so it
+      // costs no extra round trip. Deliberately NOT done for the season/bulk
+      // paths: verified live, /tv/{id}/season/{n}'s own external_ids is
+      // season-level (tvdb/wikidata, no imdb_id at all) and its episode rows
+      // carry none, so per-episode ids there would mean one request per
+      // episode — up to 250 for expand_episodes.
+      { append_to_response: "external_ids" },
       language,
       onStale,
     );

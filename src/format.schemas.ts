@@ -416,6 +416,14 @@ export const seasonSchema = z.strictObject({
 export const episodeSchema = z.strictObject({
   season_number: z.number().nullable(),
   episode_number: z.number().nullable(),
+  imdb_id: z
+    .string()
+    .nullable()
+    .describe(
+      "This episode's own IMDb id (not the show's) — pass it to get_ratings for the episode's " +
+        "IMDb rating, which no TMDB field carries. Null when TMDB has no IMDb id for it.",
+    ),
+  imdb_url: z.string().nullable(),
   name: z.string().nullable(),
   air_date: z.iso.date().nullable().catch(null),
   runtime_minutes: z.number().nullable(),

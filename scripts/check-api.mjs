@@ -53,6 +53,18 @@ const checks = [
   tmdbCheck("tmdb collection/{id} has parts", "/collection/263", (b) => {
     if (!Array.isArray(b.parts)) throw new Error("missing `parts` array");
   }),
+  // 1396/5/14 = Breaking Bad "Ozymandias". get_tv_episode's imdb_id — the only
+  // route to a per-episode IMDb rating — exists solely because this endpoint
+  // honours append_to_response=external_ids; the season endpoint's episode rows
+  // carry no ids at all, so a silent change here would strand that path.
+  tmdbCheck(
+    "tmdb tv episode external_ids has imdb_id",
+    "/tv/1396/season/5/episode/14?append_to_response=external_ids",
+    (b) => {
+      if (typeof b.external_ids?.imdb_id !== "string")
+        throw new Error("missing `external_ids.imdb_id`");
+    },
+  ),
   {
     name: "omdb ratings by imdb_id",
     skip: OMDB_KEY ? undefined : "OMDB_API_KEY not set",

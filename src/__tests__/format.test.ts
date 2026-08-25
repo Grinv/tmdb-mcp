@@ -482,6 +482,18 @@ describe("summarizeFind", () => {
 });
 
 describe("summarizeSeason", () => {
+  // The season endpoint's episode rows carry no external_ids (verified live —
+  // only the single-episode endpoint does), so this path must not grow an
+  // imdb_id field on the strength of the episode shaper having one. If TMDB
+  // ever starts sending it here, this failing test is the prompt to decide
+  // deliberately rather than leak it into a 250-episode aggregate.
+  test("episode rows stay id-less even if a raw row carries external_ids", () => {
+    const s = summarizeSeason({
+      episodes: [{ episode_number: 1, external_ids: { imdb_id: "tt2301451" } }],
+    } as Parameters<typeof summarizeSeason>[0]);
+    assert.ok(!("imdb_id" in s.episodes[0]!));
+  });
+
   test("empty-string name/air_date (season and episode level) degrade to null", () => {
     const s = summarizeSeason({
       name: "",
@@ -542,6 +554,20 @@ describe("summarizeEpisode", () => {
     const s = summarizeEpisode({ name: "", air_date: "" });
     assert.equal(s.name, null);
     assert.equal(s.air_date, null);
+  });
+
+  test("external_ids.imdb_id becomes imdb_id + imdb_url", () => {
+    const s = summarizeEpisode({ external_ids: { imdb_id: "tt2301451" } });
+    assert.equal(s.imdb_id, "tt2301451");
+    assert.equal(s.imdb_url, "https://www.imdb.com/title/tt2301451/");
+  });
+
+  test("a missing or null imdb_id leaves both fields null, not a broken URL", () => {
+    for (const e of [{}, { external_ids: {} }, { external_ids: { imdb_id: null } }]) {
+      const s = summarizeEpisode(e);
+      assert.equal(s.imdb_id, null);
+      assert.equal(s.imdb_url, null);
+    }
   });
 });
 

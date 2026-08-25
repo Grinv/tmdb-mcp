@@ -24,7 +24,14 @@ call IMDb directly.
 TMDB endpoints/fields were verified against the official reference
 (<https://developer.themoviedb.org/reference>): `/movie/{id}` carries
 `imdb_id` directly; `/tv/{id}` does **not** — request
-`append_to_response=external_ids` to get `external_ids.imdb_id`. OMDb returns
+`append_to_response=external_ids` to get `external_ids.imdb_id`. The same
+append works on `/tv/{id}/season/{n}/episode/{m}`, which is why an episode can
+report its own `imdb_id` (and so reach a per-episode IMDb rating through
+`get_ratings`) at no extra request. It does **not** scale to a whole season:
+verified live, `/tv/{id}/season/{n}`'s appended `external_ids` is season-level
+and has no `imdb_id` key at all, and its episode rows carry only `id`/`show_id`
+— per-episode ids there would cost one request per episode, so
+`get_tv_season`/`expand_episodes` deliberately omit them. OMDb returns
 `200` with `{ Response: "False", Error }` for misses, so the client maps that
 to a soft `{ found: false }` instead of throwing.
 

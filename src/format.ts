@@ -914,6 +914,11 @@ interface RawEpisode {
   still_path?: string | null;
   guest_stars?: { id?: number; name?: string; character?: string }[];
   crew?: { id?: number; name?: string; job?: string }[];
+  // Only present on the single-episode endpoint, via
+  // append_to_response=external_ids (see clients/tmdb.ts's getTvEpisode); the
+  // season endpoint's episode rows never carry it, so summarizeSeason's
+  // episodes stay id-less.
+  external_ids?: { imdb_id?: string | null };
 }
 export interface TmdbSeason {
   id?: number;
@@ -969,9 +974,12 @@ export function parseSeasons(seasons: unknown): z.infer<typeof seasonSchema>[] {
 export function summarizeEpisode(
   e: RawEpisode & { season_number?: number },
 ): z.infer<typeof episodeSchema> {
+  const imdbId = e.external_ids?.imdb_id || null;
   return episodeSchema.parse({
     season_number: e.season_number ?? null,
     episode_number: e.episode_number ?? null,
+    imdb_id: imdbId,
+    imdb_url: imdbId ? `https://www.imdb.com/title/${imdbId}/` : null,
     name: e.name || null,
     air_date: e.air_date || null,
     runtime_minutes: e.runtime ?? null,
