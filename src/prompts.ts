@@ -181,11 +181,18 @@ export function registerPrompts(server: McpServer): void {
                 `via get_tv_shows in one call and filter to the requested genre yourself if one was given.`,
         );
       }
+      // "rating" alone would be ambiguous here: the discover step above sorted
+      // on TMDB's vote_average, while the get_tv_shows fallback can also carry
+      // IMDb/RT/Metacritic values — different scales, not interchangeable.
+      const sortTail =
+        `sort by TMDB vote_average and return the top ${n}: title/name, year, media type, and that ` +
+        `vote_average. If you also pulled IMDb/RT/Metacritic values (include_ratings), report them ` +
+        `separately and labeled — they're other scales and audiences, so don't merge or average them ` +
+        `into one score.`;
       steps.push(
         includeMovies && includeTv
-          ? `Merge whichever of movies/TV apply, sort by rating, and return the top ${n}: title/name, ` +
-              `year, media type, and rating.`
-          : `Sort by rating and return the top ${n}: title/name, year, media type, and rating.`,
+          ? `Merge whichever of movies/TV apply, then ${sortTail}`
+          : `${sortTail.charAt(0).toUpperCase()}${sortTail.slice(1)}`,
       );
 
       return {

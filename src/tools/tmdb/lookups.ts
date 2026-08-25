@@ -99,7 +99,10 @@ export function registerLookupTools(
       title: "Get TV season",
       description:
         "Get one season of a TV show (by show id + season number): overview and the episode list " +
-        "with air dates, runtimes and ratings, capped at 50 episodes (`episode_count` reports the " +
+        "with air dates, runtimes and TMDB vote averages (per-episode `vote_average`, TMDB's own " +
+        "0-10 user score — not the IMDb/RT/Metacritic scores get_movie/get_tv return as " +
+        "`ratings`, which are whole-show only; this tool makes no OMDb call), capped at 50 " +
+        "episodes (`episode_count` reports the " +
         "true total). Season 0 is usually specials, which can run to hundreds of bonus clips on a " +
         "long-running show. Use get_tv with expand_episodes=true instead if you need every " +
         "season's episodes in one call. Get the show id from search_tv.",
@@ -124,8 +127,12 @@ export function registerLookupTools(
       title: "Get TV episode",
       description:
         "Get one episode of a TV show by show id + season number + episode number: overview, air " +
-        "date, runtime, rating, guest stars (up to 15) and director/writer. Get the show id from " +
-        "search_tv.",
+        "date, runtime, TMDB vote average (`vote_average`, TMDB's own 0-10 user score — not an " +
+        "IMDb/RT/Metacritic score; get_movie/get_tv's `ratings` are whole-show only, and this " +
+        "tool makes no OMDb call. OMDb does hold a per-episode IMDb rating, but only reachable " +
+        "by that episode's own IMDb id via get_ratings — which no tool here returns, so you'd " +
+        "need it from elsewhere), guest stars (up to 15) and director/writer. Get the show id " +
+        "from search_tv.",
       inputSchema: z.strictObject({
         id: tmdbId,
         season_number: seasonNumber,

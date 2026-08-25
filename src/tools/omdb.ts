@@ -19,7 +19,16 @@ export function registerOmdbTools(server: McpServer, omdb: OmdbClient): void {
         "by IMDb id (preferred, e.g. 'tt0133093') or by title (+ optional year/type). Prefer " +
         "get_movie/get_tv when you have a TMDB id — they already include this. Requires " +
         "OMDB_API_KEY. One of imdb_id or title is required; omitting both returns an error. A " +
-        "no-match lookup is not an error: it returns `{found:false, reason}`.",
+        "no-match lookup is not an error: it returns `{found:false, reason}`. " +
+        "A title lookup resolves to whichever single entry OMDb picks, reports no runner-up, and " +
+        "cannot be validated against anything — so it can silently return a different work of the " +
+        "same name. Verified live: `title:'Halloween'` with no year returns the 1978 original " +
+        "(tt0077651, IMDb 7.7, RT 97%), not the 2018 film titled exactly the same (tt1502407, " +
+        "IMDb 6.5, RT 79%). Always read back the returned `imdb_id`/`title`/`year` to confirm " +
+        "which work you actually got, and pass `year` (and `type`) whenever you know them. When " +
+        "you only have a title, prefer search_movies/search_tv → get_movie/get_tv instead: that " +
+        "path matches by imdb_id and additionally drops an OMDb hit whose release year is more " +
+        "than two years from TMDB's, which this tool's title path has no way to do.",
       inputSchema: z.strictObject({
         imdb_id: z
           .string()

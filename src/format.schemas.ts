@@ -29,6 +29,49 @@ const castMemberSchema = z.strictObject({
   character: z.string().nullable(),
 });
 
+// The two score families this server carries: TMDB's own `vote_average` and
+// OMDb's three third-party scores. Described — unlike most fields here, which
+// need no prose — because get_movie/get_tv/get_movies/get_tv_shows return both
+// families side by side in ONE response, on four different scales with four
+// different voter populations (TMDB 0-10 users, IMDb 0-10 users, Metacritic
+// 0-100 critics, RT percentage of positive critics). Without this the output
+// contract gives a calling model nothing to tell them apart, and a near-miss
+// pair invites conflation: Halloween (2018) returns vote_average 6.563 next to
+// imdb_rating "6.5", which reads as one number rounded twice rather than two
+// unrelated measurements. Shared consts rather than repeated inline literals so
+// every schema carrying the field states the same thing (and `.pick()`ing one
+// into a card schema carries the text along). One shared const covers all
+// seven uses, so it must stay true of the leanest one: the episode objects in
+// seasonSchema/episodeSchema carry neither a `vote_count` nor a sibling
+// `ratings` field, so the text names get_movie/get_tv as where the other
+// family lives instead of pointing at a field that isn't always there.
+const voteAverage = z
+  .number()
+  .nullable()
+  .describe(
+    "TMDB's own 0-10 user score. A different audience and scale from the IMDb/RT/Metacritic " +
+      "scores get_movie/get_tv return as `ratings` — don't compare, average or substitute across " +
+      "the two.",
+  );
+
+const imdbRating = z
+  .string()
+  .nullable()
+  .describe("IMDb user score, 0-10, as a string, e.g. '6.5'. Not TMDB's `vote_average`.");
+
+const metascore = z
+  .string()
+  .nullable()
+  .describe("Metacritic critic score, 0-100 scale, as a string, e.g. '67'.");
+
+const rottenTomatoes = z
+  .string()
+  .nullable()
+  .describe(
+    "Rotten Tomatoes Tomatometer — the percentage of positive critic reviews, as a string " +
+      "including the sign, e.g. '79%'. Not a 0-10 or 0-100 score.",
+  );
+
 // ---- summarizeMovie / detailMovie -------------------------------------------
 
 export const movieSummarySchema = z.strictObject({
@@ -38,7 +81,7 @@ export const movieSummarySchema = z.strictObject({
   original_title: z.string().optional(),
   year: z.number().nullable(),
   release_date: z.iso.date().nullable().catch(null),
-  vote_average: z.number().nullable(),
+  vote_average: voteAverage,
   vote_count: z.number().nullable(),
   overview: z.string().nullable(),
   poster_url: z.string().nullable(),
@@ -66,7 +109,7 @@ export const movieDetailSchema = z.strictObject({
   runtime_minutes: z.number().nullable(),
   status: z.string().nullable(),
   genres: z.array(z.string()),
-  vote_average: z.number().nullable(),
+  vote_average: voteAverage,
   vote_count: z.number().nullable(),
   popularity: z.number().nullable(),
   original_language: z.string().nullable(),
@@ -91,7 +134,7 @@ export const tvSummarySchema = z.strictObject({
   original_name: z.string().optional(),
   year: z.number().nullable(),
   first_air_date: z.iso.date().nullable().catch(null),
-  vote_average: z.number().nullable(),
+  vote_average: voteAverage,
   vote_count: z.number().nullable(),
   overview: z.string().nullable(),
   poster_url: z.string().nullable(),
@@ -140,7 +183,7 @@ export const tvDetailSchema = z.strictObject({
   episode_run_time: z.array(z.number()),
   seasons: z.array(seasonBriefSchema),
   genres: z.array(z.string()),
-  vote_average: z.number().nullable(),
+  vote_average: voteAverage,
   vote_count: z.number().nullable(),
   popularity: z.number().nullable(),
   original_language: z.string().nullable(),
@@ -303,7 +346,7 @@ export const personCreditsSchema = z.strictObject({
       title: z.string().optional(),
       year: z.number().nullable(),
       character: z.string().nullable(),
-      vote_average: z.number().nullable(),
+      vote_average: voteAverage,
     }),
   ),
   crew: z.array(
@@ -364,7 +407,7 @@ export const seasonSchema = z.strictObject({
       name: z.string().nullable(),
       air_date: z.iso.date().nullable().catch(null),
       runtime_minutes: z.number().nullable(),
-      vote_average: z.number().nullable(),
+      vote_average: voteAverage,
       overview: z.string().nullable(),
     }),
   ),
@@ -376,7 +419,7 @@ export const episodeSchema = z.strictObject({
   name: z.string().nullable(),
   air_date: z.iso.date().nullable().catch(null),
   runtime_minutes: z.number().nullable(),
-  vote_average: z.number().nullable(),
+  vote_average: voteAverage,
   overview: z.string().nullable(),
   still_url: z.string().nullable(),
   guest_stars: z.array(castMemberSchema),
@@ -400,10 +443,10 @@ export const ratingsSchema = z.discriminatedUnion("found", [
     year: z.string().nullable(),
     rated: z.string().nullable(),
     runtime: z.string().nullable(),
-    imdb_rating: z.string().nullable(),
+    imdb_rating: imdbRating,
     imdb_votes: z.string().nullable(),
-    metascore: z.string().nullable(),
-    rotten_tomatoes: z.string().nullable(),
+    metascore: metascore,
+    rotten_tomatoes: rottenTomatoes,
     awards: z.string().nullable(),
     ratings: z.array(
       z.strictObject({ source: z.string().optional(), value: z.string().optional() }),
@@ -440,9 +483,9 @@ export const cardRatingsSchema = z.discriminatedUnion("found", [
   z.strictObject({ found: z.literal(false), reason: z.string() }),
   z.strictObject({
     found: z.literal(true),
-    imdb_rating: z.string().nullable(),
-    rotten_tomatoes: z.string().nullable(),
-    metascore: z.string().nullable(),
+    imdb_rating: imdbRating,
+    rotten_tomatoes: rottenTomatoes,
+    metascore: metascore,
   }),
 ]);
 

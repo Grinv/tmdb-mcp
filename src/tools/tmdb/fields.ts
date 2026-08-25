@@ -146,7 +146,8 @@ export const includeRatingsBatch = z
 export const expandEpisodes = z
   .boolean()
   .describe(
-    "If true, also fetch every season's full episode list (name, air date, runtime, rating) as " +
+    "If true, also fetch every season's full episode list (name, air date, runtime, and TMDB " +
+      "`vote_average` — TMDB's own 0-10 user score, not this tool's IMDb/RT/Metacritic `ratings`) as " +
       "`seasons_detail`, in one extra request — use this instead of calling get_tv_season once per " +
       "season when you need all episodes of a multi-season show. Episode overviews are omitted " +
       "here to keep that aggregate response usable — call get_tv_season for one season's full " +

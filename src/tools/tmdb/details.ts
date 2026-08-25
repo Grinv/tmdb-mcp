@@ -383,8 +383,10 @@ export function registerDetailsTools(
     {
       title: "Get user reviews",
       description:
-        "Get user reviews for a movie or TV show (author, their rating if the reviewer left one — " +
-        "it can be null, and the review text, clipped to ~1500 characters). Get the id from " +
+        "Get user reviews for a movie or TV show (author, that one reviewer's own 0-10 `rating` if " +
+        "they left one — a single person's score, not the aggregate `vote_average` and not an " +
+        "IMDb/RT/Metacritic value; it can be null, and the review text, clipped to ~1500 " +
+        "characters). Get the id from " +
         "search_movies/search_tv.",
       inputSchema: z.strictObject({ media_type: mediaKind, id: tmdbId, page: page.optional() }),
       outputSchema: pageSchema(reviewSchema),
@@ -427,7 +429,7 @@ export function registerDetailsTools(
         "so the list stays about actual roles. A title with several crew jobs (writer AND director " +
         "AND producer on one film) still only counts once against the crew cap. Cast entries " +
         "include a vote_average; crew entries (director, writer, …) do not — call get_movie/get_tv " +
-        "on the id for a crew credit's rating. Pass department (e.g. 'Directing') to restrict crew " +
+        "on the id for a crew credit's own vote_average. Pass department (e.g. 'Directing') to restrict crew " +
         "to just that role — the reliable way to get someone's complete filmography in one " +
         "department when their other departments would otherwise compete for the same cap; for a " +
         "handful of exceptionally prolific people even that isn't enough (e.g. 50+ directing " +
