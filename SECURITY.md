@@ -21,10 +21,10 @@
   `src/lib/logger.ts`), including the full request URL an HTTP retry logs at
   debug level, which is exactly where an unredacted OMDb `apikey` would
   otherwise leak under `LOG_LEVEL=debug`.
-- **No data kept between requests beyond a small TTL cache**
-  (`CACHE_TTL_MS`, default 5 minutes) of upstream responses, held in memory
-  only. Nothing is written to disk, and the cache is gone when the process
-  exits.
+- **No data kept between requests beyond a small in-memory cache** of
+  upstream responses: fresh for `CACHE_TTL_MS` (default 5 minutes), then kept
+  only as an outage fallback, capped at 500 entries per upstream. Nothing is
+  written to disk, and the cache is gone when the process exits.
 - **Typed, validated inputs.** Every tool's parameters are a `.strict()` Zod
   schema; malformed or unrecognized input is rejected before any request is
   made.

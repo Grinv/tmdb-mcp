@@ -24,8 +24,10 @@ The only inputs it handles are:
 
 ## Usage and third-party sharing
 
-Each tool call results in an outbound HTTPS request to exactly one of two
-third-party APIs, carrying only what that specific call needs:
+Each tool call results in outbound HTTPS requests to TMDB, OMDb, or both
+(`get_movie`/`get_tv` and the batch tools add OMDb ratings to TMDB data), or
+to neither when the answer is already cached. Each request carries only what
+that specific call needs:
 
 - **TMDB** (`api.themoviedb.org`): `TMDB_API_TOKEN` as an `Authorization:
 Bearer` header, plus the search/lookup parameters the tool call supplies.
@@ -46,16 +48,19 @@ logging service, and no server run by its maintainer.
 ## Storage and retention
 
 - **Caching**: successful API responses are cached in the server process's
-  own memory only (never written to disk), for a short configurable TTL
-  (`CACHE_TTL_MS`, default 5 minutes) to cut latency and avoid hammering
-  TMDB/OMDb. The cache is cleared entirely when the process exits and is
-  never shared across machines or users.
+  own memory only (never written to disk) to cut latency and avoid hammering
+  TMDB/OMDb. An entry is served as fresh for a short configurable TTL
+  (`CACHE_TTL_MS`, default 5 minutes); after that it stays in memory as a
+  fallback for when TMDB/OMDb is unreachable, until it's refreshed, evicted
+  (at most 500 entries per upstream, oldest first) or the process exits. The
+  cache is cleared entirely when the process exits and is never shared across
+  machines or users.
 - **Logging**: operational logs go to stderr only (never a file, never a
   remote endpoint), with credentials stripped before anything is written.
   Log verbosity is controlled by `LOG_LEVEL` (default `info`); logs live only
   as long as your MCP client keeps that stderr stream around.
-- Beyond the cache TTL and the running process's lifetime, `tmdb-mcp` retains
-  nothing. There is no persistent storage layer of any kind.
+- Beyond that in-memory cache and the running process's lifetime, `tmdb-mcp`
+  retains nothing. There is no persistent storage layer of any kind.
 
 ## Changes to this policy
 

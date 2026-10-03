@@ -588,7 +588,7 @@ export class TmdbClient {
   }
 
   // Paged movie/tv title list under a per-title sub-resource. `recommendations`
-  // (editorial) and `similar` (algorithmic) share this shape; the endpoint
+  // (co-viewing data) and `similar` (genre/keyword match) share this shape; the endpoint
   // segment differs and the summarizer follows the media type. `similar`
   // additionally gets filtered against the source title's own genres — see
   // filterByGenreOverlap — since recommendations isn't genre-based to begin with.
@@ -628,7 +628,7 @@ export class TmdbClient {
     );
   }
 
-  /** TMDB's editorial recommendations for a movie or TV show. */
+  /** TMDB's co-viewing-based recommendations for a movie or TV show. */
   getRecommendations(
     mediaType: "movie" | "tv",
     id: number,
