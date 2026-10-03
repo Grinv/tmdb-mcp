@@ -26,7 +26,7 @@ step 3 (docs/metadata consistency) half-done and unreported. Step 3 is not
 optional polish — a real fix from step 2 routinely has stale echoes
 elsewhere (a tool's own `.describe()` text repeating an old constant,
 `manifest.json`'s hand-maintained `tools`/`prompts` copy per
-`docs/releasing.md`, a comment in `docs/*.md`) that step 2 alone will never
+`.agents/skills/release/SKILL.md`, a comment in `docs/*.md`) that step 2 alone will never
 surface. A fix isn't done until every one of its echoes is updated too —
 finish step 3 in full before step 4's report, every single time.
 
@@ -233,7 +233,7 @@ there.
 Follow the pattern already in `git log`: one `fix:`/`feat:` commit per
 logically distinct change (don't bundle two unrelated fixes into one commit),
 then a separate `docs:` commit adding an `## [Unreleased]` section to
-`CHANGELOG.md` (style: `docs/changelog-style.md`) with one bullet per fix,
+`CHANGELOG.md` (style: `.agents/skills/changelog-style/SKILL.md`) with one bullet per fix,
 each linking that fix commit's short sha
 (`https://github.com/Grinv/tmdb-mcp/commit/<7-char-sha>`). Author/committer
 `Grinv <4070730+Grinv@users.noreply.github.com>`, **no** `Co-Authored-By`

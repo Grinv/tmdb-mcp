@@ -10,9 +10,9 @@ Check every one of these, not just a sample:
 - `README.md`'s tool table matches `src/tools/*.ts`'s registrations (names,
   and any auth/token-requirement column against what each tool actually
   needs).
-- `manifest.json`'s and `server.json`'s `tools` arrays list the same tool
+- `manifest.json`'s `tools` array lists the same tool
   **names** as what's actually registered — treat a test failure here as
-  authoritative if one exists. Their `description` fields are deliberately
+  authoritative if one exists. The `description` fields are deliberately
   short, independent marketing-style summaries, NOT a copy of the tool's
   full `.describe()`/`description` text in `src/tools/*.ts` — don't "fix"
   them to match verbatim, that's not a bug. Do re-read them for accuracy if

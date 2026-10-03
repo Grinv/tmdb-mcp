@@ -38,8 +38,8 @@ Purpose Clarity — double-check those two first on any new or edited tool.
      quirk, cited by reference instead of re-asserted from memory (e.g. the
      `verified live against the real /discover/tv` comment above
      `certification`/`TV_TYPES`/`TV_STATUSES` in `src/tools/tmdb/discover.ts`),
-     or an existing note in [docs/architecture.md](../../docs/architecture.md)
-     or [docs/clients.md](../../docs/clients.md);
+     or an existing note in [docs/architecture.md](../../../docs/architecture.md)
+     or [docs/clients.md](../../../docs/clients.md);
    - a fresh live call against the real TMDB/OMDb API made during this
      review, with the actual response observed;
    - direct reading of the exact function implementing the behavior, when
@@ -105,7 +105,7 @@ Purpose Clarity — double-check those two first on any new or edited tool.
 ### Parameter semantics
 
 - Name a field for what it actually accepts, per
-  [AGENTS.md](../../AGENTS.md)'s Conventions section — check new fields
+  [AGENTS.md](../../../AGENTS.md)'s Conventions section — check new fields
   against it and against every sibling tool handling the same concept. This
   file already reuses shared field builders (`tmdbId`, `page`, `language`,
   `region`, `mediaKind`/`mediaType`, …) across every tool that needs them for
