@@ -53,6 +53,20 @@ describe("detailMovie", () => {
     assert.deepEqual(d.certifications, { US: "R", GB: "15" }); // FR dropped: no non-empty cert
   });
 
+  test("certification values TMDB pads with whitespace are trimmed", () => {
+    // Mirrors real /movie/603 release_dates: GR's certification is "K-8 ".
+    const movie: TmdbMovie = {
+      id: 1,
+      release_dates: {
+        results: [
+          { iso_3166_1: "GR", release_dates: [{ certification: "K-8 ", type: 3 }] },
+          { iso_3166_1: "US", release_dates: [{ certification: " ", type: 3 }] }, // blank
+        ],
+      },
+    };
+    assert.deepEqual(detailMovie(movie, "GR").certifications, { GR: "K-8" });
+  });
+
   test("requesting a region with no certification data returns null, not throw", () => {
     const movie: TmdbMovie = { id: 1, release_dates: { results: [] } };
     assert.equal(detailMovie(movie, "JP").certification, null);
@@ -285,6 +299,16 @@ describe("summarizeWatchProviders", () => {
     assert.deepEqual(s.streaming, ["Netflix"]);
     assert.deepEqual(s.rent, ["Apple TV"]);
     assert.deepEqual(s.available_regions, ["GB", "US"]); // sorted
+  });
+
+  test("provider names TMDB pads with whitespace are trimmed", () => {
+    // Mirrors real /movie/603/watch/providers: US flatrate lists "VIX " with a trailing space.
+    const s = summarizeWatchProviders(
+      { results: { US: { flatrate: [{ provider_name: "VIX " }, { provider_name: " " }] } } },
+      "US",
+    );
+    assert.equal(s.available, true);
+    assert.deepEqual(s.streaming, ["VIX"]);
   });
 
   test("a region with no data reports unavailable, not an empty result", () => {

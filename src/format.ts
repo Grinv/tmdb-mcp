@@ -98,12 +98,13 @@ function episodeBrief(
 // Build a { country → certification } map from a movie's release_dates. A country
 // can list several release types (theatrical, digital, …), each with its own
 // (often blank) certification; we keep the first non-empty one per country.
+// Trimmed: verified live, TMDB pads some values (The Matrix's GR "K-8 ").
 function movieCertifications(m: TmdbMovie): Record<string, string> {
   const out: Record<string, string> = {};
   for (const r of m.release_dates?.results ?? []) {
     const country = r.iso_3166_1;
     if (!country) continue;
-    const cert = (r.release_dates ?? []).map((d) => d.certification).find((c) => c && c.trim());
+    const cert = (r.release_dates ?? []).map((d) => d.certification?.trim()).find(Boolean);
     if (cert) out[country] = cert;
   }
   return out;
@@ -113,7 +114,8 @@ function movieCertifications(m: TmdbMovie): Record<string, string> {
 function tvCertifications(t: TmdbTv): Record<string, string> {
   const out: Record<string, string> = {};
   for (const r of t.content_ratings?.results ?? []) {
-    if (r.iso_3166_1 && r.rating && r.rating.trim()) out[r.iso_3166_1] = r.rating;
+    const rating = r.rating?.trim();
+    if (r.iso_3166_1 && rating) out[r.iso_3166_1] = rating;
   }
   return out;
 }
@@ -675,7 +677,7 @@ export interface WatchProvidersResponse {
 }
 
 function providerNames(list: ProviderEntry[] | undefined): string[] {
-  return (list ?? []).map((p) => p.provider_name).filter((n): n is string => Boolean(n));
+  return (list ?? []).map((p) => p.provider_name?.trim()).filter((n): n is string => Boolean(n));
 }
 
 // Watch availability is region-specific (JustWatch data). We surface one region
@@ -731,7 +733,7 @@ export function summarizeWatchProviderMatches(
     .filter((p) => p.nameLower.includes(q))
     .map((p) => ({
       provider_id: p.provider_id,
-      provider_name: p.provider_name,
+      provider_name: p.provider_name.trim(),
       logo_url: imageUrl(p.logo_path),
     }));
   const total_results = matches.length;
