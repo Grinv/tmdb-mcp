@@ -105,17 +105,20 @@ npm run inspector      # run under the MCP Inspector
 - Every schema in `format.schemas.ts` must reject unknown keys, via
   `z.strictObject(...)`. A non-strict schema silently drops unknown keys instead
   of failing, which defeats the shaper/schema drift check above. Note (verified
-  on Zod 4.4.3): `.pick()`/`.extend()` on a `strictObject` **preserve** its
-  unknown-key rejection, so the derived `movieCardSchema`/`tvCardSchema` are
+  on Zod 4.4.3 and 4.6.5): `.pick()`/`.extend()` on a `strictObject`
+  **preserve** its unknown-key rejection, so the derived `movieCardSchema`/`tvCardSchema` are
   already strict; their trailing `.strict()` is defensive, not load-bearing —
   don't "reconcile" it away on the assumption pick/extend produce a loose shape.
 - Never use `z.date()`/`z.bigint()`/`z.nan()`/`.transform()`/`z.map()`/`z.set()`/
   `z.symbol()` in a tool's `inputSchema` or `outputSchema` (or anything they're
   built from, e.g. `format.schemas.ts`). `@modelcontextprotocol/server` converts
   every tool schema to JSON Schema via `z.toJSONSchema()` with the default
-  `unrepresentable: "throw"` — one of these types anywhere in the schema throws
-  at tool _registration_, not a graceful per-call degradation. `z.coerce.*` is
-  fine in `config.ts` (env-var parsing only; never reaches a tool schema).
+  `unrepresentable: "throw"` — one of these types anywhere in the schema throws.
+  Since SDK 2.3 that conversion is lazy, so `registerTool()` itself succeeds
+  and the throw moves to the first `tools/list`; `connectServer()` in
+  `__tests__/helpers.ts` calls `listTools()` up front, so the test suite still
+  catches it. `z.coerce.*` is fine in `config.ts` (env-var parsing only; never
+  reaches a tool schema).
 - `clients/tmdb.ts` `import type`s `DiscoverParams` from `tools/tmdb/discover.ts`
   (its `z.infer` source of truth, alongside the hand-authored discover input
   schemas) — a lower-layer file type-importing from a higher-layer one. This
