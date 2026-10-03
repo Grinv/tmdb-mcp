@@ -425,7 +425,8 @@ export function registerDetailsTools(
       description:
         "List the movies and TV shows a person is known for (cast roles and crew jobs), most " +
         "popular first, capped to the top 25 of each by default; talk-show/awards-show guest " +
-        "appearances ('Self'/'Himself'/'Herself') and repeat entries for the same title are excluded " +
+        "appearances ('Self'/'Himself'/'Herself', plus any cast credit on a TV talk or news show) " +
+        "and repeat entries for the same title are excluded " +
         "so the list stays about actual roles. A title with several crew jobs (writer AND director " +
         "AND producer on one film) still only counts once against the crew cap. Cast entries " +
         "include a vote_average; crew entries (director, writer, …) do not — call get_movie/get_tv " +

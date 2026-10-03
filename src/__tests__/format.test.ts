@@ -340,6 +340,53 @@ describe("summarizePersonCredits", () => {
     );
   });
 
+  test("talk/news-show TV credits are excluded even with an empty character", () => {
+    // Mirrors real /person/2231/combined_credits rows: TMDB leaves
+    // `character` empty on many talk-show guest spots, so only genre_ids
+    // (10767 Talk, 10763 News) identifies them.
+    const s = summarizePersonCredits({
+      cast: [
+        {
+          id: 1,
+          media_type: "tv",
+          name: "LIVE with Kelly and Mark",
+          character: "",
+          genre_ids: [10767],
+          popularity: 200,
+        },
+        {
+          id: 2,
+          media_type: "tv",
+          name: "The Colbert Report",
+          character: "",
+          genre_ids: [10763, 35],
+          popularity: 150,
+        },
+        {
+          id: 3,
+          media_type: "tv",
+          name: "Law & Order",
+          character: "Attorney Louis Taggert",
+          genre_ids: [80, 18],
+          popularity: 100,
+        },
+        {
+          id: 4,
+          media_type: "movie",
+          title: "Avengers: Endgame",
+          character: "Nick Fury",
+          genre_ids: [12, 878, 28],
+          popularity: 50,
+        },
+      ],
+    });
+    const cast = s.cast as { id: number }[];
+    assert.deepEqual(
+      cast.map((x) => x.id),
+      [3, 4],
+    );
+  });
+
   test("repeat guest spots on the same title are deduped to one cast entry", () => {
     const s = summarizePersonCredits({
       cast: [

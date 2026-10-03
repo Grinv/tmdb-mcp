@@ -751,6 +751,7 @@ interface CombinedCreditEntry {
   first_air_date?: string; // tv
   vote_average?: number;
   popularity?: number;
+  genre_ids?: number[];
 }
 export interface CombinedCredits {
   cast?: CombinedCreditEntry[];
@@ -769,8 +770,15 @@ function creditYear(e: CombinedCreditEntry): number | null {
 // higher popularity than any single film, so unfiltered "Self" guest spots
 // (Letterman, Kimmel, awards-show cameos, …) crowd out an actor's actual,
 // much more relevant film/TV roles. Excluded so the ranked list is about roles.
+// The character text alone misses many of them: verified live, TMDB leaves
+// `character` empty on a lot of talk/news-show guest spots (Samuel L.
+// Jackson's The Colbert Report, LIVE with Kelly and Mark), and every one of
+// those carries TV genre Talk (10767) or News (10763) — so a TV credit in
+// either genre counts as a self-appearance too, whatever its character says.
+const SELF_APPEARANCE_TV_GENRES = new Set([10763, 10767]);
 const isSelfAppearance = (e: CombinedCreditEntry): boolean =>
-  /^(self|himself|herself)\b/i.test(e.character ?? "");
+  /^(self|himself|herself)\b/i.test(e.character ?? "") ||
+  (e.media_type === "tv" && (e.genre_ids ?? []).some((g) => SELF_APPEARANCE_TV_GENRES.has(g)));
 
 // Repeat guest spots (or a title credited under more than one character/job)
 // otherwise waste multiple of the capped slots on the same title.
