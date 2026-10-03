@@ -175,4 +175,18 @@ describe("top_by_entity prompt", () => {
     // silently ignores the genre filter for a company's TV catalogue.
     assert.match(text, new RegExp(`with_genres from step ${genreStep![1]}`));
   });
+  test("without entity_type, the PERSON TV branch mentions a genre filter only when one was given", async () => {
+    await using client = await connectServer({});
+    const render = async (args: Record<string, string>) =>
+      contentText(
+        (
+          await client.getPrompt({
+            name: "top_by_entity",
+            arguments: { name: "Hisaishi", ...args },
+          })
+        ).messages[0]!.content,
+      );
+    assert.doesNotMatch(await render({}), /filter to the requested genre/);
+    assert.match(await render({ genre: "Animation" }), /filter to the requested genre yourself/);
+  });
 });
