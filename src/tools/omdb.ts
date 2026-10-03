@@ -15,7 +15,8 @@ export function registerOmdbTools(server: McpServer, omdb: OmdbClient): void {
       description:
         "Look up IMDb, Rotten Tomatoes and Metacritic ratings, an awards summary (major-award " +
         "wins/nominations — Oscars, Emmys, Golden Globes, etc.; free text, not a structured count, " +
-        "for the whole film/show, not one person), and OMDb's own age rating (`rated`), from OMDb " +
+        "for the whole film/show — or for one episode, given an episode's imdb_id — never one " +
+        "person), and OMDb's own age rating (`rated`), from OMDb " +
         "by IMDb id (preferred, e.g. 'tt0133093') or by title (+ optional year/type). Prefer " +
         "get_movie/get_tv when you have a TMDB id — they already include this. Requires " +
         "OMDB_API_KEY. One of imdb_id or title is required; omitting both returns an error. A " +
