@@ -30,6 +30,13 @@ const INSTRUCTIONS =
 // server registers no MCP Resources. 2025-era connections are unaffected.
 const STATIC_CACHE_HINT: CacheHint = { ttlMs: 3_600_000, cacheScope: "public" };
 
+// Upper bound on array elements + object members in one tools/call
+// `arguments` payload, checked by the SDK before Zod runs. The largest
+// legitimate call (discover_movies with every filter set, or get_movies'
+// 20 ids) stays under ~30, so 100 leaves ample headroom while rejecting a
+// pathological payload cheaply, as an isError result.
+export const MAX_TOOL_INPUT_ELEMENTS = 100;
+
 /** Construct a fully-registered MCP server. Shared by start() and tests. */
 export function buildServer(config: Config, logger: Logger): McpServer {
   const tmdb = new TmdbClient(config, logger);
@@ -39,6 +46,7 @@ export function buildServer(config: Config, logger: Logger): McpServer {
     { name: "tmdb-mcp", title: "TMDB MCP Server", version: VERSION },
     {
       instructions: INSTRUCTIONS,
+      maxToolInputElements: MAX_TOOL_INPUT_ELEMENTS,
       cacheHints: {
         "tools/list": STATIC_CACHE_HINT,
         "prompts/list": STATIC_CACHE_HINT,

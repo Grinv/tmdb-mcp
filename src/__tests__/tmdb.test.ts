@@ -10,6 +10,7 @@ import {
   hangingFetch,
   DEFAULT_ENV as ENV,
 } from "./helpers.js";
+import { MAX_TOOL_INPUT_ELEMENTS } from "../server.js";
 
 const MOVIE_DETAIL = {
   id: 603,
@@ -415,6 +416,25 @@ describe("server / auth", () => {
     assert.equal(res.isError, true);
     const text = toolText(res);
     assert.match(text, /TMDB_API_TOKEN/);
+  });
+
+  test("the largest legitimate discover_movies call fits under the input-element cap", async () => {
+    await using client = await connectServer(ENV);
+    const { tools } = await client.listTools();
+    const discover = tools.find((tool) => tool.name === "discover_movies")!;
+    const fields = Object.keys(discover.inputSchema.properties ?? {}).length;
+    assert.ok(fields < MAX_TOOL_INPUT_ELEMENTS / 2, `${fields} fields leaves too little headroom`);
+  });
+
+  test("an oversized tools/call payload is rejected as an isError result before Zod validation", async (t) => {
+    installFetch(t, mockFetch(router));
+    await using client = await connectServer(ENV);
+    const res = await client.callTool({
+      name: "get_movies",
+      arguments: { ids: Array.from({ length: MAX_TOOL_INPUT_ELEMENTS + 1 }, (_, i) => i + 1) },
+    });
+    assert.equal(res.isError, true);
+    assert.match(toolText(res), /more than the maximum of 100 elements/);
   });
 });
 
