@@ -6,6 +6,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Bump `@modelcontextprotocol/server` to 2.3.0 and `zod` to 4.6.5. Nullable fields in published `outputSchema`s now read `"type": ["string", "null"]` instead of an `anyOf` pair ([6ec6335](https://github.com/Grinv/tmdb-mcp/commit/6ec6335)).
+
 ### Added
 
 - Return the episode's own `imdb_id`/`imdb_url` from `get_tv_episode`, making a per-episode IMDb rating reachable via `get_ratings` for the first time — appended to the request the tool already makes, so it costs no extra round trip. `get_tv_season`/`expand_episodes` still omit it: TMDB's season payload carries no per-episode IMDb ids, so it would cost one request per episode ([7f22649](https://github.com/Grinv/tmdb-mcp/commit/7f22649)).
@@ -16,6 +20,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Disclose that `get_ratings`' title lookup can silently resolve to a different work of the same name, and name the safer route: a bare `title:'Halloween'` returns the 1978 original, not the identically titled 2018 film ([3e6b4c5](https://github.com/Grinv/tmdb-mcp/commit/3e6b4c5)).
 - Name the source and scale of every score field in tool output schemas, so `vote_average` (TMDB 0-10) is no longer indistinguishable from the `ratings` values beside it (IMDb 0-10, Metacritic 0-100, Rotten Tomatoes percentage) ([3e6b4c5](https://github.com/Grinv/tmdb-mcp/commit/3e6b4c5)).
 - Say which score `get_person_credits`, `get_reviews` and the `top_by_entity` prompt mean, where a bare "rating" could have been TMDB's aggregate, one reviewer's own score, or an IMDb/RT/Metacritic value ([3e6b4c5](https://github.com/Grinv/tmdb-mcp/commit/3e6b4c5)).
+
+### Security
+
+- Reject a `tools/call` whose `arguments` hold more than 100 array elements and object members, before schema validation runs ([bb6dea9](https://github.com/Grinv/tmdb-mcp/commit/bb6dea9)).
 
 ## [0.11.0] - 2026-08-15
 
