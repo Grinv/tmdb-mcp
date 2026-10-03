@@ -61,7 +61,7 @@
     { "name": "get_tv_genres", "description": "List TV genres." },
     {
       "name": "discover_movies",
-      "description": "Find movies by filters (genre, year, rating, …)."
+      "description": "Find movies by filters (genre, year, TMDB vote average, …)."
     },
     { "name": "discover_tv", "description": "Find TV shows by filters." },
     { "name": "search_keywords", "description": "Resolve keyword names to ids for discover." },

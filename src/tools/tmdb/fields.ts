@@ -183,6 +183,8 @@ export const language = z
   )
   .describe(
     "Override the response language (ISO-639-1, optionally with a region), e.g. 'ru-RU' or 'en-US'. " +
-      "Localizes titles/overviews/genre names. Defaults to the server's TMDB_LANGUAGE.",
+      "Localizes titles/overviews/genre names. Defaults to the server's TMDB_LANGUAGE. A " +
+      "well-formed code TMDB has no translation for (e.g. 'xx') is not an error: overviews come " +
+      "back null and titles fall back to the original-language title.",
   )
   .optional();

@@ -75,9 +75,9 @@ const discoverShared = {
     .number()
     .min(0)
     .max(10)
-    .describe("Minimum vote average (0-10). Must be <= max_rating if both are given.")
+    .describe("Minimum TMDB vote average (0-10). Must be <= max_rating if both are given.")
     .optional(),
-  max_rating: z.number().min(0).max(10).describe("Maximum vote average (0-10).").optional(),
+  max_rating: z.number().min(0).max(10).describe("Maximum TMDB vote average (0-10).").optional(),
   min_votes: z.int().min(0).describe("Minimum vote count (filters obscure titles).").optional(),
   min_runtime: z
     .int()
@@ -456,12 +456,12 @@ export function registerDiscoverTools(
       title: "Discover movies (filters)",
       description:
         "Find movies by structured filters instead of a title query: genres (include/exclude), " +
-        "year or release-date range, rating range, vote count, runtime range, original language, " +
+        "year or release-date range, TMDB vote-average range, vote count, runtime range, original language, " +
         "cast/crew/people, companies, keywords, watch providers, certification, a region code " +
         "(minor effect only — see its own description), an adult-content toggle, and sort order. " +
         "certification/with_watch_providers have validation and silent-fallback rules — see their " +
         "own field descriptions. Use for " +
-        "'popular sci-fi from the 1990s rated above 7 available on Netflix', or for a specific " +
+        "'popular sci-fi from the 1990s with a TMDB vote average above 7 available on Netflix', or for a specific " +
         "person's work in one genre — 'which of this director's/actor's/composer's films are " +
         "animated' — via with_crew/with_cast/with_people + with_genres together; get_person_credits " +
         "has no genre filter, so this combination is the right tool for that question, not that one. " +
@@ -480,7 +480,7 @@ export function registerDiscoverTools(
     {
       title: "Discover TV shows (filters)",
       description:
-        "Find TV shows by structured filters (genres, first-air year or date range, rating range, " +
+        "Find TV shows by structured filters (genres, first-air year or date range, TMDB vote-average range, " +
         "vote count, runtime, language, companies, networks, keywords, watch providers, type, " +
         "status, certification, an adult-content toggle, sort) — but NOT cast/crew/person: this " +
         "tool doesn't accept those " +
