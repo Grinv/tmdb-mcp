@@ -76,6 +76,24 @@ jobs:
       - name: Publish to npm (trusted publishing + provenance)
         if: steps.npm_check.outputs.already_published != 'true'
         run: npm publish --provenance --access public
+      # npm accepts a publish before it serves it ("may take a few minutes to
+      # become available"), and the MCP Registry 404s on a version npm doesn't
+      # serve yet — v0.12.0's first run failed that way, 6s after publishing,
+      # while the version appeared ~80s later. Poll the same public endpoint
+      # (15s interval, 5 min cap) instead of racing it. Runs on re-runs too,
+      # where it passes immediately.
+      - name: Wait for npm to serve this version
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          for _ in $(seq 1 20); do
+            if curl -sf -o /dev/null "https://registry.npmjs.org/tmdb-mcp/${PKG_VERSION}"; then
+              echo "tmdb-mcp@${PKG_VERSION} is live on npm"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::tmdb-mcp@${PKG_VERSION} still not served by npm after 5 minutes"
+          exit 1
 
       # Publish to the official MCP Registry (registry.modelcontextprotocol.io).
       # Runs after npm publish so the npm package (with its mcpName marker) is

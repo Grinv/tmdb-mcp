@@ -64,6 +64,8 @@ whatever slipped past `sync-version.mjs`/`preversion-check.mjs`) → GitHub Rele
 → `npm publish` (OIDC trusted publishing, with provenance, pinned to an exact
 verified-good npm version — no token; skipped without failing the job if this
 version is already on npm, so a re-run after a partial failure doesn't abort) →
+wait (up to 5 min) until npm actually serves the new version, since the MCP
+Registry 404s on one it doesn't yet (v0.12.0's first run failed that way) →
 inject the just-packed `.mcpb`'s SHA-256 into `server.json` (fails loudly if the
 injection didn't actually match a package, instead of silently leaving a stale
 hash) → **publish to the official MCP Registry** (`mcp-publisher`, pinned to an
