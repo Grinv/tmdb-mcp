@@ -8,6 +8,7 @@ import { z } from "zod";
 import type { TmdbClient } from "../../clients/tmdb.js";
 import type { OmdbClient } from "../../clients/omdb.js";
 import { LANGUAGE_REGEX } from "../../config.js";
+import { TMDB_MAX_PAGE } from "../../format.js";
 import type { ToolResult } from "../../lib/result.js";
 
 // index.ts constructs the real closures (over the actual tmdb client and, for
@@ -46,9 +47,9 @@ export interface TmdbToolDeps {
 export const page = z
   .int()
   .min(1)
-  .max(500)
+  .max(TMDB_MAX_PAGE)
   .describe(
-    "1-based page number for pagination (TMDB returns up to 20 results per page, max 500).",
+    `1-based page number for pagination (TMDB returns up to 20 results per page, max ${TMDB_MAX_PAGE}).`,
   );
 export const tmdbId = z.int().positive().describe("TMDB numeric id.");
 export const mediaKind = z.enum(["movie", "tv"]).describe("Media type: 'movie' or 'tv'.");

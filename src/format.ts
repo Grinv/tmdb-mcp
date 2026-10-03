@@ -549,6 +549,9 @@ export function summarizeMultiItem(item: TmdbMultiItem): z.infer<typeof multiIte
 // jsonResult() wire-serialization boundary expects — on anonymous object
 // types, not named interfaces. Confirmed empirically; see the fix that
 // replaced this interface with the identical-shape alias below.
+// The highest page number TMDB serves on any paginated endpoint.
+export const TMDB_MAX_PAGE = 500;
+
 export type Page<S> = {
   results: S[];
   page: number;
@@ -561,11 +564,16 @@ export type Page<S> = {
 // the wrapper's own shape (results/page/total_pages/total_results) is simple
 // enough that the tool-registration-site `pageSchema(itemSchema)` plus the
 // real MCP client-side outputSchema check are sufficient coverage for it.
+//
+// total_pages is clamped to TMDB_MAX_PAGE: verified live, /discover/movie and
+// /movie/{id}/similar report total_pages 1001 while rejecting any page above
+// 500, so passing it through tells the caller pages exist that it can never
+// fetch.
 export function page<T, S>(res: TmdbPage<T>, summarize: (item: T) => S): Page<S> {
   return {
     results: (res.results ?? []).map(summarize),
     page: res.page ?? 1,
-    total_pages: res.total_pages ?? 1,
+    total_pages: Math.min(res.total_pages ?? 1, TMDB_MAX_PAGE),
     total_results: res.total_results ?? res.results?.length ?? 0,
   };
 }

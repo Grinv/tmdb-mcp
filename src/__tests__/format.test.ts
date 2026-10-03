@@ -1,9 +1,11 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import {
+  TMDB_MAX_PAGE,
   detailMovie,
   detailPerson,
   detailTv,
+  page,
   summarizeCollection,
   summarizeCredits,
   summarizeEpisode,
@@ -214,6 +216,16 @@ describe("summarizeCredits", () => {
       crew.map((x) => x.id),
       [1],
     );
+  });
+});
+
+describe("page", () => {
+  test("total_pages is clamped to the 500 pages TMDB actually serves", () => {
+    // Mirrors real /discover/movie: total_pages 1001, total_results 20001,
+    // yet TMDB rejects page=501.
+    const p = page({ page: 1, results: [], total_pages: 1001, total_results: 20001 }, (x) => x);
+    assert.equal(p.total_pages, TMDB_MAX_PAGE);
+    assert.equal(p.total_results, 20001);
   });
 });
 
