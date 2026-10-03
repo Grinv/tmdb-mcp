@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-03
+
 ### Added
 
 - List a TV show's directors and writers in `get_tv_credits`, each with an episode count ([93cd3c7](https://github.com/Grinv/tmdb-mcp/commit/93cd3c7)).
