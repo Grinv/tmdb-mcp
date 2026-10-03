@@ -1229,6 +1229,30 @@ describe("discover_movies/discover_tv reject incomplete filter pairs", () => {
     assert.equal(res.isError, true);
     assert.match(toolText(res), /min_runtime/);
   });
+
+  test("watch_region / certification_country alone are rejected, not silently ignored", async (t) => {
+    installFetch(t, mockFetch(router));
+    await using client = await connectServer(ENV);
+    for (const [args, field] of [
+      [{ watch_region: "US" }, /watch_region only applies/],
+      [{ certification_country: "US" }, /certification_country only applies/],
+    ] as const) {
+      const res = await client.callTool({ name: "discover_movies", arguments: args });
+      assert.equal(res.isError, true);
+      assert.match(toolText(res), field);
+    }
+  });
+
+  test("a blank certification is rejected instead of disabling the filter", async (t) => {
+    installFetch(t, mockFetch(router));
+    await using client = await connectServer(ENV);
+    const res = await client.callTool({
+      name: "discover_movies",
+      arguments: { certification: " ", certification_country: "US" },
+    });
+    assert.equal(res.isError, true);
+    assert.match(toolText(res), /certification must not be blank/);
+  });
 });
 
 describe("discover_tv", () => {

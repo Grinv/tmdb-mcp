@@ -106,7 +106,12 @@ const discoverShared = {
     "Comma-separated TMDB watch-provider ids (use search_watch_providers to resolve a " +
       "service name, e.g. 'Netflix', to its numeric id); requires watch_region to also be set.",
   ),
-  watch_region: watchRegion.optional(),
+  watch_region: watchRegion
+    .describe(
+      "Two-letter ISO-3166-1 country code, e.g. 'US', whose streaming catalog " +
+        "with_watch_providers filters on. Only valid together with with_watch_providers.",
+    )
+    .optional(),
   // Shared, not movie-only: verified live against the real /discover/tv (not
   // just /discover/movie) — an unsupported/nonsense certification value
   // returns zero results there too, confirming TMDB actually applies it
@@ -120,6 +125,7 @@ const discoverShared = {
   // returns, confirming the filter is disabled rather than applied-and-empty.
   certification: z
     .string()
+    .regex(/\S/, "certification must not be blank.")
     .describe(
       "Filter by exact age/content certification, e.g. 'PG-13' (movies) or 'TV-Y7' (TV). Requires " +
         "certification_country, and a certification_country TMDB doesn't recognize silently " +
@@ -139,7 +145,10 @@ const discoverShared = {
   certification_country: z
     .string()
     .regex(/^[A-Z]{2}$/, "Two-letter ISO-3166-1 country code.")
-    .describe("Country whose certification system the `certification` filter uses, e.g. 'US'.")
+    .describe(
+      "Country whose certification system the `certification` filter uses, e.g. 'US'. Only " +
+        "valid together with certification.",
+    )
     .optional(),
   language,
   // Verified live against both /discover/movie and /discover/tv: unlike
@@ -334,6 +343,23 @@ function checkDiscoverFilterPairs(
       code: "custom",
       message: "certification requires certification_country to also be set.",
       path: ["certification"],
+    });
+  }
+  // The reverse direction: verified live, watch_region or certification_country
+  // alone returns the fully unfiltered result set, so a caller would read an
+  // unfiltered page as "filtered by region/country".
+  if (val.watch_region !== undefined && val.with_watch_providers === undefined) {
+    ctx.addIssue({
+      code: "custom",
+      message: "watch_region only applies to with_watch_providers; set both or neither.",
+      path: ["watch_region"],
+    });
+  }
+  if (val.certification_country !== undefined && val.certification === undefined) {
+    ctx.addIssue({
+      code: "custom",
+      message: "certification_country only applies to certification; set both or neither.",
+      path: ["certification_country"],
     });
   }
 }
