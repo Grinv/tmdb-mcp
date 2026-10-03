@@ -9,6 +9,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - Bump `@modelcontextprotocol/server` to 2.3.0 and `zod` to 4.6.5. Nullable fields in published `outputSchema`s now read `"type": ["string", "null"]` instead of an `anyOf` pair ([6ec6335](https://github.com/Grinv/tmdb-mcp/commit/6ec6335)).
+- Build `get_tv_credits` from TMDB's whole-run `aggregate_credits`, so it finally lists a show's directors and writers (Breaking Bad: Michelle MacLaren, 11 episodes). Cast is ranked by episodes appeared in and crew keeps up to 5 people per key job, each with an `episode_count` ([93cd3c7](https://github.com/Grinv/tmdb-mcp/commit/93cd3c7)).
 
 ### Added
 
@@ -20,6 +21,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Disclose that `get_ratings`' title lookup can silently resolve to a different work of the same name, and name the safer route: a bare `title:'Halloween'` returns the 1978 original, not the identically titled 2018 film ([3e6b4c5](https://github.com/Grinv/tmdb-mcp/commit/3e6b4c5)).
 - Name the source and scale of every score field in tool output schemas, so `vote_average` (TMDB 0-10) is no longer indistinguishable from the `ratings` values beside it (IMDb 0-10, Metacritic 0-100, Rotten Tomatoes percentage) ([3e6b4c5](https://github.com/Grinv/tmdb-mcp/commit/3e6b4c5)).
 - Say which score `get_person_credits`, `get_reviews` and the `top_by_entity` prompt mean, where a bare "rating" could have been TMDB's aggregate, one reviewer's own score, or an IMDb/RT/Metacritic value ([3e6b4c5](https://github.com/Grinv/tmdb-mcp/commit/3e6b4c5)).
+- Drop talk- and news-show guest spots from `get_person_credits` even when TMDB leaves their `character` empty; they topped Samuel L. Jackson's list ([50b1652](https://github.com/Grinv/tmdb-mcp/commit/50b1652)).
+- Cap `total_pages` at the 500 pages TMDB actually serves; `discover_movies` and `get_similar` reported 1001 ([e27943d](https://github.com/Grinv/tmdb-mcp/commit/e27943d)).
+- Reject `discover_*`'s `watch_region` or `certification_country` without their partner filter, and a blank `certification`, which each returned unfiltered results ([1ad7d28](https://github.com/Grinv/tmdb-mcp/commit/1ad7d28)).
+- Trim the stray whitespace TMDB pads some certifications and provider names with (`"K-8 "`, `"VIX "`) ([5748559](https://github.com/Grinv/tmdb-mcp/commit/5748559)).
+- Stop `top_by_entity` telling the model to filter by genre when no genre was given ([028b23e](https://github.com/Grinv/tmdb-mcp/commit/028b23e)).
+- Name `discover_*`'s score filter as TMDB vote average, and say what a well-formed but untranslated `language` returns ([1d9cd79](https://github.com/Grinv/tmdb-mcp/commit/1d9cd79)), ([9d0a632](https://github.com/Grinv/tmdb-mcp/commit/9d0a632)).
+- Say that `get_ratings`' awards text describes the episode when given an episode's IMDb id ([f182fd6](https://github.com/Grinv/tmdb-mcp/commit/f182fd6)).
+- Correct PRIVACY.md and SECURITY.md: expired cache entries stay in memory as an outage fallback (up to 500 per upstream), and ratings enrichment calls both TMDB and OMDb ([4621f20](https://github.com/Grinv/tmdb-mcp/commit/4621f20)).
 
 ### Security
 
