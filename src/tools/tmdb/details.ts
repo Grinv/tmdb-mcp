@@ -27,6 +27,7 @@ import {
   personDetailSchema,
   reviewSchema,
   tvCardSchema,
+  tvCreditsSchema,
   tvDetailEnrichedSchema,
   tvSummarySchema,
 } from "../../format.schemas.js";
@@ -286,16 +287,15 @@ export function registerDetailsTools(
     {
       title: "Get TV cast & crew",
       description:
-        "List the main cast (up to 20) and production crew (executive producers, producers, " +
-        "composer, DoP, …) of a TV show by TMDB id. TMDB's show-level TV credits data does not " +
-        "reliably expose director/writer/creator credits — verified live across several shows " +
-        "(Breaking Bad, Stranger Things, Chernobyl, The Queen's Gambit): each show's actual " +
-        "creator/head-writer/director appears only as 'Executive Producer', never as 'Writer', " +
-        "'Director' or 'Creator'. For who created the show, use get_tv's own `created_by` field " +
-        "instead; for a specific episode's actual director/writer (which TMDB does track " +
-        "reliably at that level), use get_tv_episode. Get the id from search_tv.",
+        "List a TV show's cast and key crew across its whole run, by TMDB id: up to 20 cast " +
+        "members ranked by how many episodes they appear in (each with their main character and " +
+        "episode_count), plus up to 5 people per key crew job — Director, Writer, Teleplay, " +
+        "Story, Executive Producer, Producer, Original Music Composer, Director of Photography — " +
+        "ranked by episode_count, so 'who directed most of it' is the first Director listed. " +
+        "Creators aren't listed here; use get_tv's `created_by`. For one specific episode's " +
+        "director/writer, use get_tv_episode. Get the id from search_tv.",
       inputSchema: z.strictObject({ id: tmdbId }),
-      outputSchema: creditsSchema,
+      outputSchema: tvCreditsSchema,
       annotations: READ_ONLY,
     },
     ({ id }, ctx) => {

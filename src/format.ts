@@ -17,6 +17,7 @@ import {
   collectionSchema,
   companySchema,
   creditsSchema,
+  tvCreditsSchema,
   personDetailSchema,
   episodeBriefSchema,
   episodeSchema,
@@ -489,14 +490,11 @@ export function summarizeCredits(c: TmdbCredits, castLimit = 20): z.infer<typeof
     .sort((a, b) => (a.order ?? 999) - (b.order ?? 999))
     .slice(0, castLimit)
     .map((x) => ({ id: x.id, name: x.name, character: x.character || null }));
-  // Keep only the headline crew roles; full crew lists are mostly noise. Shared by both
-  // get_movie_credits and get_tv_credits, but "Director"/"Writer"/"Screenplay"/"Creator" are
-  // effectively movie-only in practice: verified live, TMDB's /tv/{id}/credits crew data never
-  // tags them on several shows checked (Breaking Bad, Stranger Things, Chernobyl, The Queen's
-  // Gambit) — each show's actual creator/writer/director appears only as "Executive Producer".
-  // /movie/{id}/credits does reliably carry them (verified live too, e.g. Inception's Christopher
-  // Nolan as both "Writer" and "Director"). get_tv_credits' own description reflects this gap;
-  // don't assume this set behaves identically for both media types.
+  // Keep only the headline crew roles; full crew lists are mostly noise. Movie-only:
+  // get_tv_credits uses summarizeTvCredits over /tv/{id}/aggregate_credits instead, because
+  // TMDB's /tv/{id}/credits never tags Director/Writer/Creator (verified live on Breaking Bad,
+  // Stranger Things, Chernobyl, The Queen's Gambit — each show's creator/writer/director
+  // appears only as "Executive Producer"), while the aggregate endpoint does.
   const KEY_JOBS = new Set([
     "Director",
     "Writer",
@@ -511,6 +509,89 @@ export function summarizeCredits(c: TmdbCredits, castLimit = 20): z.infer<typeof
     .filter((x) => x.job && KEY_JOBS.has(x.job))
     .map((x) => ({ id: x.id, name: x.name, job: x.job, department: x.department }));
   return creditsSchema.parse({ cast, crew });
+}
+
+// /tv/{id}/aggregate_credits: one row per person (crew: per person AND
+// department), each listing every role/job they held across the whole run
+// with its own episode count — unlike /tv/{id}/credits, which only reflects
+// the latest season and never tags Director/Writer (see summarizeCredits).
+export interface TmdbAggregateCredits {
+  cast?: {
+    id?: number;
+    name?: string;
+    order?: number;
+    total_episode_count?: number;
+    roles?: { character?: string; episode_count?: number }[];
+  }[];
+  crew?: {
+    id?: number;
+    name?: string;
+    department?: string;
+    jobs?: { job?: string; episode_count?: number }[];
+  }[];
+}
+
+// The TV crew jobs worth surfacing, in output order. Teleplay/Story are TV
+// writing credits /movie credits rarely use; capped per job because a long
+// show credits dozens of directors (Game of Thrones: 19), most for 1-2
+// episodes — the top few by episode count answer "who directed/wrote it".
+// No "Creator": verified live, the aggregate endpoint doesn't use that job
+// either (get_tv's created_by carries it).
+const TV_KEY_JOBS = [
+  "Director",
+  "Writer",
+  "Teleplay",
+  "Story",
+  "Executive Producer",
+  "Producer",
+  "Original Music Composer",
+  "Director of Photography",
+];
+const TV_CREW_PER_JOB = 5;
+
+export function summarizeTvCredits(
+  c: TmdbAggregateCredits,
+  castLimit = 20,
+): z.infer<typeof tvCreditsSchema> {
+  // Ranked by episodes across the run (billing `order` only breaks ties): the
+  // aggregate list mixes series regulars with hundreds of one-episode guests
+  // (Breaking Bad: 348 people), and episode count is what separates them.
+  const cast = (c.cast ?? [])
+    .slice()
+    .sort(
+      (a, b) =>
+        (b.total_episode_count ?? 0) - (a.total_episode_count ?? 0) ||
+        (a.order ?? 999) - (b.order ?? 999),
+    )
+    .slice(0, castLimit)
+    .map((x) => {
+      const top = (x.roles ?? [])
+        .slice()
+        .sort((a, b) => (b.episode_count ?? 0) - (a.episode_count ?? 0))[0];
+      return {
+        id: x.id,
+        name: x.name,
+        character: top?.character || null,
+        episode_count: x.total_episode_count ?? 0,
+      };
+    });
+  const flat = (c.crew ?? []).flatMap((x) =>
+    (x.jobs ?? []).map((j) => ({
+      id: x.id,
+      name: x.name,
+      job: j.job,
+      department: x.department,
+      episode_count: j.episode_count ?? 0,
+    })),
+  );
+  const crew = TV_KEY_JOBS.flatMap((job) =>
+    flat
+      .filter((x) => x.job === job)
+      .sort((a, b) => b.episode_count - a.episode_count)
+      .slice(0, TV_CREW_PER_JOB)
+      .map((x) => ({ ...x, job })),
+  );
+  return tvCreditsSchema.parse({ cast, crew });
 }
 
 // Used directly by search_people (whose /search/person response carries no

@@ -93,7 +93,7 @@ See [docs/clients.md](https://github.com/Grinv/tmdb-mcp/blob/main/docs/clients.m
 | `get_movie` / `get_tv`                                 | Full details **+ IMDb/RT/Metacritic ratings** (toggle with `include_ratings`)                                |
 | `get_movies` / `get_tv_shows`                          | Compact card(s) (title/year/genres/vote average, ratings opt-in) for 1-20 ids in one call                    |
 | `get_person`                                           | Biography, department, links                                                                                 |
-| `get_movie_credits` / `get_tv_credits`                 | Top-billed cast and headline crew                                                                            |
+| `get_movie_credits` / `get_tv_credits`                 | Top-billed cast and headline crew (TV: whole run, ranked by episode count)                                   |
 | `get_movie_recommendations` / `get_tv_recommendations` | Recommendations from co-viewing data (what fans also liked)                                                  |
 | `get_similar`                                          | Algorithmically similar titles (`media_type` + id)                                                           |
 | `get_trending`                                         | What's popular now (movies / TV / people, day or week)                                                       |

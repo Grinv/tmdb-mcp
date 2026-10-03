@@ -294,6 +294,87 @@ const CREDITS = {
   ],
 };
 
+// Real /tv/1396/aggregate_credits rows (trimmed to a few people, every key
+// kept): one cast row per person listing each role with its own episode
+// count, one crew row per person AND department.
+const TV_AGGREGATE_CREDITS = {
+  id: 1396,
+  cast: [
+    {
+      adult: false,
+      gender: 1,
+      id: 147085,
+      known_for_department: "Acting",
+      name: "Tina Parker",
+      original_name: "Tina Parker",
+      popularity: 1.1454,
+      profile_path: "/qa4BFhrCGQKwqdTgLJ8S2rr95hD.jpg",
+      total_episode_count: 9,
+      roles: [
+        { credit_id: "52768aeb760ee36d750c58ae", character: "Francesca (voice)", episode_count: 1 },
+        { credit_id: "52753cc8760ee3157002006b", character: "Francesca", episode_count: 8 },
+      ],
+      order: 628,
+    },
+    {
+      adult: false,
+      gender: 2,
+      id: 17419,
+      known_for_department: "Acting",
+      name: "Bryan Cranston",
+      original_name: "Bryan Cranston",
+      popularity: 5.3718,
+      profile_path: "/7Jahy5LZX2Fo8fGJltMreAI49hC.jpg",
+      total_episode_count: 62,
+      roles: [
+        { credit_id: "52542282760ee313280017f9", character: "Walter White", episode_count: 62 },
+      ],
+      order: 0,
+    },
+  ],
+  crew: [
+    {
+      adult: false,
+      gender: 2,
+      id: 1330079,
+      known_for_department: "Art",
+      name: "Bjarne Sletteland",
+      original_name: "Bjarne Sletteland",
+      popularity: 0.4832,
+      profile_path: null,
+      jobs: [{ credit_id: "539980c8c3a3681d0700143a", job: "Art Direction", episode_count: 55 }],
+      department: "Art",
+      total_episode_count: 55,
+    },
+    {
+      adult: false,
+      gender: 2,
+      id: 66633,
+      known_for_department: "Writing",
+      name: "Vince Gilligan",
+      original_name: "Vince Gilligan",
+      popularity: 2.8808,
+      profile_path: "/wJIxATESjzsjSgvRhVavOmdamXc.jpg",
+      jobs: [{ credit_id: "52542275760ee313280006e8", job: "Director", episode_count: 5 }],
+      department: "Directing",
+      total_episode_count: 5,
+    },
+    {
+      adult: false,
+      gender: 1,
+      id: 29779,
+      known_for_department: "Directing",
+      name: "Michelle MacLaren",
+      original_name: "Michelle MacLaren",
+      popularity: 1.3225,
+      profile_path: "/3LcH5eNiysMWaepARllVrS4Dzn7.jpg",
+      jobs: [{ credit_id: "52542280760ee31328001325", job: "Director", episode_count: 11 }],
+      department: "Directing",
+      total_episode_count: 11,
+    },
+  ],
+};
+
 // /search/multi rows carry media_type (that's how the endpoint tells movie/tv/
 // person apart); /search/person rows never do — TMDB only returns person
 // fields there. Two separate fixtures so each route is exercised faithfully.
@@ -353,6 +434,7 @@ function router(url: string) {
   }
   if (url.includes("/watch/providers")) return jsonResponse(WATCH_PROVIDERS);
   if (url.includes("/combined_credits")) return jsonResponse(COMBINED_CREDITS);
+  if (url.includes("/aggregate_credits")) return jsonResponse(TV_AGGREGATE_CREDITS);
   if (url.includes("/credits")) return jsonResponse(CREDITS);
   if (/\/person\/\d+/.test(url)) return jsonResponse(PERSON_DETAIL);
   if (url.includes("/similar") || url.includes("/recommendations")) {
@@ -1630,9 +1712,9 @@ describe("person", () => {
 });
 
 describe("get_movie_credits / get_tv_credits", () => {
-  // Both tools share summarizeCredits: cast re-sorted by billing `order`, and
-  // crew filtered down to headline jobs (KEY_JOBS) — a Gaffer should not
-  // survive even though a Director does.
+  // get_movie_credits: cast re-sorted by billing `order`, crew filtered down
+  // to headline jobs (KEY_JOBS) — a Gaffer should not survive even though a
+  // Director does. get_tv_credits reads /aggregate_credits instead.
   test("get_movie_credits sorts cast by order and keeps only headline crew", async (t) => {
     installFetch(t, mockFetch(router));
     await using client = await connectServer(ENV);
@@ -1648,14 +1730,33 @@ describe("get_movie_credits / get_tv_credits", () => {
     assert.equal(s.crew[0]!.job, "Director");
   });
 
-  test("get_tv_credits shares the same shaping", async (t) => {
-    installFetch(t, mockFetch(router));
+  test("get_tv_credits ranks whole-run cast and crew by episode count", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
     await using client = await connectServer(ENV);
     const res = await client.callTool({ name: "get_tv_credits", arguments: { id: 1396 } });
     assert.notEqual(res.isError, true);
-    const s = res.structuredContent as { crew: { job: string }[] };
-    assert.equal(s.crew.length, 1);
-    assert.equal(s.crew[0]!.job, "Director");
+    assert.ok(mock.calls.some((c) => c.url.includes("/tv/1396/aggregate_credits")));
+    const s = res.structuredContent as {
+      cast: { name: string; character: string; episode_count: number }[];
+      crew: { name: string; job: string; episode_count: number }[];
+    };
+    assert.deepEqual(s.cast[0], {
+      id: 17419,
+      name: "Bryan Cranston",
+      character: "Walter White",
+      episode_count: 62,
+    });
+    // A multi-role person is labeled by the role with the most episodes.
+    assert.equal(s.cast[1]!.character, "Francesca");
+    // Art Direction isn't a key job; directors come most-episodes first.
+    assert.deepEqual(
+      s.crew.map((x) => [x.name, x.job, x.episode_count]),
+      [
+        ["Michelle MacLaren", "Director", 11],
+        ["Vince Gilligan", "Director", 5],
+      ],
+    );
   });
 });
 

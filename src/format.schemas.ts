@@ -229,6 +229,32 @@ export const creditsSchema = z.strictObject({
   ),
 });
 
+// ---- summarizeTvCredits --------------------------------------------------------
+
+export const tvCreditsSchema = z.strictObject({
+  cast: z.array(
+    z.strictObject({
+      id: z.number().optional(),
+      name: z.string().optional(),
+      character: z.string().nullable(),
+      episode_count: z
+        .number()
+        .describe("Episodes across the whole run this person appears in, in any role."),
+    }),
+  ),
+  crew: z.array(
+    z.strictObject({
+      id: z.number().optional(),
+      name: z.string().optional(),
+      job: z.string(),
+      department: z.string().optional(),
+      episode_count: z
+        .number()
+        .describe("Episodes across the whole run this person is credited on in this job."),
+    }),
+  ),
+});
+
 // ---- summarizePerson ----------------------------------------------------------
 
 export const personSummarySchema = z.strictObject({

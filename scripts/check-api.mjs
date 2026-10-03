@@ -65,6 +65,13 @@ const checks = [
         throw new Error("missing `external_ids.imdb_id`");
     },
   ),
+  // get_tv_credits ranks on these per-role/per-job episode counts; the plain
+  // /tv/{id}/credits endpoint has neither, so a reshaped payload here would
+  // silently empty the crew list.
+  tmdbCheck("tmdb tv aggregate_credits has roles/jobs", "/tv/1396/aggregate_credits", (b) => {
+    if (!Array.isArray(b.cast?.[0]?.roles)) throw new Error("missing `cast[].roles`");
+    if (!Array.isArray(b.crew?.[0]?.jobs)) throw new Error("missing `crew[].jobs`");
+  }),
   {
     name: "omdb ratings by imdb_id",
     skip: OMDB_KEY ? undefined : "OMDB_API_KEY not set",

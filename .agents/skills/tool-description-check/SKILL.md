@@ -164,16 +164,19 @@ Purpose Clarity — double-check those two first on any new or edited tool.
   additionally accepts a raw `title` lookup with no `imdb_id` at all — check
   that path's own match/no-match behavior independently instead of assuming
   it degrades identically to the `imdb_id`-only path the other two use.
-  Even _identical_ shared code (e.g. `get_movie_credits`/`get_tv_credits`
-  both filter through `summarizeCredits()`'s same `KEY_JOBS`) can still
-  diverge per media type because the upstream data itself differs — verify
-  each variant live rather than trusting shared code as proof of shared
-  behavior (found live: TMDB's `/tv/{id}/credits` crew never carries
-  "Director"/"Writer"/"Creator" the way `/movie/{id}/credits` does).
+  Even _identical_ shared code can still diverge per media type because the
+  upstream data itself differs — verify each variant live rather than
+  trusting shared code as proof of shared behavior (found live:
+  `get_movie_credits`/`get_tv_credits` once both filtered through
+  `summarizeCredits()`'s same `KEY_JOBS`, but TMDB's `/tv/{id}/credits` crew
+  never carries "Director"/"Writer"/"Creator" the way `/movie/{id}/credits`
+  does — which is why `get_tv_credits` now reads `/tv/{id}/aggregate_credits`
+  through its own `summarizeTvCredits()`).
 - Disclose the return shape's real substance, not just the auth/key caveat —
   fixed caps, ordering, and which nested fields a specific tool omits that a
   same-shaped sibling includes. This server already does this precisely
-  (`get_movie_credits`/`get_tv_credits`'s "top-billed cast (up to 20)",
+  (`get_movie_credits`'s "top-billed cast (up to 20)", `get_tv_credits`'s
+  "up to 5 people per key crew job … ranked by episode_count",
   `get_person_credits`'s 25-per-side cap and "a title with several crew
   jobs … still only counts once against the crew cap", `get_tv_season`'s
   50-episode cap with `episode_count` still reporting the true total) —

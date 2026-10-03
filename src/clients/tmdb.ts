@@ -18,6 +18,7 @@ import {
   summarizeCollection,
   summarizeCompany,
   summarizeCredits,
+  summarizeTvCredits,
   summarizeEpisode,
   summarizeFind,
   summarizeGenres,
@@ -37,6 +38,7 @@ import {
   type Page,
   type ProviderEntry,
   type TmdbCompany,
+  type TmdbAggregateCredits,
   type TmdbCredits,
   type TmdbReview,
   type TmdbMovie,
@@ -549,11 +551,11 @@ export class TmdbClient {
     id: number,
     language?: string,
     onStale?: () => void,
-  ): Promise<ReturnType<typeof summarizeCredits>> {
+  ): Promise<ReturnType<typeof summarizeTvCredits>> {
     return this.#cached(
-      cacheKey(`tv-credits:${id}`, { language: this.#lang(language) }),
-      `tv/${id}/credits`,
-      (c: TmdbCredits) => summarizeCredits(c),
+      cacheKey(`tv-aggregate-credits:${id}`, { language: this.#lang(language) }),
+      `tv/${id}/aggregate_credits`,
+      (c: TmdbAggregateCredits) => summarizeTvCredits(c),
       {},
       language,
       onStale,

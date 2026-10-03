@@ -7,6 +7,7 @@ import {
   page,
   summarizeCollection,
   summarizeCredits,
+  summarizeTvCredits,
   summarizeEpisode,
   summarizeFind,
   summarizeGenres,
@@ -146,6 +147,15 @@ describe("personDetailSchema", () => {
 describe("creditsSchema", () => {
   test("summarizeCredits's output with no cast/crew does not throw", () => {
     assert.doesNotThrow(() => summarizeCredits({}));
+  });
+});
+
+describe("tvCreditsSchema", () => {
+  test("summarizeTvCredits's output with no cast/crew or empty roles/jobs does not throw", () => {
+    assert.doesNotThrow(() => summarizeTvCredits({}));
+    assert.doesNotThrow(() =>
+      summarizeTvCredits({ cast: [{ id: 1, roles: [] }], crew: [{ id: 2, jobs: [] }] }),
+    );
   });
 });
 
