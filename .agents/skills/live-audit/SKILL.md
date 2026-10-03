@@ -85,7 +85,8 @@ registered (`grep -n 'registerTool(' src/tools/*.ts`), don't just replay last
 run's exact calls verbatim:
 
 - **Input validation boundaries**: empty string where `.min(1)` is expected,
-  negative/zero/decimal ids where a positive int is expected, `page` at 0/501,
+  negative/zero/decimal ids where a positive int is expected, `page` at 0/501
+  (and on output, no `total_pages` above 500 — TMDB itself reports 1001),
   arrays at their `.min()`/`.max()` boundary and one past it (batch `ids`),
   unknown/misspelled param name (should hard-reject — every `inputSchema` is
   `.strict()` per AGENTS.md, so a typo must error, not silently no-op).
@@ -114,7 +115,9 @@ run's exact calls verbatim:
   named as the other — in `src/format.ts`'s shapers _and_ in every tool
   `description`/`.describe()`, where the miss is likelier (found live:
   `get_tv_season`/`get_tv_episode`/`expand_episodes` all promised episode
-  "ratings" while returning only TMDB `vote_average`).
+  "ratings" while returning only TMDB `vote_average`). Third: an aggregate
+  endpoint vs. its per-part one (`/tv/{id}/credits` was exactly the final
+  season's cast — The Office without Steve Carell).
 - **Not-found / empty-result paths**: nonexistent-but-well-formed ids (movie,
   TV, person, collection, keyword), a batch call mixing valid + invalid +
   duplicate ids, a search query returning zero results, a title genuinely
@@ -123,14 +126,16 @@ run's exact calls verbatim:
   collection (multi-season episode dumps, long person filmographies, wide
   discover pages) — pick the largest real-world instance you can think of
   (most-seasons TV show, most-credited person) and check the actual response
-  size/token count, not just that it returns _something_. A stated cap
+  size/token count, not just that it returns _something_ — and read its top
+  rows (a `character: 'Self'` filter let blank-character talk-show spots lead). A stated cap
   (`MAX_EXPANDED_EPISODES` etc.) bounding _count_ doesn't mean the _payload_ is
   actually small — a heavy per-item field (e.g. `overview`) can still blow it
   up, exactly like the `expand_episodes` bug.
 - **Documented vs. actual shape**: for anything that looked surprising live,
   grep the field back to its `.describe()` text — does the tool's own
   description promise what you just saw (or promise something you didn't)?
-  Mismatches here are bugs even when the data itself is "correct." When an
+  Mismatches here are bugs even when the data itself is "correct." Eyeball
+  raw strings too: TMDB pads some (`"K-8 "`, `"VIX "`). When an
   aggregation shortcut skips fetching some items entirely instead of
   fetching-then-trimming (e.g. a season past a combined-count budget never
   requested at all), check _every_ field of that stub, not just the one the

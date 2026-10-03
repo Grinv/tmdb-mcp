@@ -171,7 +171,9 @@ Purpose Clarity — double-check those two first on any new or edited tool.
   `summarizeCredits()`'s same `KEY_JOBS`, but TMDB's `/tv/{id}/credits` crew
   never carries "Director"/"Writer"/"Creator" the way `/movie/{id}/credits`
   does — which is why `get_tv_credits` now reads `/tv/{id}/aggregate_credits`
-  through its own `summarizeTvCredits()`).
+  through its own `summarizeTvCredits()`). A shared field needs the same
+  per-media-type check (`language='xx'`: movies keep their original title,
+  episodes become 'Episode N').
 - Disclose the return shape's real substance, not just the auth/key caveat —
   fixed caps, ordering, and which nested fields a specific tool omits that a
   same-shaped sibling includes. This server already does this precisely
