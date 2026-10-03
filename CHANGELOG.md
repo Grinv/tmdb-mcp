@@ -9,7 +9,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - Bump `@modelcontextprotocol/server` to 2.3.0 and `zod` to 4.6.5. Nullable fields in published `outputSchema`s now read `"type": ["string", "null"]` instead of an `anyOf` pair ([6ec6335](https://github.com/Grinv/tmdb-mcp/commit/6ec6335)).
-- Build `get_tv_credits` from TMDB's whole-run `aggregate_credits`, so it finally lists a show's directors and writers (Breaking Bad: Michelle MacLaren, 11 episodes). Cast is ranked by episodes appeared in and crew keeps up to 5 people per key job, each with an `episode_count` ([93cd3c7](https://github.com/Grinv/tmdb-mcp/commit/93cd3c7)).
+- Build `get_tv_credits` from TMDB's whole-run `aggregate_credits`, so it finally lists a show's directors and writers (Breaking Bad: Michelle MacLaren, 11 episodes) and draws its cast from every season, not just the final season's regulars (The Office had shown 4 people, without Steve Carell). Cast is ranked by episodes appeared in and crew keeps up to 5 people per key job, each with an `episode_count` ([93cd3c7](https://github.com/Grinv/tmdb-mcp/commit/93cd3c7)).
 
 ### Added
 

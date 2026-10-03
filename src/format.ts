@@ -513,8 +513,10 @@ export function summarizeCredits(c: TmdbCredits, castLimit = 20): z.infer<typeof
 
 // /tv/{id}/aggregate_credits: one row per person (crew: per person AND
 // department), each listing every role/job they held across the whole run
-// with its own episode count — unlike /tv/{id}/credits, which only reflects
-// the latest season and never tags Director/Writer (see summarizeCredits).
+// with its own episode count — unlike /tv/{id}/credits, which never tags
+// Director/Writer (see summarizeCredits) and whose cast is exactly the latest
+// season's regulars: verified live, Game of Thrones' equals season 8's 14
+// (no Sean Bean) and The Office's season 9's 4 (no Steve Carell).
 export interface TmdbAggregateCredits {
   cast?: {
     id?: number;
