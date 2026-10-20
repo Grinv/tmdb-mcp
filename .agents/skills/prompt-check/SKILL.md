@@ -22,7 +22,7 @@ npx @modelcontextprotocol/inspector --cli node dist/index.js --method prompts/ge
 
 For each prompt: no args, only one optional arg at a time, and all of them
 together — an arg that's individually optional can still break when given
-alone.
+alone. Numeric string args at `0` too (`count=0` rendered "Recommend 0").
 
 **For an enum-valued arg** (e.g. `media_type: "movie" | "tv"`), render
 **every** value, not just one — each can take a genuinely different branch
@@ -31,4 +31,5 @@ real bug got past a prior live-audit pass in this repo: `media_type=movie`
 rendered fine, but `media_type=tv` left a dangling reference to a step ("the
 equivalent movies filter") that only exists in the movies branch — caught
 later by a `/code-review` pass, not by live-audit, because only one enum
-value had actually been rendered here.
+value had actually been rendered here. Grep each rendering for the _other_ value's tool names
+(`media_type=tv` still said "weigh get_movie_recommendations").

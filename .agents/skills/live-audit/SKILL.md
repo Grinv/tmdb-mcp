@@ -100,7 +100,8 @@ run's exact calls verbatim:
   required partner field is missing (`certification`+`certification_country`,
   `with_watch_providers`+`watch_region`, `min_rating`>`max_rating`) — these
   must error via the tool's own validation, not reach TMDB and look like "the
-  filter was applied" when it wasn't.
+  filter was applied" when it wasn't. List separators too: TMDB reads `,` as
+  AND and `|` as OR in `with_*` (`with_watch_providers` `8,9` → 0, `8|9` → 73).
 - **The same fact from two tools must agree.** Ratings reach the caller by more
   than one path and a per-tool sweep passes while the paths disagree, because
   each answer looks reasonable alone. `get_movie`/`get_tv` fold OMDb in **by
@@ -121,13 +122,17 @@ run's exact calls verbatim:
 - **Not-found / empty-result paths**: nonexistent-but-well-formed ids (movie,
   TV, person, collection, keyword), a batch call mixing valid + invalid +
   duplicate ids, a search query returning zero results, a title genuinely
-  missing an `imdb_id`/ratings/overview.
+  missing an `imdb_id`/ratings/overview, an unreleased one (TMDB sends unknown
+  as `0`: `vote_average`/`vote_count`/`runtime`), a collection with an undated
+  announced part (`release_date: ""`), and a bad `OMDB_API_KEY` (the reason must
+  name the 401, not a generic failure).
 - **Payload-size risk**: any tool that aggregates across a variable-size
   collection (multi-season episode dumps, long person filmographies, wide
   discover pages) — pick the largest real-world instance you can think of
   (most-seasons TV show, most-credited person) and check the actual response
   size/token count, not just that it returns _something_ — and read its top
-  rows (a `character: 'Self'` filter let blank-character talk-show spots lead). A stated cap
+  rows (a `character: 'Self'` filter let blank-character talk-show spots lead;
+  an id-only dedupe dropped Hellboy, whose movie id 1487 equals a TV id). A stated cap
   (`MAX_EXPANDED_EPISODES` etc.) bounding _count_ doesn't mean the _payload_ is
   actually small — a heavy per-item field (e.g. `overview`) can still blow it
   up, exactly like the `expand_episodes` bug.
@@ -158,7 +163,15 @@ run's exact calls verbatim:
   only once.
 - **Unicode / adult / locale weirdness**: emoji-only queries, non-Latin
   scripts, `include_adult` toggling, a fake 2-letter region/language that's
-  shaped correctly but doesn't exist.
+  shaped correctly but doesn't exist (`ZZ` → empty, but `XX` is a real TMDB
+  pseudo-region). A non-English `TMDB_LANGUAGE` and a non-English-original
+  title: `language` can _filter_, not translate (videos: 29 → 2 under `de-DE`).
+- **Upstream params vs. our own filtering**: for each endpoint, diff the query
+  params in TMDB's OpenAPI spec (`developer.themoviedb.org/openapi/tmdb-api.json`
+  — incomplete, so confirm live) against what the client sends; for every
+  client-side filter/sort/cap, test whether the endpoint does it itself. Also
+  check cache keys: a dimension that only changes shaping (`region`,
+  `department`, `limit`) must not key the cache — cache raw, shape per call.
 - **Live prompt testing** (`src/prompts.ts`) — a static read comparing prompt
   text against tool names/params misses argument-handling bugs (found this
   way in a sibling repo: a prompt silently dropped one of two independent
