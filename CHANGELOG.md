@@ -8,11 +8,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- Filter `discover_*` by country of origin (`with_origin_country`) and exclude companies or streaming services (`without_companies`, `without_watch_providers`) ([c86df49](https://github.com/Grinv/tmdb-mcp/commit/c86df49)).
-- Find movies released in a country within a date window, optionally by release type (`any_release_date_gte`/`_lte`, `with_release_type`) ([c86df49](https://github.com/Grinv/tmdb-mcp/commit/c86df49)).
-- Find TV shows with an episode airing in a date window (`air_date_gte`/`_lte`) ([c86df49](https://github.com/Grinv/tmdb-mcp/commit/c86df49)).
 - Add `search_collections` to find a franchise's collection id by name ([7e51069](https://github.com/Grinv/tmdb-mcp/commit/7e51069)).
 - Add `get_movie_releases` for movies in a country's cinemas now or opening soon ([b93b210](https://github.com/Grinv/tmdb-mcp/commit/b93b210)).
+- Filter `discover_*` by country of origin (`with_origin_country`) ([c86df49](https://github.com/Grinv/tmdb-mcp/commit/c86df49)).
+- Exclude companies or streaming services in `discover_*` (`without_companies`, `without_watch_providers`) ([c86df49](https://github.com/Grinv/tmdb-mcp/commit/c86df49)).
+- Find movies released in a country within a date window, optionally by release type (`any_release_date_gte`/`_lte`, `with_release_type`) ([c86df49](https://github.com/Grinv/tmdb-mcp/commit/c86df49)).
+- Find TV shows with an episode airing in a date window (`air_date_gte`/`_lte`) ([c86df49](https://github.com/Grinv/tmdb-mcp/commit/c86df49)).
 - Filter `discover_*` by access model (subscription, free, ads, rent, buy) with `with_watch_monetization_types` ([90316a9](https://github.com/Grinv/tmdb-mcp/commit/90316a9)).
 - Return `year` from `get_tv`, as `get_movie` already does ([e170e16](https://github.com/Grinv/tmdb-mcp/commit/e170e16)).
 - Add `exact_year` to `search_movies`, matching only the original release year ([a15a0e2](https://github.com/Grinv/tmdb-mcp/commit/a15a0e2)).
@@ -29,7 +30,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- Name only the TV tools in `recommend_similar` for a TV request, and reject a `count` of 0 in both prompts ([88db15e](https://github.com/Grinv/tmdb-mcp/commit/88db15e)).
+- Name only the TV tools in `recommend_similar` for a TV request ([88db15e](https://github.com/Grinv/tmdb-mcp/commit/88db15e)).
+- Reject a `count` of 0 in both prompts ([88db15e](https://github.com/Grinv/tmdb-mcp/commit/88db15e)).
 - Let `discover_*`'s `with_*` id filters match ANY id with `|`; a comma means ALL, so "Netflix or Prime" as `8,9` found nothing ([4f00340](https://github.com/Grinv/tmdb-mcp/commit/4f00340)).
 - Return English, original-language and untagged videos from `get_videos`, not just the configured language's few ([a15a0e2](https://github.com/Grinv/tmdb-mcp/commit/a15a0e2), [545b28c](https://github.com/Grinv/tmdb-mcp/commit/545b28c)).
 - Keep both credits in `get_person_credits` when a movie and a TV show share an id (Ron Perlman's `Hellboy` was dropped) ([761e2e4](https://github.com/Grinv/tmdb-mcp/commit/761e2e4)).
@@ -42,13 +44,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Fill `year` on `get_tv_shows` cards when TMDB gives only a year ([e170e16](https://github.com/Grinv/tmdb-mcp/commit/e170e16)).
 - Return `null`, not `"N/A"`, for a title or year OMDb doesn't have ([e170e16](https://github.com/Grinv/tmdb-mcp/commit/e170e16)).
 - State in PRIVACY.md which responses are cached and which are always fetched fresh ([4d0d623](https://github.com/Grinv/tmdb-mcp/commit/4d0d623)).
-- Publish to the MCP Registry only once npm serves the release, so it no longer fails on a 404 ([4521e8d](https://github.com/Grinv/tmdb-mcp/commit/4521e8d)).
 
 ### Security
 
 - Don't leave the checkout token on disk in the release jobs ([a45b7c9](https://github.com/Grinv/tmdb-mcp/commit/a45b7c9)).
 - Run dependency install scripts only in a release job that holds no publishing credentials ([2211c6e](https://github.com/Grinv/tmdb-mcp/commit/2211c6e)).
-- Stop a release whose tag doesn't match `package.json`, and create the GitHub Release only after npm serves the version ([2211c6e](https://github.com/Grinv/tmdb-mcp/commit/2211c6e)).
+- Refuse to publish a release whose tag doesn't match `package.json`'s version ([2211c6e](https://github.com/Grinv/tmdb-mcp/commit/2211c6e)).
 
 ## [0.12.0] - 2026-10-03
 
