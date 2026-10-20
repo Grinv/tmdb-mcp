@@ -80,6 +80,9 @@ rather than `latest` — it runs with live OIDC publishing credentials, so it
 gets the same pin discipline as everything else in this job — GitHub OIDC).
 Since `publish` runs no install step, never add a `prepare`/`prepack`/
 `prepublishOnly` script to `package.json` without revisiting this split.
+The build artifact is kept 7 days: re-running only the failed `publish` job
+works within that window; after it, re-run all jobs (which re-packs the
+`.mcpb`, so its SHA-256 changes).
 Never hand-edit the version in the derived files; bump `package.json` via
 `npm version` and let the hook sync the rest.
 
