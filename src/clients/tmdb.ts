@@ -183,9 +183,16 @@ class PartialSeasons extends Error {
   }
 }
 
+// "de-DE" → "de,en,null": the configured language, English, and videos with
+// no language tag.
+function videoLanguages(language: string): string {
+  return [...new Set([language.split("-")[0], "en", "null"])].join(",");
+}
+
 interface SearchParams {
   query: string;
   year?: number;
+  exact_year?: boolean;
   page?: number;
   include_adult?: boolean;
   language?: string;
@@ -271,7 +278,9 @@ export class TmdbClient {
       "search/movie",
       {
         query: p.query,
-        year: p.year,
+        // `year` matches any release date (re-releases included);
+        // primary_release_year only the original one.
+        ...(p.exact_year ? { primary_release_year: p.year } : { year: p.year }),
         page: p.page,
         include_adult: p.include_adult,
         region: p.region ?? this.#region,
@@ -857,7 +866,9 @@ export class TmdbClient {
       cacheKey(`${mediaType}-videos:${id}`, { language: this.#lang(language) }),
       `${mediaType}/${id}/videos`,
       summarizeVideos,
-      {},
+      // `language` alone filters videos down to that one language (29 → 2 for
+      // a title under de-DE); also include English and language-neutral ones.
+      { include_video_language: videoLanguages(this.#lang(language)) },
       language,
       onStale,
     );

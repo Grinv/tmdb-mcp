@@ -39,18 +39,37 @@ export function registerSearchTools(
         "country's release_date is shown per result (e.g. a title's US vs. India theatrical date) — " +
         "verified live, it does not filter which movies match or reorder them; for actual " +
         "region-based availability use get_watch_providers instead.",
-      inputSchema: z.strictObject({
-        query: z.string().min(1).describe("Movie title to search for."),
-        year: yearFilter(
-          "Bias results toward this release year — TMDB's search 'year' filter is soft: some " +
-            "results outside this year can still appear (unlike discover_movies' year filter, a " +
-            "hard primary_release_year match). For an exact-year filter, use discover_movies instead.",
-        ),
-        include_adult: includeAdult,
-        language,
-        region,
-        page: page.optional(),
-      }),
+      inputSchema: z
+        .strictObject({
+          query: z.string().min(1).describe("Movie title to search for."),
+          year: yearFilter(
+            "Bias results toward this release year. Soft by default: it matches any of a movie's " +
+              "release dates, so re-releases and older films still appear (verified live: 'alien' " +
+              "with year 2003 ranks the 1979 Alien first). Set exact_year to match only the " +
+              "original release year.",
+          ),
+          exact_year: z
+            .boolean()
+            .describe(
+              "Match `year` against the original (primary) release year only, dropping every " +
+                "movie first released in another year. Requires `year`.",
+            )
+            .optional(),
+          include_adult: includeAdult,
+          language,
+          region,
+          page: page.optional(),
+        })
+        .superRefine((v, ctx) => {
+          // Without `year`, exact_year would be silently ignored.
+          if (v.exact_year && v.year === undefined) {
+            ctx.addIssue({
+              code: "custom",
+              path: ["exact_year"],
+              message: "exact_year requires year.",
+            });
+          }
+        }),
       outputSchema: pageSchema(movieSummarySchema),
       annotations: READ_ONLY,
     },

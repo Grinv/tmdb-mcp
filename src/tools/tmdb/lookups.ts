@@ -48,11 +48,10 @@ export function registerLookupTools(
       title: "Get trailers & videos",
       description:
         "List trailers, teasers and clips for a movie or TV show; YouTube entries include a " +
-        "watch URL. Get the id from search_movies/search_tv. Results are filtered to the " +
-        "server's configured TMDB_LANGUAGE (default 'en-US') — this tool has no per-call " +
-        "language override, so a title with plenty of videos in other languages can come back " +
-        "with few or none if the server is configured for a different language (verified live: " +
-        "29 results for a title under 'en-US' vs. 2 under 'de-DE').",
+        "watch URL. Get the id from search_movies/search_tv. Returns videos in the server's " +
+        "configured TMDB_LANGUAGE (default 'en-US') plus English and untagged ones, so a non-English " +
+        "configuration still gets the original trailers; each entry's `language` says which. No " +
+        "per-call language override.",
       inputSchema: z.strictObject({ media_type: mediaKind, id: tmdbId }),
       outputSchema: videosSchema,
       annotations: READ_ONLY,

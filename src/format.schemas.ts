@@ -394,6 +394,10 @@ export const videosSchema = z.strictObject({
   results: z.array(
     z.strictObject({
       name: z.string().optional(),
+      language: z
+        .string()
+        .nullable()
+        .describe("ISO-639-1 code of the video's language, e.g. 'en'."),
       type: z.string().nullable(),
       site: z.string().nullable(),
       official: z.boolean().nullable(),

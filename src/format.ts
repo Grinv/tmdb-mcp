@@ -975,6 +975,7 @@ export function summarizePersonCredits(
 
 interface VideoEntry {
   name?: string;
+  iso_639_1?: string;
   key?: string;
   site?: string;
   type?: string;
@@ -989,6 +990,7 @@ interface VideosResponse {
 export function summarizeVideos(r: VideosResponse): z.infer<typeof videosSchema> {
   const results = (r.results ?? []).map((v) => ({
     name: v.name,
+    language: v.iso_639_1 || null,
     type: v.type || null,
     site: v.site || null,
     official: v.official ?? null,

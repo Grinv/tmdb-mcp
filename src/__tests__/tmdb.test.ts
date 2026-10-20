@@ -144,11 +144,34 @@ const COMBINED_CREDITS = {
   crew: [{ id: 2, media_type: "movie", title: "Producer Film", job: "Producer", popularity: 5 }],
 };
 
+// Same row shape as live /movie/603/videos.
 const VIDEOS = {
   id: 603,
   results: [
-    { name: "Trailer", key: "abc123", site: "YouTube", type: "Trailer", official: true },
-    { name: "Vimeo clip", key: "xyz", site: "Vimeo", type: "Clip", official: false },
+    {
+      iso_639_1: "en",
+      iso_3166_1: "US",
+      name: "Trailer",
+      key: "abc123",
+      site: "YouTube",
+      size: 1080,
+      type: "Trailer",
+      official: true,
+      published_at: "2021-12-09T17:00:01.000Z",
+      id: "61b23c0f2f3b17004252f2c4",
+    },
+    {
+      iso_639_1: "de",
+      iso_3166_1: "DE",
+      name: "Vimeo clip",
+      key: "xyz",
+      site: "Vimeo",
+      size: 720,
+      type: "Clip",
+      official: false,
+      published_at: "2019-03-30T10:00:00.000Z",
+      id: "5c9f4a7d0e0a26276c3f0b12",
+    },
   ],
 };
 
@@ -530,6 +553,36 @@ describe("search", () => {
     assert.equal(s.results[0]!.id, 603);
     assert.equal(s.results[0]!.title, "The Matrix");
     assert.equal(s.results[0]!.year, 1999);
+  });
+
+  test("search_movies sends a soft `year` by default and primary_release_year with exact_year", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    await using client = await connectServer(ENV);
+    await client.callTool({ name: "search_movies", arguments: { query: "alien", year: 2003 } });
+    await client.callTool({
+      name: "search_movies",
+      arguments: { query: "alien", year: 2003, exact_year: true },
+    });
+    const [soft, exact] = mock.calls
+      .filter((c) => c.url.includes("/search/movie"))
+      .map((c) => new URL(c.url).searchParams);
+    assert.equal(soft!.get("year"), "2003");
+    assert.equal(soft!.get("primary_release_year"), null);
+    assert.equal(exact!.get("primary_release_year"), "2003");
+    assert.equal(exact!.get("year"), null);
+  });
+
+  test("search_movies rejects exact_year without year instead of ignoring it", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    await using client = await connectServer(ENV);
+    const res = await client.callTool({
+      name: "search_movies",
+      arguments: { query: "alien", exact_year: true },
+    });
+    assert.equal(res.isError, true);
+    assert.equal(mock.calls.filter((c) => c.url.includes("/search/movie")).length, 0);
   });
 
   test("page beyond TMDB's 500-page cap is rejected before hitting TMDB", async (t) => {
@@ -1808,6 +1861,25 @@ describe("get_videos", () => {
     const s = res.structuredContent as { results: { url: string | null }[] };
     assert.equal(s.results[0]!.url, "https://www.youtube.com/watch?v=abc123");
     assert.equal(s.results[1]!.url, null);
+  });
+
+  // `language` alone makes TMDB drop every video in another language (live:
+  // 29 → 2 for a title under de-DE), so English and untagged ones are asked for too.
+  test("asks for the configured language plus English and untagged videos", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    await using client = await connectServer({ ...ENV, TMDB_LANGUAGE: "de-DE" });
+    const res = await client.callTool({
+      name: "get_videos",
+      arguments: { media_type: "movie", id: 603 },
+    });
+    const call = mock.calls.find((c) => c.url.includes("/videos"))!;
+    assert.equal(new URL(call.url).searchParams.get("include_video_language"), "de,en,null");
+    const s = res.structuredContent as { results: { language: string | null }[] };
+    assert.deepEqual(
+      s.results.map((v) => v.language),
+      ["en", "de"],
+    );
   });
 
   test("works for media_type tv", async (t) => {
