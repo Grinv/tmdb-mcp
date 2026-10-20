@@ -57,21 +57,29 @@ don't rely on the `preversion` hook alone to catch a skipped one:
    every file + commits `"release: vX.Y.Z"` + tags `vX.Y.Z`.
 5. `git push --follow-tags` — pushing the tag triggers `.github/workflows/release.yml`.
 
-The tag push (`v*`) runs the **Release** workflow: build → test
-→ pack `.mcpb` → extract `CHANGELOG.md`'s section for this version (fails loudly,
-not silently, if that section is empty — the workflow's own safety net for
-whatever slipped past `sync-version.mjs`/`preversion-check.mjs`) → GitHub Release
-→ `npm publish` (OIDC trusted publishing, with provenance, pinned to an exact
-verified-good npm version — no token; skipped without failing the job if this
-version is already on npm, so a re-run after a partial failure doesn't abort) →
-wait (up to 5 min) until npm actually serves the new version, since the MCP
-Registry 404s on one it doesn't yet (v0.12.0's first run failed that way) →
-inject the just-packed `.mcpb`'s SHA-256 into `server.json` (fails loudly if the
-injection didn't actually match a package, instead of silently leaving a stale
-hash) → **publish to the official MCP Registry** (`mcp-publisher`, pinned to an
-exact version + verified SHA-256 rather than `latest` — it runs with live OIDC
-publishing credentials, so it gets the same pin discipline as everything else
-in this job — GitHub OIDC).
+The tag push (`v*`) runs the **Release** workflow in two jobs. **build**
+(read-only permissions — the only job that runs `npm ci`, so dependency install
+scripts never see publishing credentials): check the tag equals `v` +
+`package.json`'s version (a hand-pushed mismatched tag fails here) → build →
+test → pack `.mcpb` → extract `CHANGELOG.md`'s section for this version (fails
+loudly, not silently, if that section is empty — the workflow's own safety net
+for whatever slipped past `sync-version.mjs`/`preversion-check.mjs`) → upload
+`dist/`, the `.mcpb` and the notes as an artifact. **publish** (`contents:
+write` + `id-token: write`, installs no dependencies): `npm publish` of the
+downloaded `dist/` (OIDC trusted publishing, with provenance, pinned to an
+exact verified-good npm version — no token; skipped without failing the job if
+this version is already on npm, so a re-run after a partial failure doesn't
+abort) → wait (up to 5 min) until npm actually serves the new version, since
+the MCP Registry 404s on one it doesn't yet (v0.12.0's first run failed that
+way) → GitHub Release (only now, so a failed npm publish never leaves a
+public half-release) → inject the just-packed `.mcpb`'s SHA-256 into
+`server.json` (fails loudly if the injection didn't actually match a package,
+instead of silently leaving a stale hash) → **publish to the official MCP
+Registry** (`mcp-publisher`, pinned to an exact version + verified SHA-256
+rather than `latest` — it runs with live OIDC publishing credentials, so it
+gets the same pin discipline as everything else in this job — GitHub OIDC).
+Since `publish` runs no install step, never add a `prepare`/`prepack`/
+`prepublishOnly` script to `package.json` without revisiting this split.
 Never hand-edit the version in the derived files; bump `package.json` via
 `npm version` and let the hook sync the rest.
 
