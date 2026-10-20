@@ -345,51 +345,6 @@ describe("TmdbClient: getTv(expand_episodes) on a show with more than 20 seasons
   });
 });
 
-describe("TmdbClient: getSimilar filters out results sharing only the source's broadest genre", () => {
-  test("keeps a candidate sharing every source genre, drops one sharing only one of two", async (t) => {
-    const mock = mockFetch((url) => {
-      if (url.includes("/movie/603/similar")) {
-        return jsonResponse(
-          pageOf([
-            { id: 1, title: "Full overlap", genre_ids: [28, 18] },
-            { id: 2, title: "Broad-genre-only overlap", genre_ids: [18] },
-          ]),
-        );
-      }
-      // The source title's own genres (Action 28 + Drama 18): two genres, so
-      // minSharedGenres requires both, not just the broader "Drama" (18).
-      return jsonResponse({
-        id: 603,
-        genres: [
-          { id: 28, name: "Action" },
-          { id: 18, name: "Drama" },
-        ],
-      });
-    });
-    installFetch(t, mock);
-    const s = await client().getSimilar("movie", 603);
-    assert.deepEqual(
-      s.results.map((r) => r.id),
-      [1],
-    );
-  });
-
-  test("passes results through unfiltered when the source's own genres can't be fetched", async (t) => {
-    const mock = mockFetch((url) => {
-      if (url.includes("/movie/603/similar")) {
-        return jsonResponse(pageOf([{ id: 1, title: "Anything", genre_ids: [999] }]));
-      }
-      return jsonResponse({}, { status: 500 }); // source genre lookup fails
-    });
-    installFetch(t, mock);
-    const s = await client({ HTTP_RETRIES: "0" }).getSimilar("movie", 603);
-    assert.deepEqual(
-      s.results.map((r) => r.id),
-      [1],
-    );
-  });
-});
-
 describe("TmdbClient: getReviews hits the right sub-resource per media type", () => {
   test("movie reviews vs tv reviews use distinct paths", async (t) => {
     const mock = mockFetch(() => jsonResponse(EMPTY_PAGE));
@@ -565,41 +520,6 @@ describe("TmdbClient: getTv(expand_episodes) degrades per chunk, keeps season or
       episode_count: 4,
       episodes: [],
     });
-  });
-});
-
-describe("TmdbClient: getSimilar's source-genre lookup survives a TMDB outage via the stale cache", () => {
-  test("keeps filtering with stale genre ids when the refresh fails", async (t) => {
-    t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
-    let detailDown = false;
-    const mock = mockFetch((url) => {
-      if (url.includes("/movie/603/similar")) {
-        return jsonResponse(
-          pageOf([
-            { id: 1, title: "Full overlap", genre_ids: [28, 18] },
-            { id: 2, title: "Broad-genre-only overlap", genre_ids: [18] },
-          ]),
-        );
-      }
-      if (detailDown) return jsonResponse({ status_code: 11 }, { status: 500 });
-      return jsonResponse({
-        id: 603,
-        genres: [
-          { id: 28, name: "Action" },
-          { id: 18, name: "Drama" },
-        ],
-      });
-    });
-    installFetch(t, mock);
-    const c = client({ HTTP_RETRIES: "0", CACHE_TTL_MS: "1" });
-    await c.getSimilar("movie", 603);
-    t.mock.timers.tick(5);
-    detailDown = true;
-    const s = await c.getSimilar("movie", 603);
-    assert.deepEqual(
-      s.results.map((r) => r.id),
-      [1],
-    );
   });
 });
 

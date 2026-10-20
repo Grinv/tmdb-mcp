@@ -347,18 +347,12 @@ export function registerDetailsTools(
       description:
         "Get titles TMDB considers similar to a given movie or TV show, based on shared genres " +
         "and keywords — a blunter heuristic than get_movie_recommendations'/get_tv_recommendations' " +
-        "behavioral (co-viewing) data, so results can still be thematically noisy (matching on a " +
-        "shared keyword despite an unrelated tone or plot). Results sharing only the source title's " +
-        "broadest genre (e.g. two titles that are both merely tagged 'Drama' among several genres) " +
-        "are filtered out per page, since a title with a common genre can otherwise return results " +
-        "spanning TMDB's entire catalog; a page can come back thin or empty for a niche title once " +
-        "that filter applies. `total_pages`/`total_results` reflect TMDB's raw, pre-filter counts, " +
-        "not how many titles actually pass this filter — don't use them to gauge how many genuinely " +
-        "similar titles exist or when to stop paging; expect per-page result counts well under 20, " +
-        "sometimes 0 (verified live: a real title returned total_pages:23897/total_results:477939 " +
-        "but only 3-6 actual results per page). Try recommendations first for thematically closer " +
-        "picks; use this when you specifically want genre/keyword-adjacent titles. Get the id from " +
-        "search_movies/search_tv.",
+        "behavioral (co-viewing) data, so results are often thematically noisy (verified live: The " +
+        "Matrix's first page mixes Videodrome and Dune with The Man with the Golden Gun). Returned " +
+        "exactly as TMDB ranks them, 20 per page; the list runs into the whole catalog " +
+        "(total_results 20001 for The Matrix), so only the first page or two are worth reading. " +
+        "Try recommendations first for thematically closer picks; use this when you specifically " +
+        "want genre/keyword-adjacent titles. Get the id from search_movies/search_tv.",
       inputSchema: z.strictObject({ media_type: mediaKind, id: tmdbId, page: page.optional() }),
       outputSchema: pageSchema(movieOrTvSchema),
       annotations: READ_ONLY,

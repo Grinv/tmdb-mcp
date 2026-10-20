@@ -227,10 +227,8 @@ const TV_SEASONS_APPENDED = {
 
 // /similar and /recommendations list rows carry `genre_ids` (bare numeric
 // ids), unlike /movie|/tv/{id}'s own `genres` (full {id,name} objects) — a
-// distinct fixture, not a reuse of MOVIE_DETAIL/TV_DETAIL, so getSimilar's
-// genre-overlap filter (which reads genre_ids) sees a shape matching the real
-// upstream list endpoints. genre_ids intentionally overlaps MOVIE_DETAIL's/
-// TV_DETAIL's own genres (28 "Action", 18 "Drama") so the filter passes them.
+// distinct fixture, not a reuse of MOVIE_DETAIL/TV_DETAIL, so it matches the
+// real upstream list endpoints.
 const MOVIE_LIST_ITEM = {
   id: 603,
   title: "The Matrix",
