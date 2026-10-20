@@ -904,6 +904,32 @@ export interface CombinedCredits {
   crew?: CombinedCreditEntry[];
 }
 
+// Keeps only the CombinedCreditEntry fields summarizePersonCredits reads, so
+// the raw response can be cached (and reshaped per department/limit) without
+// holding the full payload — a prolific person's is ~900 KB (Mel Blanc).
+// Must list the same keys as CombinedCreditEntry above.
+const CREDIT_KEYS = [
+  "id",
+  "media_type",
+  "title",
+  "name",
+  "character",
+  "job",
+  "department",
+  "release_date",
+  "first_air_date",
+  "vote_average",
+  "vote_count",
+  "popularity",
+  "genre_ids",
+] as const satisfies readonly (keyof CombinedCreditEntry)[];
+
+export function trimCombinedCredits(c: CombinedCredits): CombinedCredits {
+  const trim = (e: CombinedCreditEntry): CombinedCreditEntry =>
+    Object.fromEntries(CREDIT_KEYS.filter((k) => k in e).map((k) => [k, e[k]]));
+  return { cast: c.cast?.map(trim), crew: c.crew?.map(trim) };
+}
+
 // Movie and TV ids are separate TMDB namespaces — a person can have movie 1487
 // AND tv 1487 (Ron Perlman: Hellboy / Static Shock) — so dedupe keys need both.
 function creditKey(e: CombinedCreditEntry): string | undefined {

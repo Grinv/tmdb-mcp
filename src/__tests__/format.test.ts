@@ -14,6 +14,7 @@ import {
   summarizeFind,
   summarizePerson,
   summarizePersonCredits,
+  trimCombinedCredits,
   ratingsNotFound,
   ratingsYearConflict,
   summarizeRatings,
@@ -388,6 +389,45 @@ describe("summarizeWatchProviders", () => {
 });
 
 describe("summarizePersonCredits", () => {
+  // The cached raw response is trimmed first; the shaped result must not change.
+  test("trimCombinedCredits drops unread fields without changing the shaped credits", () => {
+    const raw = {
+      cast: [
+        {
+          adult: false,
+          backdrop_path: "/b.jpg",
+          id: 1487,
+          media_type: "movie" as const,
+          title: "Hellboy",
+          original_title: "Hellboy",
+          overview: "Long overview text…",
+          character: "Hellboy",
+          credit_id: "52fe4310c3a36847f8037e77",
+          release_date: "2004-04-02",
+          vote_average: 6.7,
+          vote_count: 7300,
+          popularity: 9.7,
+          genre_ids: [14, 28],
+        },
+      ],
+      crew: [
+        {
+          id: 1487,
+          media_type: "movie" as const,
+          title: "Hellboy",
+          job: "Producer",
+          department: "Production",
+          credit_id: "x",
+          popularity: 9.7,
+        },
+      ],
+    };
+    const trimmed = trimCombinedCredits(raw);
+    assert.equal("overview" in trimmed.cast![0]!, false);
+    assert.equal("credit_id" in trimmed.crew![0]!, false);
+    assert.deepEqual(summarizePersonCredits(trimmed), summarizePersonCredits(raw));
+  });
+
   // Live /person/2372/combined_credits (Ron Perlman): movie 1487 and tv 1487
   // are different titles — movie and TV ids are separate namespaces.
   test("a movie and a tv credit sharing a numeric id are both kept", () => {
