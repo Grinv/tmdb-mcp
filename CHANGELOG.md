@@ -28,6 +28,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Let `discover_*`'s `with_*` id filters match ANY id with `|`; a comma means ALL, so "Netflix or Prime" as `8,9` found nothing ([4f00340](https://github.com/Grinv/tmdb-mcp/commit/4f00340)).
 - Return English and untagged videos from `get_videos` on a non-English server, not just that language's few ([a15a0e2](https://github.com/Grinv/tmdb-mcp/commit/a15a0e2)).
 - Keep both credits in `get_person_credits` when a movie and a TV show share an id (Ron Perlman's `Hellboy` was dropped) ([761e2e4](https://github.com/Grinv/tmdb-mcp/commit/761e2e4)).
 - List a collection's undated, announced part last instead of first ([761e2e4](https://github.com/Grinv/tmdb-mcp/commit/761e2e4)).
@@ -41,6 +42,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Security
 
+- Don't leave the checkout token on disk in the release jobs ([a45b7c9](https://github.com/Grinv/tmdb-mcp/commit/a45b7c9)).
 - Run dependency install scripts only in a release job that holds no publishing credentials ([2211c6e](https://github.com/Grinv/tmdb-mcp/commit/2211c6e)).
 - Stop a release whose tag doesn't match `package.json`, and create the GitHub Release only after npm serves the version ([2211c6e](https://github.com/Grinv/tmdb-mcp/commit/2211c6e)).
 
