@@ -49,7 +49,8 @@ function imageUrl(path: string | null | undefined): string | null {
   return path ? `${TMDB_IMAGE_BASE}${path}` : null;
 }
 
-// "1994-09-23" → 1994. TMDB omits or blanks the date for unreleased entries.
+// "1994-09-23" → 1994 (also OMDb's "2008–2013"/"2008–" series years). TMDB
+// omits or blanks the date for unreleased entries; OMDb sends "N/A" → null.
 function year(date: string | null | undefined): number | null {
   if (!date) return null;
   const y = Number(date.slice(0, 4));
@@ -375,6 +376,7 @@ export function detailTv(t: TmdbTv, region: string): z.infer<typeof tvDetailSche
     tagline: t.tagline || null,
     overview: t.overview || null,
     type: t.type || null,
+    year: year(t.first_air_date),
     first_air_date: t.first_air_date || null,
     last_air_date: t.last_air_date || null,
     status: t.status || null,
@@ -452,7 +454,7 @@ export function tvCard(
     found: true,
     id: t.id,
     name: t.name,
-    year: year(t.first_air_date),
+    year: t.year,
     genres: t.genres,
     vote_average: t.vote_average,
     vote_count: t.vote_count,
@@ -1001,7 +1003,7 @@ export function summarizeVideos(r: VideosResponse): z.infer<typeof videosSchema>
 export interface FindResponse {
   movie_results?: TmdbMovie[];
   tv_results?: TmdbTv[];
-  person_results?: TmdbPerson[];
+  person_results?: TmdbMultiItem[];
   tv_episode_results?: unknown[];
   tv_season_results?: unknown[];
 }
@@ -1010,13 +1012,8 @@ export function summarizeFind(r: FindResponse): z.infer<typeof findSchema> {
   return findSchema.parse({
     movie_results: (r.movie_results ?? []).map(summarizeMovie),
     tv_results: (r.tv_results ?? []).map(summarizeTv),
-    person_results: (r.person_results ?? []).map((p) => ({
-      id: p.id,
-      media_type: "person",
-      name: p.name,
-      known_for_department: p.known_for_department || null,
-      profile_url: imageUrl(p.profile_path),
-    })),
+    // /find person rows carry the same fields as /search/person rows.
+    person_results: (r.person_results ?? []).map(summarizePerson),
   });
 }
 
@@ -1140,6 +1137,11 @@ export interface OmdbResponse {
   Ratings?: { Source?: string; Value?: string }[];
 }
 
+// OMDb fills every missing string field with the literal "N/A".
+function na(s: string | null | undefined): string | null {
+  return s && s !== "N/A" ? s : null;
+}
+
 // `notFoundOk: true` (the default) returns a soft { found: false } object
 // instead of throwing, so enrichment never fails a TMDB lookup.
 export function summarizeRatings(r: OmdbResponse): z.infer<typeof ratingsSchema> {
@@ -1156,16 +1158,16 @@ export function summarizeRatings(r: OmdbResponse): z.infer<typeof ratingsSchema>
   const rt = ratings.find((x) => x.source === "Rotten Tomatoes")?.value || null;
   return ratingsSchema.parse({
     found: true,
-    imdb_id: r.imdbID || null,
-    title: r.Title || null,
-    year: r.Year || null,
-    rated: r.Rated && r.Rated !== "N/A" ? r.Rated : null,
-    runtime: r.Runtime && r.Runtime !== "N/A" ? r.Runtime : null,
-    imdb_rating: r.imdbRating && r.imdbRating !== "N/A" ? r.imdbRating : null,
-    imdb_votes: r.imdbVotes && r.imdbVotes !== "N/A" ? r.imdbVotes : null,
-    metascore: r.Metascore && r.Metascore !== "N/A" ? r.Metascore : null,
+    imdb_id: na(r.imdbID),
+    title: na(r.Title),
+    year: na(r.Year),
+    rated: na(r.Rated),
+    runtime: na(r.Runtime),
+    imdb_rating: na(r.imdbRating),
+    imdb_votes: na(r.imdbVotes),
+    metascore: na(r.Metascore),
     rotten_tomatoes: rt,
-    awards: r.Awards && r.Awards !== "N/A" ? r.Awards : null,
+    awards: na(r.Awards),
     ratings,
   });
 }
@@ -1176,11 +1178,6 @@ export function summarizeRatings(r: OmdbResponse): z.infer<typeof ratingsSchema>
 // the same ratingsSchema.parse guarantee as the success path.
 export function ratingsNotFound(reason: string): z.infer<typeof ratingsSchema> {
   return ratingsSchema.parse({ found: false, reason });
-}
-
-function fourDigitYear(s: string | null | undefined): number | null {
-  const m = typeof s === "string" ? s.match(/\d{4}/) : null;
-  return m ? Number(m[0]) : null;
 }
 
 // Does an OMDb-by-imdb_id hit look like a *different* work than the TMDB entry
@@ -1194,8 +1191,8 @@ export function ratingsYearConflict(
   tmdbDate: string | null | undefined,
   omdbYear: string | null | undefined,
 ): boolean {
-  const a = fourDigitYear(tmdbDate);
-  const b = fourDigitYear(omdbYear);
+  const a = year(tmdbDate);
+  const b = year(omdbYear);
   if (a === null || b === null) return false;
   return Math.abs(a - b) > 2;
 }

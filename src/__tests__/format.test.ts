@@ -5,6 +5,7 @@ import {
   detailMovie,
   detailPerson,
   detailTv,
+  movieCard,
   page,
   summarizeCollection,
   summarizeCredits,
@@ -19,8 +20,10 @@ import {
   summarizeSeason,
   summarizeVideos,
   summarizeWatchProviders,
+  tvCard,
   type TmdbCredits,
   type TmdbMovie,
+  type TmdbMultiItem,
   type TmdbPerson,
   type TmdbTv,
 } from "../format.js";
@@ -187,6 +190,23 @@ describe("detailTv", () => {
     assert.equal(d.status, null);
     assert.equal(d.original_language, null);
     assert.equal(d.imdb_url, null);
+  });
+});
+
+describe("movieCard / tvCard", () => {
+  // Partial dates fail z.iso.date() and .catch(null) to null, so a card must
+  // take the detail's already-derived `year`, not re-derive it from the date.
+  test("a year-only date keeps its year on both detail and card, for TV like movies", () => {
+    const tv = detailTv({ id: 1, name: "X", first_air_date: "2008" }, "US");
+    assert.equal(tv.first_air_date, null);
+    assert.equal(tv.year, 2008);
+    const tc = tvCard(tv);
+    assert.ok(tc.found);
+    assert.equal(tc.year, 2008);
+
+    const mc = movieCard(detailMovie({ id: 1, title: "X", release_date: "2008" }, "US"));
+    assert.ok(mc.found);
+    assert.equal(mc.year, 2008);
   });
 });
 
@@ -636,6 +656,59 @@ describe("summarizeFind", () => {
     assert.equal(persons[0]!.name, "Leonardo DiCaprio");
   });
 
+  test("person_results rows get the same shape as search_people rows", () => {
+    // Mirrors a live /find/nm0000206?external_source=imdb_id person_results
+    // row (known_for trimmed to one entry, every key kept).
+    const s = summarizeFind({
+      movie_results: [],
+      tv_results: [],
+      person_results: [
+        {
+          adult: false,
+          id: 6384,
+          name: "Keanu Reeves",
+          original_name: "Keanu Reeves",
+          media_type: "person",
+          popularity: 30.5,
+          gender: 2,
+          known_for_department: "Acting",
+          profile_path: "/rRdru6REr9i3WIHv2mntpcgxnoY.jpg",
+          known_for: [
+            {
+              adult: false,
+              backdrop_path: "/backdrop.jpg",
+              genre_ids: [28, 878],
+              id: 603,
+              media_type: "movie",
+              original_language: "en",
+              original_title: "The Matrix",
+              overview: "Set in the 22nd century...",
+              popularity: 20.1,
+              poster_path: "/poster.jpg",
+              release_date: "1999-03-31",
+              softcore: false,
+              title: "The Matrix",
+              video: false,
+              vote_average: 8.2,
+              vote_count: 26000,
+            },
+          ],
+        } as unknown as TmdbMultiItem,
+      ],
+    });
+    assert.deepEqual(s.person_results, [
+      {
+        id: 6384,
+        media_type: "person",
+        name: "Keanu Reeves",
+        known_for_department: "Acting",
+        popularity: 30.5,
+        profile_url: "https://image.tmdb.org/t/p/w500/rRdru6REr9i3WIHv2mntpcgxnoY.jpg",
+        known_for: ["The Matrix"],
+      },
+    ]);
+  });
+
   test("an empty-string known_for_department in person_results degrades to null", () => {
     const s = summarizeFind({
       person_results: [{ id: 1, known_for_department: "" }],
@@ -775,6 +848,38 @@ describe("summarizeRatings", () => {
   });
 });
 
+describe("summarizeRatings N/A handling", () => {
+  test('every string field, title and year included, maps OMDb\'s "N/A" to null', () => {
+    const s = summarizeRatings({
+      Response: "True",
+      imdbID: "N/A",
+      Title: "N/A",
+      Year: "N/A",
+      Rated: "N/A",
+      Runtime: "N/A",
+      imdbRating: "N/A",
+      imdbVotes: "N/A",
+      Metascore: "N/A",
+      Awards: "N/A",
+      Ratings: [],
+    });
+    assert.deepEqual(s, {
+      found: true,
+      imdb_id: null,
+      title: null,
+      year: null,
+      rated: null,
+      runtime: null,
+      imdb_rating: null,
+      imdb_votes: null,
+      metascore: null,
+      rotten_tomatoes: null,
+      awards: null,
+      ratings: [],
+    });
+  });
+});
+
 describe("ratingsNotFound", () => {
   test("returns a schema-validated { found:false, reason }", () => {
     assert.deepEqual(ratingsNotFound("nope"), { found: false, reason: "nope" });
@@ -803,5 +908,6 @@ describe("ratingsYearConflict", () => {
     assert.equal(ratingsYearConflict("1999-01-01", null), false);
     assert.equal(ratingsYearConflict(undefined, undefined), false);
     assert.equal(ratingsYearConflict("", ""), false);
+    assert.equal(ratingsYearConflict("1999-01-01", "N/A"), false);
   });
 });

@@ -172,6 +172,7 @@ export const tvDetailSchema = z.strictObject({
   tagline: z.string().nullable(),
   overview: z.string().nullable(),
   type: z.string().nullable(),
+  year: z.number().nullable(),
   first_air_date: z.iso.date().nullable().catch(null),
   last_air_date: z.iso.date().nullable().catch(null),
   status: z.string().nullable(),
@@ -407,15 +408,7 @@ export const videosSchema = z.strictObject({
 export const findSchema = z.strictObject({
   movie_results: z.array(movieSummarySchema),
   tv_results: z.array(tvSummarySchema),
-  person_results: z.array(
-    z.strictObject({
-      id: z.number(),
-      media_type: z.literal("person"),
-      name: z.string().optional(),
-      known_for_department: z.string().nullable(),
-      profile_url: z.string().nullable(),
-    }),
-  ),
+  person_results: z.array(personSummarySchema),
 });
 
 // ---- summarizeSeason / summarizeEpisode -----------------------------------------------
@@ -546,11 +539,7 @@ export const movieCardSchema = z.discriminatedUnion("found", [
   cardNotFoundSchema,
 ]);
 
-// tvDetailSchema has no `year` field of its own (only first_air_date, unlike
-// movieDetailSchema) — picked fields cover id/name/genres/vote_average/
-// vote_count from the detail schema, `year` (derived from first_air_date, the
-// same derivation tvSummarySchema's shaper already does) is the one field
-// this can't inherit and must declare directly.
+// Picked from tvDetailSchema for the same no-drift reason as movieCardSchema.
 export const tvCardSchema = z.discriminatedUnion("found", [
   tvDetailSchema
     .pick({
@@ -558,15 +547,12 @@ export const tvCardSchema = z.discriminatedUnion("found", [
       name: true,
       genres: true,
       vote_average: true,
+      year: true,
       vote_count: true,
       number_of_seasons: true,
       number_of_episodes: true,
     })
-    .extend({
-      found: z.literal(true),
-      year: z.number().nullable(),
-      ratings: cardRatingsSchema.optional(),
-    })
+    .extend({ found: z.literal(true), ratings: cardRatingsSchema.optional() })
     .strict(),
   cardNotFoundSchema,
 ]);
