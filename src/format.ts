@@ -56,6 +56,12 @@ function year(date: string | null | undefined): number | null {
   return Number.isFinite(y) && y > 0 ? y : null;
 }
 
+// TMDB reports vote_average 0 alongside vote_count 0 for titles nobody has
+// rated yet (e.g. every unreleased movie) — that's "no score", not 0/10.
+function score(avg: number | undefined, count: number | undefined): number | null {
+  return count === 0 ? null : (avg ?? null);
+}
+
 // TMDB encodes gender as an int; expose the human label instead.
 function genderLabel(g: number | null | undefined): string | null {
   switch (g) {
@@ -281,7 +287,7 @@ export function summarizeMovie(m: TmdbMovie): z.infer<typeof movieSummarySchema>
     original_title: m.original_title !== m.title ? m.original_title : undefined,
     year: year(m.release_date),
     release_date: m.release_date || null,
-    vote_average: m.vote_average ?? null,
+    vote_average: score(m.vote_average, m.vote_count),
     vote_count: m.vote_count ?? null,
     overview: m.overview || null,
     poster_url: imageUrl(m.poster_path),
@@ -306,10 +312,10 @@ export function detailMovie(m: TmdbMovie, region: string): z.infer<typeof movieD
     overview: m.overview || null,
     year: year(m.release_date),
     release_date: m.release_date || null,
-    runtime_minutes: m.runtime ?? null,
+    runtime_minutes: m.runtime || null,
     status: m.status || null,
     genres: names(m.genres),
-    vote_average: m.vote_average ?? null,
+    vote_average: score(m.vote_average, m.vote_count),
     vote_count: m.vote_count ?? null,
     popularity: m.popularity ?? null,
     original_language: m.original_language || null,
@@ -345,7 +351,7 @@ export function summarizeTv(t: TmdbTv): z.infer<typeof tvSummarySchema> {
     original_name: t.original_name !== t.name ? t.original_name : undefined,
     year: year(t.first_air_date),
     first_air_date: t.first_air_date || null,
-    vote_average: t.vote_average ?? null,
+    vote_average: score(t.vote_average, t.vote_count),
     vote_count: t.vote_count ?? null,
     overview: t.overview || null,
     poster_url: imageUrl(t.poster_path),
@@ -388,7 +394,7 @@ export function detailTv(t: TmdbTv, region: string): z.infer<typeof tvDetailSche
       air_date: s.air_date || null,
     })),
     genres: names(t.genres),
-    vote_average: t.vote_average ?? null,
+    vote_average: score(t.vote_average, t.vote_count),
     vote_count: t.vote_count ?? null,
     popularity: t.popularity ?? null,
     original_language: t.original_language || null,
@@ -695,11 +701,15 @@ export interface TmdbCollection {
   parts?: TmdbMovie[];
 }
 
+// Sorts after any real ISO date, so announced-but-undated parts (TMDB sends
+// release_date "") land last instead of before the first film.
+const UNDATED = "9999";
+
 // A movie collection/franchise and its parts, ordered chronologically.
 export function summarizeCollection(c: TmdbCollection): z.infer<typeof collectionSchema> {
   const parts = (c.parts ?? [])
     .slice()
-    .sort((a, b) => (a.release_date || "").localeCompare(b.release_date || ""));
+    .sort((a, b) => (a.release_date || UNDATED).localeCompare(b.release_date || UNDATED));
   return collectionSchema.parse({
     id: c.id,
     name: c.name,
@@ -843,12 +853,19 @@ interface CombinedCreditEntry {
   release_date?: string; // movies
   first_air_date?: string; // tv
   vote_average?: number;
+  vote_count?: number;
   popularity?: number;
   genre_ids?: number[];
 }
 export interface CombinedCredits {
   cast?: CombinedCreditEntry[];
   crew?: CombinedCreditEntry[];
+}
+
+// Movie and TV ids are separate TMDB namespaces — a person can have movie 1487
+// AND tv 1487 (Ron Perlman: Hellboy / Static Shock) — so dedupe keys need both.
+function creditKey(e: CombinedCreditEntry): string | undefined {
+  return e.id === undefined ? undefined : `${e.media_type}:${e.id}`;
 }
 
 function creditTitle(e: CombinedCreditEntry): string | undefined {
@@ -921,7 +938,7 @@ export function summarizePersonCredits(
     (b.popularity ?? 0) - (a.popularity ?? 0);
   const cast = dedupeByKey(
     (c.cast ?? []).filter((e) => !isSelfAppearance(e)).sort(byPopularity),
-    (e) => e.id?.toString(),
+    creditKey,
   )
     .slice(0, limit)
     .map((e) => ({
@@ -930,17 +947,17 @@ export function summarizePersonCredits(
       title: creditTitle(e),
       year: creditYear(e),
       character: e.character || null,
-      vote_average: e.vote_average ?? null,
+      vote_average: score(e.vote_average, e.vote_count),
     }));
   const crewSource = department
     ? (c.crew ?? []).filter((e) => e.department === department)
     : (c.crew ?? []);
   const crew = capByUniqueTitle(
     dedupeByKey(crewSource.slice().sort(byPopularity), (e) =>
-      e.id !== undefined && e.job ? `${e.id}:${e.job}` : undefined,
+      e.id !== undefined && e.job ? `${creditKey(e)}:${e.job}` : undefined,
     ),
     limit,
-    (e) => e.id?.toString(),
+    creditKey,
   ).map((e) => ({
     id: e.id,
     media_type: e.media_type,
@@ -1056,8 +1073,8 @@ export function summarizeSeason(
       episode_number: e.episode_number ?? null,
       name: e.name || null,
       air_date: e.air_date || null,
-      runtime_minutes: e.runtime ?? null,
-      vote_average: e.vote_average ?? null,
+      runtime_minutes: e.runtime || null,
+      vote_average: e.vote_average || null,
       overview: includeEpisodeOverview ? e.overview || null : null,
     })),
   });
@@ -1083,8 +1100,8 @@ export function summarizeEpisode(
     imdb_url: imdbId ? `https://www.imdb.com/title/${imdbId}/` : null,
     name: e.name || null,
     air_date: e.air_date || null,
-    runtime_minutes: e.runtime ?? null,
-    vote_average: e.vote_average ?? null,
+    runtime_minutes: e.runtime || null,
+    vote_average: e.vote_average || null,
     overview: e.overview || null,
     still_url: imageUrl(e.still_path),
     guest_stars: (e.guest_stars ?? [])

@@ -117,6 +117,26 @@ describe("detailMovie", () => {
     assert.equal(d.original_language, null);
     assert.equal(d.imdb_url, null); // must agree with imdb_id, not treat "" as a real id
   });
+
+  // Live /movie/1003598 (Avengers: Secret Wars, status "Planned"): TMDB's
+  // "unknown" is a 0, not null/absent, for both the score and the runtime.
+  test("an unrated, unreleased movie's 0 score and 0 runtime degrade to null", () => {
+    const d = detailMovie(
+      {
+        id: 1003598,
+        title: "Avengers: Secret Wars",
+        release_date: "2027-12-15",
+        runtime: 0,
+        status: "Planned",
+        vote_average: 0,
+        vote_count: 0,
+      } as TmdbMovie,
+      "US",
+    );
+    assert.equal(d.vote_average, null);
+    assert.equal(d.vote_count, 0);
+    assert.equal(d.runtime_minutes, null);
+  });
 });
 
 describe("detailTv", () => {
@@ -282,6 +302,26 @@ describe("summarizeCollection", () => {
       [1, 3, 2],
     );
   });
+
+  // Live /collection/90863 (Rush Hour): the announced 4th film has
+  // release_date "", which used to sort before 1998.
+  test("an undated (announced) part sorts last, not first", () => {
+    const s = summarizeCollection({
+      id: 90863,
+      name: "Rush Hour Collection",
+      parts: [
+        { id: 2109, title: "Rush Hour", release_date: "1998-09-18" },
+        { id: 1059776, title: "Rush Hour 4", release_date: "" },
+        { id: 5174, title: "Rush Hour 3", release_date: "2007-08-08" },
+        { id: 5175, title: "Rush Hour 2", release_date: "2001-08-03" },
+      ] as TmdbMovie[],
+    });
+    const parts = s.parts as { id: number }[];
+    assert.deepEqual(
+      parts.map((p) => p.id),
+      [2109, 5175, 5174, 1059776],
+    );
+  });
 });
 
 describe("summarizeWatchProviders", () => {
@@ -325,6 +365,47 @@ describe("summarizeWatchProviders", () => {
 });
 
 describe("summarizePersonCredits", () => {
+  // Live /person/2372/combined_credits (Ron Perlman): movie 1487 and tv 1487
+  // are different titles — movie and TV ids are separate namespaces.
+  test("a movie and a tv credit sharing a numeric id are both kept", () => {
+    const s = summarizePersonCredits({
+      cast: [
+        {
+          id: 1487,
+          media_type: "movie",
+          title: "Hellboy",
+          character: "Hellboy",
+          release_date: "2004-04-02",
+          popularity: 9.7143,
+        },
+        {
+          id: 1487,
+          media_type: "tv",
+          name: "Static Shock",
+          character: "Heavyman / Koenig (voice)",
+          first_air_date: "2000-09-23",
+          popularity: 27.3873,
+        },
+      ],
+      crew: [
+        { id: 1487, media_type: "movie", title: "Hellboy", job: "Producer", popularity: 9.7 },
+        { id: 1487, media_type: "tv", name: "Static Shock", job: "Producer", popularity: 27.4 },
+      ],
+    });
+    assert.deepEqual(
+      s.cast.map((x) => x.title),
+      ["Static Shock", "Hellboy"],
+    );
+    assert.equal(s.crew.length, 2);
+  });
+
+  test("a 0 score from 0 votes degrades to null", () => {
+    const s = summarizePersonCredits({
+      cast: [{ id: 1, media_type: "movie", title: "Upcoming", vote_average: 0, vote_count: 0 }],
+    });
+    assert.equal(s.cast[0]!.vote_average, null);
+  });
+
   test("sorted by popularity descending and capped at limit", () => {
     const s = summarizePersonCredits(
       {
