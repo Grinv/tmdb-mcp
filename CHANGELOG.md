@@ -18,6 +18,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Return `get_similar` as TMDB ranks it, 20 per page, without the genre filter that left pages short or empty ([a2f1fc5](https://github.com/Grinv/tmdb-mcp/commit/a2f1fc5)).
 - Fetch a movie's or show's details and watch providers once, not once per `region` ([53d377c](https://github.com/Grinv/tmdb-mcp/commit/53d377c)).
 - Fetch a person's credits once per language in `get_person_credits`, not once per `department`/`limit` ([5b6fe6b](https://github.com/Grinv/tmdb-mcp/commit/5b6fe6b)).
 
@@ -31,7 +32,6 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Reject an inverted `release_date_gte`/`release_date_lte` range in `discover_*` instead of returning no results ([5b6fe6b](https://github.com/Grinv/tmdb-mcp/commit/5b6fe6b)).
 - Name the cause, such as a rejected OMDb key, when `get_movie`/`get_tv` can't fetch ratings ([5b6fe6b](https://github.com/Grinv/tmdb-mcp/commit/5b6fe6b)).
 - Keep the seasons that loaded when one of `expand_episodes`' requests fails, and don't cache that partial result ([5b6fe6b](https://github.com/Grinv/tmdb-mcp/commit/5b6fe6b), [aa430fc](https://github.com/Grinv/tmdb-mcp/commit/aa430fc)).
-- Keep `get_similar`'s genre filter on while TMDB is briefly unreachable ([5b6fe6b](https://github.com/Grinv/tmdb-mcp/commit/5b6fe6b)).
 - Fill `year` on `get_tv_shows` cards when TMDB gives only a year ([e170e16](https://github.com/Grinv/tmdb-mcp/commit/e170e16)).
 - Return `null`, not `"N/A"`, for a title or year OMDb doesn't have ([e170e16](https://github.com/Grinv/tmdb-mcp/commit/e170e16)).
 
