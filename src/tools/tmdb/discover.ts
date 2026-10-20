@@ -71,9 +71,23 @@ const idList = (desc: string) =>
     .regex(idListRegex, 'Expected comma-separated numeric TMDB ids, e.g. "28,12".')
     .describe(desc)
     .optional();
-const withGenres = idList(
-  "Comma-separated TMDB genre ids (AND); get ids from get_movie_genres/get_tv_genres.",
-);
+// with_* filters: TMDB reads "," as AND and "|" as OR (verified live on
+// /discover/movie: Netflix=8 → 54, Prime=9 → 19, "8,9" → 0, "8|9" → 73; same
+// for with_cast, with_genres, with_networks). One separator per value — a mix
+// is rejected rather than guessed at.
+const idMatchRegex = /^\d+(?:(?:,\d+)*|(?:\|\d+)*)$/;
+const ID_MATCH_HINT =
+  ' Join several ids with "," to require ALL of them, or "|" to match ANY (e.g. "8|9").';
+const idMatch = (desc: string) =>
+  z
+    .string()
+    .regex(
+      idMatchRegex,
+      'Expected numeric TMDB ids joined by "," (all) or "|" (any), e.g. "28,12".',
+    )
+    .describe(desc + ID_MATCH_HINT)
+    .optional();
+const withGenres = idMatch("TMDB genre ids; get them from get_movie_genres/get_tv_genres.");
 // TMDB's with_original_language discover filter, unlike `language` above,
 // takes a plain ISO-639-1 code with no region suffix.
 const originalLanguageRegex = /^[a-z]{2}$/;
@@ -125,8 +139,8 @@ const discoverShared = {
         "codes match ANY of them. An unknown code matches nothing.",
     )
     .optional(),
-  with_companies: idList(
-    "Comma-separated TMDB production company ids (use search_companies to resolve names → ids).",
+  with_companies: idMatch(
+    "TMDB production company ids (use search_companies to resolve names → ids).",
   ),
   // Verified live (/discover/movie, primary_release_year=2019&vote_count.gte=1000
   // → 186; Marvel=420 has 3, Disney=2 has 6): without_companies=420 → 183,
@@ -137,14 +151,12 @@ const discoverShared = {
     "Comma-separated TMDB production company ids to exclude: titles produced by ANY of them " +
       "are dropped (use search_companies to resolve names → ids).",
   ),
-  with_keywords: idList(
-    "Comma-separated TMDB keyword ids (use search_keywords to resolve names → ids).",
-  ),
+  with_keywords: idMatch("TMDB keyword ids (use search_keywords to resolve names → ids)."),
   without_keywords: idList(
     "Comma-separated TMDB keyword ids to exclude (use search_keywords to resolve names → ids).",
   ),
-  with_watch_providers: idList(
-    "Comma-separated TMDB watch-provider ids (use search_watch_providers to resolve a " +
+  with_watch_providers: idMatch(
+    "TMDB watch-provider ids (use search_watch_providers to resolve a " +
       "service name, e.g. 'Netflix', to its numeric id); requires watch_region to also be set.",
   ),
   // Verified live (/discover/movie, primary_release_year=2019&vote_count.gte=1000
@@ -250,16 +262,16 @@ const discoverMovieSchema = {
     .enum(MOVIE_SORT_BY)
     .describe("Sort order. Defaults to TMDB's own default (roughly popularity-based) if omitted.")
     .optional(),
-  with_cast: idList(
-    "Comma-separated TMDB person ids, restricted to cast (actor) roles. Use search_people to " +
+  with_cast: idMatch(
+    "TMDB person ids, restricted to cast (actor) roles. Use search_people to " +
       "resolve an actor's name to their id.",
   ),
-  with_crew: idList(
-    "Comma-separated TMDB person ids, restricted to crew roles (e.g. a director). Use " +
+  with_crew: idMatch(
+    "TMDB person ids, restricted to crew roles (e.g. a director). Use " +
       "search_people to resolve a name to their id.",
   ),
-  with_people: idList(
-    "Comma-separated TMDB person ids, matching either a cast or crew role. Use search_people " +
+  with_people: idMatch(
+    "TMDB person ids, matching either a cast or crew role. Use search_people " +
       "to resolve a name to their id.",
   ),
   // TMDB's release_date.gte/lte (NOT primary_release_date, which
@@ -362,8 +374,8 @@ const discoverTvSchema = {
         "'original_title'/'primary_release_date', and no 'revenue' (TMDB doesn't track it per-show).",
     )
     .optional(),
-  with_networks: idList(
-    "Comma-separated TMDB TV network ids, e.g. HBO=49, Netflix=213 (verified live). Unlike " +
+  with_networks: idMatch(
+    "TMDB TV network ids, e.g. HBO=49, Netflix=213 (verified live). Unlike " +
       "with_companies/with_keywords/with_people, this server has no name-based resolver for " +
       "networks — supply the raw TMDB network id directly; a well-known network's id may " +
       "already be known, otherwise there's no in-server way to look one up.",

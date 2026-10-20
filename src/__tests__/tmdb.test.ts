@@ -1330,6 +1330,26 @@ describe("discover_movies", () => {
     assert.match(u, /with_genres=28(%2C|,)878/);
   });
 
+  // TMDB reads "," as AND and "|" as OR: "Netflix or Prime" as "8,9" returns
+  // 0 results live, "8|9" returns both catalogs.
+  test("passes a |-joined (OR) with_* id list through, and rejects a mixed one", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    await using client = await connectServer(ENV);
+    const ok = await client.callTool({
+      name: "discover_movies",
+      arguments: { with_watch_providers: "8|9", watch_region: "US" },
+    });
+    assert.notEqual(ok.isError, true);
+    const u = mock.calls.find((c) => c.url.includes("/discover/movie"))!.url;
+    assert.equal(new URL(u).searchParams.get("with_watch_providers"), "8|9");
+    const mixed = await client.callTool({
+      name: "discover_movies",
+      arguments: { with_genres: "28,12|878" },
+    });
+    assert.equal(mixed.isError, true);
+  });
+
   test("accepts a movie-only sort_by value (revenue.desc)", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
