@@ -448,12 +448,13 @@ describe("TmdbClient: getTv(expand_episodes) degrades per chunk, keeps season or
       episode_count: 5,
       air_date: "2008-01-20",
     }));
+    let failSecondChunk = true;
     const mock = mockFetch((url) => {
       if (!url.includes("append_to_response=season")) {
         return jsonResponse({ id: 1, name: "Long Runner", seasons });
       }
       const requested = requestedSeasons(url);
-      if (requested.includes(21)) {
+      if (failSecondChunk && requested.includes(21)) {
         return jsonResponse(
           { status_code: 11, status_message: "Internal error." },
           { status: 500 },
@@ -464,7 +465,8 @@ describe("TmdbClient: getTv(expand_episodes) degrades per chunk, keeps season or
       return jsonResponse(body);
     });
     installFetch(t, mock);
-    const s = await client({ HTTP_RETRIES: "0" }).getTv(1, "US", undefined, true);
+    const c = client({ HTTP_RETRIES: "0" });
+    const s = await c.getTv(1, "US", undefined, true);
     const detail = s.seasons_detail!;
     assert.deepEqual(
       detail.map((x) => x.season_number),
@@ -476,6 +478,12 @@ describe("TmdbClient: getTv(expand_episodes) degrades per chunk, keeps season or
       assert.equal(x.episode_count, 5); // from the show's own season metadata
       assert.equal(x.name, `Season ${x.season_number}`);
     }
+
+    // The partial result must not be cached: once TMDB recovers, the next
+    // call refetches and gets every season's episodes.
+    failSecondChunk = false;
+    const again = await c.getTv(1, "US", undefined, true);
+    for (const x of again.seasons_detail!) assert.equal(x.episodes.length, 5);
   });
 
   test("rethrows when every chunk fails, so a stale cached value can still be served", async (t) => {
