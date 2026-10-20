@@ -30,14 +30,43 @@ export function registerPrompts(server: McpServer): void {
           .optional(),
         count: z
           .string()
-          .regex(/^\d+$/, "count must be a whole number, e.g. '5'.")
+          .regex(/^[1-9]\d*$/, "count must be a positive whole number, e.g. '5'.")
           .describe(`How many recommendations to return (default ${COUNT_DEFAULT}).`)
           .optional(),
       }),
     },
     ({ title, media_type, count }) => {
       const n = count ?? COUNT_DEFAULT;
-      const kindHint = media_type ? ` (a ${media_type})` : "";
+      const kindHint = media_type ? ` (a ${media_type === "tv" ? "TV show" : "movie"})` : "";
+      // Name only the given media type's tools, so a TV request isn't told to
+      // weigh get_movie_recommendations.
+      const t =
+        media_type === "tv"
+          ? {
+              search: "search_tv",
+              recs: "get_tv_recommendations",
+              discover: "discover_tv",
+              batch: "get_tv_shows",
+              detail: "get_tv",
+              what: "TV shows",
+            }
+          : media_type === "movie"
+            ? {
+                search: "search_movies",
+                recs: "get_movie_recommendations",
+                discover: "discover_movies",
+                batch: "get_movies",
+                detail: "get_movie",
+                what: "movies",
+              }
+            : {
+                search: "search_multi",
+                recs: "get_movie_recommendations/get_tv_recommendations",
+                discover: "discover_movies/discover_tv",
+                batch: "get_movies/get_tv_shows",
+                detail: "get_movie/get_tv",
+                what: "movies or TV shows",
+              };
       return {
         description: `Recommend titles similar to "${title}"`,
         messages: [
@@ -46,19 +75,18 @@ export function registerPrompts(server: McpServer): void {
             content: {
               type: "text",
               text:
-                `I liked "${title}"${kindHint}. Recommend ${n} similar movies or TV shows using ` +
+                `I liked "${title}"${kindHint}. Recommend ${n} similar ${t.what} using ` +
                 `the available tools — don't rely on your own memory for the candidate list or ratings.\n\n` +
-                `1. Resolve "${title}" to a TMDB id: use search_multi (or search_movies/search_tv if the ` +
-                `media type is already known) and pick the best match.\n` +
-                `2. Call get_similar and get_movie_recommendations/get_tv_recommendations for that id and ` +
-                `merge the candidates — weigh get_movie_recommendations as the stronger signal (it's ` +
+                `1. Resolve "${title}" to a TMDB id: use ${t.search}${media_type ? "" : " (or search_movies/search_tv if the media type is already known)"} and pick the best match.\n` +
+                `2. Call get_similar and ${t.recs} for that id and ` +
+                `merge the candidates — weigh ${t.recs} as the stronger signal (it's ` +
                 `behavioral/co-viewing data), and use get_similar's genre/keyword matches mainly to fill ` +
                 `gaps, discarding any that don't actually fit thematically.\n` +
-                `3. If that pool has fewer than ${n} good candidates, broaden with discover_movies/` +
-                `discover_tv filtered to the same genres.\n` +
-                `4. Once you've picked the best ${n} ids, call get_movies/get_tv_shows with ` +
-                `include_ratings=true (not get_movie/get_tv per title) to get title, year and ratings ` +
-                `together — get_movies/get_tv_shows caps each call at 20 ids, so split into multiple ` +
+                `3. If that pool has fewer than ${n} good candidates, broaden with ${t.discover} ` +
+                `filtered to the same genres.\n` +
+                `4. Once you've picked the best ${n} ids, call ${t.batch} with ` +
+                `include_ratings=true (not ${t.detail} per title) to get title, year and ratings ` +
+                `together — ${t.batch} caps each call at 20 ids, so split into multiple ` +
                 `calls if ${n} is more than that. Return each with a one-line reason it fits.`,
             },
           },
@@ -101,7 +129,7 @@ export function registerPrompts(server: McpServer): void {
           .optional(),
         count: z
           .string()
-          .regex(/^\d+$/, "count must be a whole number, e.g. '5'.")
+          .regex(/^[1-9]\d*$/, "count must be a positive whole number, e.g. '5'.")
           .describe(`How many titles to return (default ${COUNT_DEFAULT}).`)
           .optional(),
       }),

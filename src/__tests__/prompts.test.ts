@@ -38,6 +38,28 @@ describe("recommend_similar prompt", () => {
     assert.match(text, /Recommend 3/);
   });
 
+  // A TV request used to be told to weigh get_movie_recommendations.
+  test("names only the TV tools for media_type tv", async () => {
+    await using client = await connectServer({});
+    const res = await client.getPrompt({
+      name: "recommend_similar",
+      arguments: { title: "Alien", media_type: "tv" },
+    });
+    const text = contentText(res.messages[0]!.content);
+    assert.match(text, /\(a TV show\)/);
+    for (const tool of ["search_tv", "get_tv_recommendations", "discover_tv", "get_tv_shows"]) {
+      assert.match(text, new RegExp(tool));
+    }
+    assert.doesNotMatch(text, /get_movie|discover_movies|search_movies|search_multi/);
+  });
+
+  test("rejects count 0", async () => {
+    await using client = await connectServer({});
+    await assert.rejects(() =>
+      client.getPrompt({ name: "recommend_similar", arguments: { title: "Dune", count: "0" } }),
+    );
+  });
+
   test("rejects a non-numeric count via the argument schema", async () => {
     await using client = await connectServer({});
     await assert.rejects(() =>
