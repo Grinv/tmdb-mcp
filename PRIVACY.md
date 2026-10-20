@@ -47,14 +47,18 @@ logging service, and no server run by its maintainer.
 
 ## Storage and retention
 
-- **Caching**: successful API responses are cached in the server process's
-  own memory only (never written to disk) to cut latency and avoid hammering
+- **Caching**: successful detail and reference responses (titles, people,
+  credits, collections, seasons/episodes, videos, watch providers, genre and
+  provider lists, IMDb-id lookups, OMDb ratings) are cached in the server
+  process's own memory only (never written to disk) to cut latency and avoid hammering
   TMDB/OMDb. An entry is served as fresh for a short configurable TTL
   (`CACHE_TTL_MS`, default 5 minutes); after that it stays in memory as a
   fallback for when TMDB/OMDb is unreachable, until it's refreshed, evicted
   (at most 500 entries per upstream, oldest first) or the process exits. The
   cache is cleared entirely when the process exits and is never shared across
-  machines or users.
+  machines or users. Search, discover, similar/recommendations, reviews,
+  trending and cinema-release lists are never cached; each call fetches them
+  fresh.
 - **Logging**: operational logs go to stderr only (never a file, never a
   remote endpoint), with credentials stripped before anything is written.
   Log verbosity is controlled by `LOG_LEVEL` (default `info`); logs live only
@@ -67,7 +71,7 @@ logging service, and no server run by its maintainer.
 Material changes will be noted in [CHANGELOG.md](CHANGELOG.md) and reflected
 here, at the same URL, with the effective date below updated.
 
-_Last updated: 2026-07-29._
+_Last updated: 2026-10-20._
 
 ## Contact
 

@@ -692,7 +692,7 @@ export function registerDiscoverTools(
       description:
         "Find movies by structured filters instead of a title query: genres (include/exclude), " +
         "year or release-date range, TMDB vote-average range, vote count, runtime range, original language, " +
-        "cast/crew/people, companies (include/exclude), origin country, keywords, watch providers " +
+        "cast/crew/people, companies (include/exclude), origin country, keywords (include/exclude), watch providers " +
         "(include/exclude) and access model (subscription/rent/buy/free/ads), certification, " +
         "a release window in one country by release type (any_release_date_gte/lte + region + " +
         "with_release_type — e.g. 'movies in German cinemas this month'), an adult-content " +
@@ -718,9 +718,9 @@ export function registerDiscoverTools(
     {
       title: "Discover TV shows (filters)",
       description:
-        "Find TV shows by structured filters (genres, first-air year or date range, TMDB vote-average range, " +
+        "Find TV shows by structured filters (genres (include/exclude), first-air year or date range, TMDB vote-average range, " +
         "vote count, runtime, language, origin country, companies (include/exclude), networks, " +
-        "keywords, watch providers (include/exclude) and access model (subscription/rent/buy/" +
+        "keywords (include/exclude), watch providers (include/exclude) and access model (subscription/rent/buy/" +
         "free/ads), episodes airing in a date range (air_date_gte/lte), type, " +
         "status, certification, an adult-content toggle, sort) — but NOT cast/crew/person: this " +
         "tool doesn't accept those " +

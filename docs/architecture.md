@@ -49,7 +49,7 @@ callback threaded from `wrapStaleOnError` up through the client method up to
 the tool handler (see the AGENTS.md convention), which attaches
 `_meta: {"tmdb-mcp/stale": true}` — a sibling of `structuredContent`, per the
 MCP spec's `_meta` mechanism, not a field inside it. Every other `search_*`/
-`discover_*`/`get_similar`/`get_recommendations`/`get_reviews`/`get_trending`/
+`discover_*`/`get_similar`/`get_*_recommendations`/`get_reviews`/`get_trending`/
 `get_movie_releases` is never cached
 in the first place (see `clients/tmdb.ts`), so it can never go stale;
 `search_watch_providers` is the one exception — it caches TMDB's provider

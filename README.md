@@ -86,33 +86,33 @@ See [docs/clients.md](https://github.com/Grinv/tmdb-mcp/blob/main/docs/clients.m
 
 ## What it does
 
-| Tool                                                   | Purpose                                                                                                                                                  |
-| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `search_movies` / `search_tv` / `search_people`        | Find titles/people by name → TMDB id                                                                                                                     |
-| `search_multi`                                         | Search movies, TV and people at once (each row has a `media_type`)                                                                                       |
-| `get_movie` / `get_tv`                                 | Full details **+ IMDb/RT/Metacritic ratings** (toggle with `include_ratings`)                                                                            |
-| `get_movies` / `get_tv_shows`                          | Compact card(s) (title/year/genres/vote average, ratings opt-in) for 1-20 ids in one call                                                                |
-| `get_person`                                           | Biography, department, links                                                                                                                             |
-| `get_movie_credits` / `get_tv_credits`                 | Top-billed cast and headline crew (TV: whole run, ranked by episode count)                                                                               |
-| `get_movie_recommendations` / `get_tv_recommendations` | Recommendations from co-viewing data (what fans also liked)                                                                                              |
-| `get_similar`                                          | Algorithmically similar titles (`media_type` + id)                                                                                                       |
-| `get_trending`                                         | What's popular now (movies / TV / people, day or week)                                                                                                   |
-| `get_movie_releases`                                   | Movies in cinemas now (`now_playing`) or opening soon (`upcoming`) in a country, with TMDB's date window                                                 |
-| `get_movie_genres` / `get_tv_genres`                   | Genre id ↔ name reference                                                                                                                                |
-| `discover_movies`                                      | Filter by genre, date range, rating, cast/crew, companies, origin country, keywords, providers (+/-, access type), certification, regional release dates |
-| `discover_tv`                                          | Same, plus networks/type/status and episodes airing in a date range, but no cast/crew/person filter (use `get_person_credits` for that)                  |
-| `get_watch_providers`                                  | Where to stream/rent/buy, by region (JustWatch via TMDB)                                                                                                 |
-| `get_person_credits`                                   | A person's filmography (cast & crew)                                                                                                                     |
-| `get_videos`                                           | Trailers/teasers/clips (YouTube links)                                                                                                                   |
-| `get_reviews`                                          | User reviews (author, rating, text) for a movie/TV                                                                                                       |
-| `get_collection`                                       | A movie franchise/collection and its parts, in release order                                                                                             |
-| `find_by_imdb_id`                                      | Resolve an IMDb id → TMDB movie/TV/person                                                                                                                |
-| `get_tv_season` / `get_tv_episode`                     | Season episode list / single-episode details                                                                                                             |
-| `search_keywords`                                      | Resolve keyword names → ids for `discover_*`                                                                                                             |
-| `search_companies`                                     | Resolve a production company name → id for `discover_*`'s `with_companies`                                                                               |
-| `search_collections`                                   | Resolve a franchise name (e.g. 'harry potter') → collection id for `get_collection`                                                                      |
-| `search_watch_providers`                               | Resolve a streaming/rental service name (e.g. 'Netflix') → id for `discover_*`'s `with_watch_providers`                                                  |
-| `get_ratings`                                          | IMDb/RT/Metacritic ratings by IMDb id or title (standalone)                                                                                              |
+| Tool                                                   | Purpose                                                                                                                                                            |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `search_movies` / `search_tv` / `search_people`        | Find titles/people by name → TMDB id                                                                                                                               |
+| `search_multi`                                         | Search movies, TV and people at once (each row has a `media_type`)                                                                                                 |
+| `get_movie` / `get_tv`                                 | Full details **+ IMDb/RT/Metacritic ratings** (toggle with `include_ratings`)                                                                                      |
+| `get_movies` / `get_tv_shows`                          | Compact card(s) (title/year/genres/vote average, ratings opt-in) for 1-20 ids in one call                                                                          |
+| `get_person`                                           | Biography, department, links                                                                                                                                       |
+| `get_movie_credits` / `get_tv_credits`                 | Top-billed cast and headline crew (TV: whole run, ranked by episode count)                                                                                         |
+| `get_movie_recommendations` / `get_tv_recommendations` | Recommendations from co-viewing data (what fans also liked)                                                                                                        |
+| `get_similar`                                          | Algorithmically similar titles (`media_type` + id)                                                                                                                 |
+| `get_trending`                                         | What's popular now (movies / TV / people, day or week)                                                                                                             |
+| `get_movie_releases`                                   | Movies in cinemas now (`now_playing`) or opening soon (`upcoming`) in a country, with TMDB's date window                                                           |
+| `get_movie_genres` / `get_tv_genres`                   | Genre id ↔ name reference                                                                                                                                          |
+| `discover_movies`                                      | Filter by genre, date range, rating, cast/crew, companies, origin country, keywords, providers (+/-, access type), certification, regional release dates           |
+| `discover_tv`                                          | Same, plus networks/type/status and episodes airing in a date range, but no cast/crew/person or regional release-date filter (use `get_person_credits` for people) |
+| `get_watch_providers`                                  | Where to stream/rent/buy, by region (JustWatch via TMDB)                                                                                                           |
+| `get_person_credits`                                   | A person's filmography (cast & crew)                                                                                                                               |
+| `get_videos`                                           | Trailers/teasers/clips (YouTube links)                                                                                                                             |
+| `get_reviews`                                          | User reviews (author, rating, text) for a movie/TV                                                                                                                 |
+| `get_collection`                                       | A movie franchise/collection and its parts, in release order                                                                                                       |
+| `find_by_imdb_id`                                      | Resolve an IMDb id → TMDB movie/TV/person                                                                                                                          |
+| `get_tv_season` / `get_tv_episode`                     | Season episode list / single-episode details                                                                                                                       |
+| `search_keywords`                                      | Resolve keyword names → ids for `discover_*`                                                                                                                       |
+| `search_companies`                                     | Resolve a production company name → id for `discover_*`'s `with_companies`                                                                                         |
+| `search_collections`                                   | Resolve a franchise name (e.g. 'harry potter') → collection id for `get_collection`                                                                                |
+| `search_watch_providers`                               | Resolve a streaming/rental service name (e.g. 'Netflix') → id for `discover_*`'s `with_watch_providers`                                                            |
+| `get_ratings`                                          | IMDb/RT/Metacritic ratings by IMDb id or title (standalone)                                                                                                        |
 
 **Prompts.** Alongside the tools above, the server exposes two MCP prompts:
 `recommend_similar` (`title`, optional `media_type`, optional `count`) plans a
@@ -136,9 +136,10 @@ the `ratings` field just reports that it is unconfigured.
 
 **Localization.** Set `TMDB_LANGUAGE` (e.g. `ru-RU`) and `TMDB_REGION` (e.g.
 `RU`) to get localized titles/overviews/genre names and region-specific
-certifications. The search tools, `get_movie`/`get_tv`/`get_person`,
-`get_collection` and `discover_movies`/`discover_tv` also accept a per-call
-`language` override.
+certifications. `search_movies`/`search_tv`/`search_multi`/`search_people`/
+`search_collections`, `get_movie`/`get_tv`/`get_movies`/`get_tv_shows`/`get_person`,
+`get_collection`, `get_movie_releases` and `discover_movies`/`discover_tv` also
+accept a per-call `language` override.
 
 ## Getting your credentials
 
