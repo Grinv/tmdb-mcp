@@ -7,6 +7,7 @@ import {
   detailTv,
   movieCard,
   page,
+  parseSeasons,
   summarizeCollection,
   summarizeCredits,
   summarizeEpisode,
@@ -18,7 +19,9 @@ import {
   summarizeRatings,
   summarizeReview,
   summarizeSeason,
+  summarizeTvCredits,
   summarizeVideos,
+  summarizeWatchProviderMatches,
   summarizeWatchProviders,
   tvCard,
   type TmdbCredits,
@@ -909,5 +912,134 @@ describe("ratingsYearConflict", () => {
     assert.equal(ratingsYearConflict(undefined, undefined), false);
     assert.equal(ratingsYearConflict("", ""), false);
     assert.equal(ratingsYearConflict("1999-01-01", "N/A"), false);
+  });
+});
+
+describe("summarizeWatchProviderMatches", () => {
+  const provider = (id: number | undefined, name: string | undefined) => ({
+    provider_id: id,
+    provider_name: name,
+    logo_path: "/logo.jpg",
+    nameLower: (name ?? "").toLowerCase(),
+  });
+
+  test("filters case-insensitively, drops id-less/name-less rows, pages 20 at a time", () => {
+    const providers = [
+      ...Array.from({ length: 45 }, (_, i) => provider(i + 1, ` Netflix ${i + 1} `)),
+      provider(100, "Hulu"),
+      provider(undefined, "Netflix Orphan"),
+      provider(101, ""),
+    ];
+    const p1 = summarizeWatchProviderMatches(providers, "  NETFLIX ");
+    assert.equal(p1.total_results, 45);
+    assert.equal(p1.total_pages, 3);
+    assert.equal(p1.page, 1);
+    assert.equal(p1.results.length, 20);
+    assert.deepEqual(p1.results[0], {
+      provider_id: 1,
+      provider_name: "Netflix 1",
+      logo_url: "https://image.tmdb.org/t/p/w500/logo.jpg",
+    });
+
+    const p3 = summarizeWatchProviderMatches(providers, "netflix", 3);
+    assert.deepEqual(
+      p3.results.map((r) => r.provider_id),
+      [41, 42, 43, 44, 45],
+    );
+    // Past the end: empty page, totals unchanged.
+    const p4 = summarizeWatchProviderMatches(providers, "netflix", 4);
+    assert.deepEqual(p4.results, []);
+    assert.equal(p4.total_results, 45);
+  });
+
+  test("no match still reports one (empty) page", () => {
+    const r = summarizeWatchProviderMatches([provider(1, "Hulu")], "zzz");
+    assert.deepEqual(r, { results: [], page: 1, total_pages: 1, total_results: 0 });
+  });
+});
+
+describe("parseSeasons", () => {
+  const base = {
+    season_number: 1,
+    name: "Season 1",
+    air_date: "2008-01-20",
+    overview: null,
+    poster_url: null,
+    episode_count: 1,
+    episodes: [
+      {
+        episode_number: 1,
+        name: "Pilot",
+        air_date: "2008-01-20",
+        runtime_minutes: 58,
+        vote_average: 8.3,
+        overview: null,
+      },
+    ],
+  };
+
+  test("accepts a valid seasons array and degrades a partial air_date to null", () => {
+    const out = parseSeasons([{ ...base, air_date: "2008" }]);
+    assert.equal(out[0]!.air_date, null);
+    assert.equal(out[0]!.episodes[0]!.air_date, "2008-01-20");
+  });
+
+  test("throws on an unknown key, a missing required field, or a non-array (drift check)", () => {
+    assert.throws(() => parseSeasons([{ ...base, skipped: true }]));
+    const { episode_count: _omit, ...missing } = base;
+    assert.throws(() => parseSeasons([missing]));
+    assert.throws(() => parseSeasons("not an array"));
+  });
+});
+
+describe("summarizeTvCredits", () => {
+  // Mirrors a /tv/{id}/aggregate_credits crew row: one row per person and
+  // department, each listing its jobs with their own episode counts.
+  const crewRow = (
+    id: number,
+    department: string,
+    jobs: { job: string; episode_count: number }[],
+  ) => ({
+    adult: false,
+    gender: 2,
+    id,
+    known_for_department: department,
+    name: `Person ${id}`,
+    original_name: `Person ${id}`,
+    popularity: 1,
+    profile_path: null,
+    jobs: jobs.map((j, i) => ({ credit_id: `c${id}-${i}`, ...j })),
+    department,
+    total_episode_count: jobs.reduce((n, j) => n + j.episode_count, 0),
+  });
+
+  test("caps each key crew job at 5 by episode count and drops non-key jobs", () => {
+    const crew = [
+      ...Array.from({ length: 8 }, (_, i) =>
+        crewRow(i + 1, "Directing", [{ job: "Director", episode_count: i + 1 }]),
+      ),
+      crewRow(50, "Writing", [{ job: "Writer", episode_count: 3 }]),
+      crewRow(50, "Directing", [{ job: "Director", episode_count: 20 }]),
+      crewRow(60, "Lighting", [{ job: "Gaffer", episode_count: 60 }]),
+    ];
+    const c = summarizeTvCredits({ cast: [], crew });
+    const directors = c.crew.filter((x) => x.job === "Director");
+    assert.deepEqual(
+      directors.map((x) => [x.id, x.episode_count]),
+      [
+        [50, 20],
+        [8, 8],
+        [7, 7],
+        [6, 6],
+        [5, 5],
+      ],
+    );
+    assert.deepEqual(
+      c.crew.filter((x) => x.job === "Writer").map((x) => x.id),
+      [50],
+    );
+    assert.ok(!c.crew.some((x) => x.job === "Gaffer"));
+    // Output follows TV_KEY_JOBS order: every Director before any Writer.
+    assert.equal(c.crew[5]!.job, "Writer");
   });
 });
