@@ -6,12 +6,32 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Return `year` from `get_tv`, as `get_movie` already does ([e170e16](https://github.com/Grinv/tmdb-mcp/commit/e170e16)).
+- Return `popularity` and `known_for` for people in `find_by_imdb_id`, as `search_people` does ([e170e16](https://github.com/Grinv/tmdb-mcp/commit/e170e16)).
+
+### Changed
+
+- Fetch a person's credits once per language in `get_person_credits`, not once per `department`/`limit` ([5b6fe6b](https://github.com/Grinv/tmdb-mcp/commit/5b6fe6b)).
+
 ### Fixed
 
 - Keep both credits in `get_person_credits` when a movie and a TV show share an id (Ron Perlman's `Hellboy` was dropped) ([761e2e4](https://github.com/Grinv/tmdb-mcp/commit/761e2e4)).
 - List a collection's undated, announced part last instead of first ([761e2e4](https://github.com/Grinv/tmdb-mcp/commit/761e2e4)).
 - Return `null`, not `0`, for the score of a title nobody has voted on yet ([761e2e4](https://github.com/Grinv/tmdb-mcp/commit/761e2e4)).
 - Return `null`, not `0`, for a runtime TMDB doesn't know yet ([761e2e4](https://github.com/Grinv/tmdb-mcp/commit/761e2e4)).
+- Reject an inverted `release_date_gte`/`release_date_lte` range in `discover_*` instead of returning no results ([5b6fe6b](https://github.com/Grinv/tmdb-mcp/commit/5b6fe6b)).
+- Name the cause, such as a rejected OMDb key, when `get_movie`/`get_tv` can't fetch ratings ([5b6fe6b](https://github.com/Grinv/tmdb-mcp/commit/5b6fe6b)).
+- Keep the seasons that loaded when one of `expand_episodes`' requests fails, and don't cache that partial result ([5b6fe6b](https://github.com/Grinv/tmdb-mcp/commit/5b6fe6b), [aa430fc](https://github.com/Grinv/tmdb-mcp/commit/aa430fc)).
+- Keep `get_similar`'s genre filter on while TMDB is briefly unreachable ([5b6fe6b](https://github.com/Grinv/tmdb-mcp/commit/5b6fe6b)).
+- Fill `year` on `get_tv_shows` cards when TMDB gives only a year ([e170e16](https://github.com/Grinv/tmdb-mcp/commit/e170e16)).
+- Return `null`, not `"N/A"`, for a title or year OMDb doesn't have ([e170e16](https://github.com/Grinv/tmdb-mcp/commit/e170e16)).
+
+### Security
+
+- Run dependency install scripts only in a release job that holds no publishing credentials ([2211c6e](https://github.com/Grinv/tmdb-mcp/commit/2211c6e)).
+- Stop a release whose tag doesn't match `package.json`, and create the GitHub Release only after npm serves the version ([2211c6e](https://github.com/Grinv/tmdb-mcp/commit/2211c6e)).
 
 ## [0.12.0] - 2026-10-03
 
