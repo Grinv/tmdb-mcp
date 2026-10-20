@@ -1400,6 +1400,60 @@ describe("discover_movies/discover_tv reject incomplete filter pairs", () => {
     }
   });
 
+  test("with_watch_monetization_types reaches TMDB pipe-joined, with or without providers", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    await using client = await connectServer(ENV);
+    for (const [name, extra] of [
+      ["discover_movies", { with_watch_providers: "2" }],
+      ["discover_tv", {}],
+    ] as const) {
+      const res = await client.callTool({
+        name,
+        arguments: {
+          ...extra,
+          watch_region: "US",
+          with_watch_monetization_types: ["flatrate", "rent"],
+        },
+      });
+      assert.notEqual(res.isError, true, name);
+    }
+    const movie = mock.calls.find((c) => c.url.includes("/discover/movie"))!.url;
+    const tv = mock.calls.find((c) => c.url.includes("/discover/tv"))!.url;
+    for (const u of [movie, tv]) {
+      assert.equal(new URL(u).searchParams.get("with_watch_monetization_types"), "flatrate|rent");
+      assert.equal(new URL(u).searchParams.get("watch_region"), "US");
+    }
+    assert.equal(new URL(movie).searchParams.get("with_watch_providers"), "2");
+  });
+
+  test("with_watch_monetization_types is rejected without watch_region, and empty/unknown values too", async (t) => {
+    // Verified live: without watch_region TMDB ignores it (unfiltered total_results).
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    await using client = await connectServer(ENV);
+    for (const name of ["discover_movies", "discover_tv"]) {
+      const res = await client.callTool({
+        name,
+        arguments: { with_watch_monetization_types: ["flatrate"] },
+      });
+      assert.equal(res.isError, true, name);
+      assert.match(
+        toolText(res),
+        /with_watch_monetization_types requires watch_region to also be set/,
+        name,
+      );
+    }
+    for (const bad of [[], ["subscription"]]) {
+      const res = await client.callTool({
+        name: "discover_movies",
+        arguments: { watch_region: "US", with_watch_monetization_types: bad },
+      });
+      assert.equal(res.isError, true, JSON.stringify(bad));
+    }
+    assert.ok(!mock.calls.some((c) => c.url.includes("/discover/")));
+  });
+
   test("a blank certification is rejected instead of disabling the filter", async (t) => {
     installFetch(t, mockFetch(router));
     await using client = await connectServer(ENV);

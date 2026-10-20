@@ -27,6 +27,7 @@ const ALL_PARAMS: DiscoverParams = {
   with_keywords: "9663",
   without_keywords: "1701",
   with_watch_providers: "8",
+  with_watch_monetization_types: ["flatrate", "rent"],
   watch_region: "US",
   with_networks: "49",
   with_type: "Miniseries",
@@ -119,6 +120,14 @@ describe("discoverQuery", () => {
       assert.equal(q.with_watch_providers, "8");
       assert.equal(q.watch_region, "US");
       assert.equal(q.page, 2);
+    }
+  });
+
+  // TMDB reads "|" as OR across access models ("," would AND them).
+  test("with_watch_monetization_types is pipe-joined for both kinds", () => {
+    for (const kind of ["movie", "tv"] as const) {
+      const q = discoverQuery(ALL_PARAMS, kind);
+      assert.equal(q.with_watch_monetization_types, "flatrate|rent");
     }
   });
 

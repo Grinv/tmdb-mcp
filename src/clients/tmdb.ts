@@ -986,6 +986,10 @@ const DISCOVER_FIELD_MAP: Record<
   without_keywords: { movie: "without_keywords", tv: "without_keywords" },
   with_watch_providers: { movie: "with_watch_providers", tv: "with_watch_providers" },
   watch_region: { movie: "watch_region", tv: "watch_region" },
+  with_watch_monetization_types: {
+    movie: "with_watch_monetization_types",
+    tv: "with_watch_monetization_types",
+  },
   with_networks: { tv: "with_networks" },
   with_type: { tv: "with_type" },
   with_status: { tv: "with_status" },
@@ -1023,7 +1027,10 @@ export function discoverQuery(p: DiscoverParams, kind: "movie" | "tv"): Query {
   const query: Query = {};
   for (const field of Object.keys(DISCOVER_FIELD_MAP) as (keyof typeof DISCOVER_FIELD_MAP)[]) {
     const tmdbKey = DISCOVER_FIELD_MAP[field][kind];
-    if (tmdbKey) query[tmdbKey] = p[field];
+    const value = p[field];
+    // with_watch_monetization_types is the one array field: TMDB reads "|" as
+    // OR (verified live; "," would require every listed type at once).
+    if (tmdbKey) query[tmdbKey] = Array.isArray(value) ? value.join("|") : value;
   }
   if (kind === "tv") {
     if (p.with_type !== undefined) query.with_type = TV_TYPE_IDS[p.with_type];

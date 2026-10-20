@@ -49,6 +49,9 @@ const TV_SORT_BY = [
 // nothing. A stray genre name or typo therefore reads as a real empty answer,
 // which is worse than a loud failure — so reject non-numeric input here
 // instead (mirrors with_original_language's own regex guard below).
+// TMDB's watch-offer access models (the same flatrate/rent/buy/ads/free keys
+// get_watch_providers reports per region).
+const WATCH_MONETIZATION_TYPES = ["flatrate", "free", "ads", "rent", "buy"] as const;
 const idListRegex = /^\d+(?:,\d+)*$/;
 const idList = (desc: string) =>
   z
@@ -109,10 +112,33 @@ const discoverShared = {
     "Comma-separated TMDB watch-provider ids (use search_watch_providers to resolve a " +
       "service name, e.g. 'Netflix', to its numeric id); requires watch_region to also be set.",
   ),
+  // Verified live (/discover/movie, primary_release_year=2019, watch_region=US):
+  // with_watch_providers=2 alone → 2888; +flatrate → 1811; +rent → 2841;
+  // "flatrate|rent" → 2852 (OR) vs "flatrate,rent" → 1800 (AND), hence the
+  // "|" join in discoverQuery. Without any providers it still filters
+  // (watch_region=US + flatrate → 4237 of 20001), but without watch_region it
+  // is a silent no-op (20001, same as unfiltered). With providers set, TMDB
+  // ANDs the two filters independently: every top result of providers=2 +
+  // flatrate had provider 2 only under rent/buy and flatrate elsewhere.
+  with_watch_monetization_types: z
+    .array(z.enum(WATCH_MONETIZATION_TYPES))
+    .min(1)
+    .describe(
+      "Only titles available in watch_region through at least one of these access models: " +
+        "'flatrate' = included in a subscription (e.g. Netflix), 'free' = free to watch, 'ads' = " +
+        "free with ads, 'rent' = paid rental, 'buy' = paid purchase. Several values match ANY " +
+        "of them. Requires watch_region; works alone (any provider). Combined with " +
+        "with_watch_providers, TMDB checks the two independently, not per provider: " +
+        "with_watch_providers=2 (Apple TV, rent/buy only) + 'flatrate' still matches titles " +
+        "rentable on Apple TV that some OTHER service streams — check get_watch_providers to " +
+        "confirm which service offers which access model.",
+    )
+    .optional(),
   watch_region: watchRegion
     .describe(
       "Two-letter ISO-3166-1 country code, e.g. 'US', whose streaming catalog " +
-        "with_watch_providers filters on. Only valid together with with_watch_providers.",
+        "with_watch_providers / with_watch_monetization_types filter on. Only valid together " +
+        "with at least one of them.",
     )
     .optional(),
   // Shared, not movie-only: verified live against the real /discover/tv (not
@@ -296,7 +322,8 @@ export const discoverParamsSchema = z.object({
 });
 export type DiscoverParams = z.infer<typeof discoverParamsSchema>;
 
-// TMDB silently ignores certification/with_watch_providers when their required
+// TMDB silently ignores certification/with_watch_providers/
+// with_watch_monetization_types when their required
 // pair field is missing, instead of erroring — which reads as "the filter was
 // applied" when it wasn't. Catch that here instead of round-tripping to TMDB.
 function checkDiscoverFilterPairs(
@@ -308,6 +335,7 @@ function checkDiscoverFilterPairs(
     release_date_gte?: string;
     release_date_lte?: string;
     with_watch_providers?: string;
+    with_watch_monetization_types?: readonly string[];
     watch_region?: string;
     certification?: string;
     certification_country?: string;
@@ -357,6 +385,13 @@ function checkDiscoverFilterPairs(
       path: ["with_watch_providers"],
     });
   }
+  if (val.with_watch_monetization_types !== undefined && val.watch_region === undefined) {
+    ctx.addIssue({
+      code: "custom",
+      message: "with_watch_monetization_types requires watch_region to also be set.",
+      path: ["with_watch_monetization_types"],
+    });
+  }
   if (val.certification !== undefined && val.certification_country === undefined) {
     ctx.addIssue({
       code: "custom",
@@ -367,10 +402,16 @@ function checkDiscoverFilterPairs(
   // The reverse direction: verified live, watch_region or certification_country
   // alone returns the fully unfiltered result set, so a caller would read an
   // unfiltered page as "filtered by region/country".
-  if (val.watch_region !== undefined && val.with_watch_providers === undefined) {
+  if (
+    val.watch_region !== undefined &&
+    val.with_watch_providers === undefined &&
+    val.with_watch_monetization_types === undefined
+  ) {
     ctx.addIssue({
       code: "custom",
-      message: "watch_region only applies to with_watch_providers; set both or neither.",
+      message:
+        "watch_region only applies to with_watch_providers / with_watch_monetization_types; " +
+        "set it together with at least one of them, or omit it.",
       path: ["watch_region"],
     });
   }
@@ -476,9 +517,10 @@ export function registerDiscoverTools(
       description:
         "Find movies by structured filters instead of a title query: genres (include/exclude), " +
         "year or release-date range, TMDB vote-average range, vote count, runtime range, original language, " +
-        "cast/crew/people, companies, keywords, watch providers, certification, a region code " +
+        "cast/crew/people, companies, keywords, watch providers and access model (subscription/" +
+        "rent/buy/free/ads), certification, a region code " +
         "(minor effect only — see its own description), an adult-content toggle, and sort order. " +
-        "certification/with_watch_providers have validation and silent-fallback rules — see their " +
+        "certification/with_watch_providers/with_watch_monetization_types have validation and silent-fallback rules — see their " +
         "own field descriptions. Use for " +
         "'popular sci-fi from the 1990s with a TMDB vote average above 7 available on Netflix', or for a specific " +
         "person's work in one genre — 'which of this director's/actor's/composer's films are " +
@@ -500,13 +542,14 @@ export function registerDiscoverTools(
       title: "Discover TV shows (filters)",
       description:
         "Find TV shows by structured filters (genres, first-air year or date range, TMDB vote-average range, " +
-        "vote count, runtime, language, companies, networks, keywords, watch providers, type, " +
+        "vote count, runtime, language, companies, networks, keywords, watch providers and access " +
+        "model (subscription/rent/buy/free/ads), type, " +
         "status, certification, an adult-content toggle, sort) — but NOT cast/crew/person: this " +
         "tool doesn't accept those " +
         "params for TV at all (calling with them is a validation error, not a silent no-op) " +
         "because TMDB's own /discover/tv would silently ignore them anyway, unlike /discover/movie; " +
         "to find TV shows featuring someone, call get_person_credits instead and filter its results " +
-        "to media_type 'tv'. certification/with_watch_providers have validation and silent-fallback " +
+        "to media_type 'tv'. certification/with_watch_providers/with_watch_monetization_types have validation and silent-fallback " +
         "rules — see their own field descriptions. The TV counterpart of discover_movies; " +
         "use with_networks for 'HBO shows', with_type='Miniseries' for short/limited series (e.g. " +
         "'best miniseries to binge in a weekend'), with_status='Ended' to exclude shows still " +
