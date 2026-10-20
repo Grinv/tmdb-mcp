@@ -6,6 +6,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep both credits in `get_person_credits` when a movie and a TV show share an id (Ron Perlman's `Hellboy` was dropped) ([761e2e4](https://github.com/Grinv/tmdb-mcp/commit/761e2e4)).
+- List a collection's undated, announced part last instead of first ([761e2e4](https://github.com/Grinv/tmdb-mcp/commit/761e2e4)).
+- Return `null`, not `0`, for the score of a title nobody has voted on yet ([761e2e4](https://github.com/Grinv/tmdb-mcp/commit/761e2e4)).
+- Return `null`, not `0`, for a runtime TMDB doesn't know yet ([761e2e4](https://github.com/Grinv/tmdb-mcp/commit/761e2e4)).
+
 ## [0.12.0] - 2026-10-03
 
 ### Added
