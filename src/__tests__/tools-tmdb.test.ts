@@ -2,6 +2,7 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { maybeEnrich } from "../tools/tmdb/details.js";
 import type { OmdbClient } from "../clients/omdb.js";
+import { ApiError } from "../lib/errors.js";
 
 // get_movie/get_tv's degrade-gracefully policy, tested directly against the
 // policy function instead of round-tripping the full MCP server twice (once
@@ -61,5 +62,22 @@ describe("maybeEnrich", () => {
     const res = await maybeEnrich({ title: "x" }, "tt0133093", true, omdb);
     assert.equal(res.title, "x");
     assert.deepEqual(res.ratings, { found: false, reason: "OMDb lookup failed" });
+  });
+
+  test("names the cause when OMDb fails with an ApiError (e.g. a rejected key)", async () => {
+    // Live: an invalid OMDB_API_KEY gets HTTP 401 {"Response":"False","Error":"Invalid API key!"},
+    // which the HTTP client surfaces as ApiError code "unauthorized".
+    const omdb = {
+      configured: true,
+      ratingsByImdbId: async () => {
+        throw new ApiError({ code: "unauthorized", status: 401, message: "HTTP 401" });
+      },
+    } as unknown as OmdbClient;
+    const res = await maybeEnrich({ title: "x" }, "tt0133093", true, omdb);
+    assert.equal(res.ratings?.found, false);
+    assert.match(
+      (res.ratings as { reason: string }).reason,
+      /^OMDb lookup failed: The upstream service rejected the credentials \(401\)/,
+    );
   });
 });

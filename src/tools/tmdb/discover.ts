@@ -69,7 +69,10 @@ const discoverShared = {
     "Comma-separated TMDB genre ids to exclude; get ids from get_movie_genres/get_tv_genres.",
   ),
   year: yearFilter("Release / first-air year."),
-  release_date_gte: dateStr("Only entries released on/after this date (YYYY-MM-DD)."),
+  release_date_gte: dateStr(
+    "Only entries released on/after this date (YYYY-MM-DD). Must be <= release_date_lte if " +
+      "both are given.",
+  ),
   release_date_lte: dateStr("Only entries released on/before this date (YYYY-MM-DD)."),
   min_rating: z
     .number()
@@ -302,6 +305,8 @@ function checkDiscoverFilterPairs(
     max_rating?: number;
     min_runtime?: number;
     max_runtime?: number;
+    release_date_gte?: string;
+    release_date_lte?: string;
     with_watch_providers?: string;
     watch_region?: string;
     certification?: string;
@@ -329,6 +334,20 @@ function checkDiscoverFilterPairs(
       code: "custom",
       message: "min_runtime must be <= max_runtime.",
       path: ["min_runtime"],
+    });
+  }
+  // Verified live: an inverted date range is not an error upstream — TMDB
+  // answers 200 with total_results:0, which reads as "nothing matched".
+  // Both are z.iso.date() (YYYY-MM-DD), so a string compare orders them.
+  if (
+    val.release_date_gte !== undefined &&
+    val.release_date_lte !== undefined &&
+    val.release_date_gte > val.release_date_lte
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      message: "release_date_gte must be <= release_date_lte.",
+      path: ["release_date_gte"],
     });
   }
   if (val.with_watch_providers !== undefined && val.watch_region === undefined) {

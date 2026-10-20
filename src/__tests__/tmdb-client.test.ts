@@ -401,3 +401,196 @@ describe("TmdbClient: getReviews hits the right sub-resource per media type", ()
     assert.ok(mock.calls.some((call) => call.url.includes("/tv/1396/reviews")));
   });
 });
+
+// A season object as /tv/{id}?append_to_response=season/N returns it under
+// the "season/N" key (same shape as /tv/{id}/season/N): _id, air_date,
+// episodes, name, overview, id, poster_path, season_number, vote_average.
+function seasonBody(n: number, episodes: number): Record<string, unknown> {
+  return {
+    _id: `5256c8c219c2956ff604${n}`,
+    air_date: "2008-01-20",
+    episodes: Array.from({ length: episodes }, (_, i) => ({
+      air_date: "2008-01-20",
+      episode_number: i + 1,
+      episode_type: "standard",
+      id: n * 1000 + i,
+      name: `Episode ${i + 1}`,
+      overview: "",
+      runtime: 45,
+      season_number: n,
+      show_id: 1,
+      still_path: null,
+      vote_average: 7.5,
+      vote_count: 10,
+    })),
+    name: `Season ${n}`,
+    overview: "",
+    id: 3000 + n,
+    poster_path: null,
+    season_number: n,
+    vote_average: 7.5,
+  };
+}
+
+function requestedSeasons(url: string): number[] {
+  return decodeURIComponent(/append_to_response=([^&]+)/.exec(url)![1]!)
+    .split(",")
+    .map((key) => Number(key.split("/")[1]));
+}
+
+describe("TmdbClient: getTv(expand_episodes) degrades per chunk, keeps season order", () => {
+  test("one failed append_to_response chunk only empties its own seasons, not the whole call", async (t) => {
+    // 25 seasons x 5 episodes = 125 (under budget): two chunks, 1-20 and 21-25
+    // — the General Hospital / Top Gear shape. The second chunk fails.
+    const seasons = Array.from({ length: 25 }, (_, i) => ({
+      season_number: i + 1,
+      name: `Season ${i + 1}`,
+      episode_count: 5,
+      air_date: "2008-01-20",
+    }));
+    const mock = mockFetch((url) => {
+      if (!url.includes("append_to_response=season")) {
+        return jsonResponse({ id: 1, name: "Long Runner", seasons });
+      }
+      const requested = requestedSeasons(url);
+      if (requested.includes(21)) {
+        return jsonResponse(
+          { status_code: 11, status_message: "Internal error." },
+          { status: 500 },
+        );
+      }
+      const body: Record<string, unknown> = { id: 1, name: "Long Runner", seasons };
+      for (const n of requested) body[`season/${n}`] = seasonBody(n, 5);
+      return jsonResponse(body);
+    });
+    installFetch(t, mock);
+    const s = await client({ HTTP_RETRIES: "0" }).getTv(1, "US", undefined, true);
+    const detail = s.seasons_detail!;
+    assert.deepEqual(
+      detail.map((x) => x.season_number),
+      seasons.map((x) => x.season_number),
+    );
+    for (const x of detail.slice(0, 20)) assert.equal(x.episodes.length, 5);
+    for (const x of detail.slice(20)) {
+      assert.deepEqual(x.episodes, []);
+      assert.equal(x.episode_count, 5); // from the show's own season metadata
+      assert.equal(x.name, `Season ${x.season_number}`);
+    }
+  });
+
+  test("rethrows when every chunk fails, so a stale cached value can still be served", async (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
+    const seasons = [{ season_number: 1, name: "Season 1", episode_count: 3, air_date: null }];
+    let failSeasons = false;
+    const mock = mockFetch((url) => {
+      if (!url.includes("append_to_response=season")) {
+        return jsonResponse({ id: 1, name: "Show", seasons });
+      }
+      if (failSeasons) return jsonResponse({ status_code: 11 }, { status: 500 });
+      return jsonResponse({ id: 1, name: "Show", seasons, "season/1": seasonBody(1, 3) });
+    });
+    installFetch(t, mock);
+    const c = client({ HTTP_RETRIES: "0", CACHE_TTL_MS: "1" });
+    await c.getTv(1, "US", undefined, true);
+    t.mock.timers.tick(5);
+    failSeasons = true;
+    let stale = false;
+    const s = await c.getTv(1, "US", undefined, true, () => (stale = true));
+    assert.equal(stale, true, "all-chunks-failed must surface as an error, not cached skips");
+    assert.equal(s.seasons_detail![0]!.episodes.length, 3);
+  });
+
+  test("skips a null-episode_count season once the budget is spent, and keeps the original order", async (t) => {
+    // Seasons 1-5 x 50 exhaust the 250 budget; season 6 (known count) and
+    // season 7 (null count) both fall beyond it. Season 7 used to be fetched
+    // anyway and then listed before season 6.
+    const seasons = [
+      ...Array.from({ length: 5 }, (_, i) => ({
+        season_number: i + 1,
+        name: `Season ${i + 1}`,
+        episode_count: MAX_SEASON_EPISODES as number | null,
+      })),
+      { season_number: 6, name: "Season 6", episode_count: 10 },
+      { season_number: 7, name: "Season 7", episode_count: null },
+    ];
+    const fetched: number[] = [];
+    const mock = mockFetch((url) => {
+      if (!url.includes("append_to_response=season")) {
+        return jsonResponse({ id: 1, name: "Show", seasons });
+      }
+      const body: Record<string, unknown> = { id: 1, name: "Show", seasons };
+      for (const n of requestedSeasons(url)) {
+        fetched.push(n);
+        body[`season/${n}`] = seasonBody(n, MAX_SEASON_EPISODES);
+      }
+      return jsonResponse(body);
+    });
+    installFetch(t, mock);
+    const s = await client().getTv(1, "US", undefined, true);
+    assert.deepEqual(fetched, [1, 2, 3, 4, 5]);
+    assert.deepEqual(
+      s.seasons_detail!.map((x) => x.season_number),
+      [1, 2, 3, 4, 5, 6, 7],
+    );
+  });
+
+  test("a season missing from its chunk's response falls back to the show's own season metadata", async (t) => {
+    const seasons = [
+      { season_number: 1, name: "Season 1", episode_count: 3, air_date: "2008-01-20" },
+      { season_number: 2, name: "Season 2", episode_count: 4, air_date: "2009-03-08" },
+    ];
+    const mock = mockFetch((url) => {
+      if (!url.includes("append_to_response=season")) {
+        return jsonResponse({ id: 1, name: "Show", seasons });
+      }
+      // TMDB omits an append key it couldn't resolve rather than erroring.
+      return jsonResponse({ id: 1, name: "Show", seasons, "season/1": seasonBody(1, 3) });
+    });
+    installFetch(t, mock);
+    const s = await client().getTv(1, "US", undefined, true);
+    assert.deepEqual(s.seasons_detail![1], {
+      season_number: 2,
+      name: "Season 2",
+      air_date: "2009-03-08",
+      overview: null,
+      poster_url: null,
+      episode_count: 4,
+      episodes: [],
+    });
+  });
+});
+
+describe("TmdbClient: getSimilar's source-genre lookup survives a TMDB outage via the stale cache", () => {
+  test("keeps filtering with stale genre ids when the refresh fails", async (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
+    let detailDown = false;
+    const mock = mockFetch((url) => {
+      if (url.includes("/movie/603/similar")) {
+        return jsonResponse(
+          pageOf([
+            { id: 1, title: "Full overlap", genre_ids: [28, 18] },
+            { id: 2, title: "Broad-genre-only overlap", genre_ids: [18] },
+          ]),
+        );
+      }
+      if (detailDown) return jsonResponse({ status_code: 11 }, { status: 500 });
+      return jsonResponse({
+        id: 603,
+        genres: [
+          { id: 28, name: "Action" },
+          { id: 18, name: "Drama" },
+        ],
+      });
+    });
+    installFetch(t, mock);
+    const c = client({ HTTP_RETRIES: "0", CACHE_TTL_MS: "1" });
+    await c.getSimilar("movie", 603);
+    t.mock.timers.tick(5);
+    detailDown = true;
+    const s = await c.getSimilar("movie", 603);
+    assert.deepEqual(
+      s.results.map((r) => r.id),
+      [1],
+    );
+  });
+});

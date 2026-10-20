@@ -56,7 +56,7 @@ import type { Config } from "../config.js";
 // `import type` is fully erased at build, so this doesn't create a runtime
 // circular import even though tools/tmdb/discover.ts also imports TmdbClient
 // from here.
-import type { DiscoverParams } from "../tools/tmdb/discover.js";
+import type { DiscoverParams, TV_STATUSES, TV_TYPES } from "../tools/tmdb/discover.js";
 
 type Query = Record<string, string | number | boolean | undefined>;
 
@@ -175,7 +175,7 @@ function capTotalEpisodesBySize(
   });
 }
 
-export interface SearchParams {
+interface SearchParams {
   query: string;
   year?: number;
   page?: number;
@@ -185,15 +185,15 @@ export interface SearchParams {
   region?: string;
 }
 
-export type TrendingMediaType = "all" | "movie" | "tv" | "person";
-export type TrendingWindow = "day" | "week";
+type TrendingMediaType = "all" | "movie" | "tv" | "person";
+type TrendingWindow = "day" | "week";
 
 export type { DiscoverParams };
 
 // TMDB's /find endpoint supports all three, but only "imdb_id" is currently
 // plumbed to a tool (find_by_imdb_id); "tvdb_id"/"wikidata_id" are latent
 // capability for a future find-by-tvdb/wikidata tool.
-export type ExternalSource = "imdb_id" | "tvdb_id" | "wikidata_id";
+type ExternalSource = "imdb_id" | "tvdb_id" | "wikidata_id";
 
 // Shared by every method that dispatches on a runtime "movie" | "tv" media
 // kind and returns a page of the corresponding summary — the return type is
@@ -406,7 +406,7 @@ export class TmdbClient {
     if (seasons.length === 0) return shaped;
     return {
       ...shaped,
-      seasons_detail: await this.getTvSeasonsBulk(id, seasons, language, onStale),
+      seasons_detail: await this.#getTvSeasonsBulk(id, seasons, language, onStale),
     };
   }
 
@@ -417,7 +417,7 @@ export class TmdbClient {
   // append_to_response requests of at most that many seasons each. Cached
   // separately from getTv (and keyed by the season list) since it's only
   // fetched when a caller opts in via expandEpisodes.
-  async getTvSeasonsBulk(
+  async #getTvSeasonsBulk(
     id: number,
     seasons: {
       season_number: number;
@@ -441,40 +441,25 @@ export class TmdbClient {
         // pulling its full episode list over the wire just to discard it in
         // capTotalEpisodes is wasted work. Only fetch up through the season
         // that actually crosses the budget boundary (to get its partial
-        // truncation); unknown counts (null) are always fetched, to stay
-        // conservative when the metadata can't back the decision.
+        // truncation). An unknown count (null) is fetched while budget
+        // remains (charged 0, since there's nothing to charge) and skipped
+        // once it's spent, like any other season.
         let remaining = MAX_EXPANDED_EPISODES;
-        const toFetch: number[] = [];
-        const skipped: typeof seasons = [];
-        for (const s of seasons) {
-          if (remaining > 0 || s.episode_count == null) {
-            toFetch.push(s.season_number);
-            // Charge what this season can actually contribute, not its raw
-            // episode_count — summarizeSeason below trims it to
-            // MAX_SEASON_EPISODES, so charging more evicts later seasons that
-            // would have fit (season 0's 80+ specials being the usual culprit).
-            remaining -= Math.min(s.episode_count ?? 0, MAX_SEASON_EPISODES);
-          } else {
-            skipped.push(s);
-          }
-        }
+        const toFetch: number[] = []; // indices into `seasons`
+        seasons.forEach((s, i) => {
+          if (remaining <= 0) return;
+          toFetch.push(i);
+          // Charge what this season can actually contribute, not its raw
+          // episode_count — summarizeSeason below trims it to
+          // MAX_SEASON_EPISODES, so charging more evicts later seasons that
+          // would have fit (season 0's 80+ specials being the usual culprit).
+          remaining -= Math.min(s.episode_count ?? 0, MAX_SEASON_EPISODES);
+        });
 
-        const chunks = chunk(toFetch, MAX_APPEND_TO_RESPONSE);
-        const chunkResults = await Promise.all(
-          chunks.map(async (numbers) => {
-            const append = numbers.map((n) => `season/${n}`).join(",");
-            const res = await this.#get<Record<string, TmdbSeason>>(
-              `tv/${id}`,
-              { append_to_response: append },
-              language,
-            );
-            return numbers.map((n) =>
-              summarizeSeason(res[`season/${n}`] ?? {}, MAX_SEASON_EPISODES, false),
-            );
-          }),
-        );
-        const fetched = capTotalEpisodes(chunkResults.flat(), MAX_EXPANDED_EPISODES);
-        const skippedSeasons: ReturnType<typeof summarizeSeason>[] = skipped.map((s) => ({
+        // A season that wasn't fetched (beyond the budget, in a failed chunk,
+        // or missing from its chunk's response) is reported from the show's
+        // own season metadata, with no episodes.
+        const skippedEntry = (s: (typeof seasons)[number]): ReturnType<typeof summarizeSeason> => ({
           season_number: s.season_number,
           name: s.name,
           air_date: s.air_date,
@@ -482,39 +467,56 @@ export class TmdbClient {
           poster_url: null,
           episode_count: s.episode_count ?? 0,
           episodes: [],
-        }));
+        });
+
+        // allSettled, not all: a long-running show needs 2+ chunked requests
+        // (e.g. General Hospital, Top Gear), and one failed chunk shouldn't
+        // sink the seasons the other chunks did return. Only when every chunk
+        // fails is it a real upstream failure — rethrow so wrapStaleOnError
+        // can still fall back to a stale cached value.
+        const chunks = chunk(toFetch, MAX_APPEND_TO_RESPONSE);
+        const settled = await Promise.allSettled(
+          chunks.map((indices) =>
+            this.#get<Record<string, TmdbSeason | undefined>>(
+              `tv/${id}`,
+              {
+                append_to_response: indices
+                  .map((i) => `season/${seasons[i]!.season_number}`)
+                  .join(","),
+              },
+              language,
+            ),
+          ),
+        );
+        const firstFailure = settled.find((r) => r.status === "rejected");
+        if (firstFailure && settled.every((r) => r.status === "rejected")) {
+          throw firstFailure.reason;
+        }
+
+        const out = seasons.map(skippedEntry);
+        settled.forEach((result, c) => {
+          if (result.status !== "fulfilled") return;
+          for (const i of chunks[c]!) {
+            const raw = result.value[`season/${seasons[i]!.season_number}`];
+            if (raw) out[i] = summarizeSeason(raw, MAX_SEASON_EPISODES, false);
+          }
+        });
         // parseSeasons re-validates the fetched/capped/skipped merge through
         // seasonSchema, so this aggregate path gets the same drift/degrade
         // guarantee the direct shapers have (the skipped entries above are
         // hand-built and would otherwise skip validation entirely).
         return {
           seasons: parseSeasons(
-            capTotalEpisodesBySize([...fetched, ...skippedSeasons], MAX_EXPANDED_EPISODES_CHARS),
+            capTotalEpisodesBySize(
+              capTotalEpisodes(out, MAX_EXPANDED_EPISODES),
+              MAX_EXPANDED_EPISODES_CHARS,
+            ),
           ),
         };
       },
       onStale,
     );
     return bulk.seasons;
-  }
-
-  /** Like getMovie/getTv but also returns the raw imdb_id for OMDb enrichment. */
-  async getDetailWithImdb(
-    mediaType: "movie" | "tv",
-    id: number,
-    region = this.#region,
-    language?: string,
-    expandEpisodes = false,
-    onStale?: () => void,
-  ): Promise<{
-    shaped: ReturnType<typeof detailMovie> | TvDetail;
-    imdbId: string | null;
-  }> {
-    const shaped =
-      mediaType === "tv"
-        ? await this.getTv(id, region, language, expandEpisodes, onStale)
-        : await this.getMovie(id, region, language, onStale);
-    return { shaped, imdbId: shaped.imdb_id };
   }
 
   async getPerson(
@@ -572,7 +574,7 @@ export class TmdbClient {
     language?: string,
   ): Promise<number[]> {
     try {
-      return await this.#cache.wrap(
+      return await this.#cache.wrapStaleOnError(
         cacheKey(`${mediaType}-genre-ids:${id}`, { language: this.#lang(language) }),
         async () => {
           const res =
@@ -807,14 +809,18 @@ export class TmdbClient {
     language?: string,
     onStale?: () => void,
   ): Promise<ReturnType<typeof summarizePersonCredits>> {
-    return this.#cached(
-      cacheKey(`person-credits:${id}`, { department, limit, language: this.#lang(language) }),
+    // Cache the raw response, not the shaped one: department/limit only
+    // change the shaping, never the upstream request, so keying the cache on
+    // them would refetch the same combined_credits once per combination.
+    const raw = await this.#cached(
+      cacheKey(`person-credits:${id}`, { language: this.#lang(language) }),
       `person/${id}/combined_credits`,
-      (c: CombinedCredits) => summarizePersonCredits(c, department, limit),
+      (c: CombinedCredits) => c,
       {},
       language,
       onStale,
     );
+    return summarizePersonCredits(raw, department, limit);
   }
 
   // ---- videos / trailers ----------------------------------------------------
@@ -971,7 +977,7 @@ const DISCOVER_FIELD_MAP: Record<
 // (TV_TYPES/TV_STATUSES there) — verified live against /discover/tv.
 // Translated here, after DISCOVER_FIELD_MAP's generic pass-through copies the
 // raw string in.
-const TV_TYPE_IDS: Record<string, number> = {
+const TV_TYPE_IDS: Record<(typeof TV_TYPES)[number], number> = {
   Documentary: 0,
   News: 1,
   Miniseries: 2,
@@ -980,7 +986,7 @@ const TV_TYPE_IDS: Record<string, number> = {
   "Talk Show": 5,
   Video: 6,
 };
-const TV_STATUS_IDS: Record<string, number> = {
+const TV_STATUS_IDS: Record<(typeof TV_STATUSES)[number], number> = {
   "Returning Series": 0,
   Planned: 1,
   "In Production": 2,

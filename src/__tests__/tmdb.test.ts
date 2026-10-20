@@ -670,7 +670,7 @@ describe("get_movie", () => {
     };
     assert.equal(s.imdb_id, "tt0133093"); // TMDB data still came through
     assert.equal(s.ratings.found, false);
-    assert.equal(s.ratings.reason, "OMDb lookup failed");
+    assert.match(s.ratings.reason, /^OMDb lookup failed: .*5xx/);
   });
 
   test("drops OMDb enrichment when its release year is unrelated to TMDB's (stale imdb_id)", async (t) => {
@@ -1312,6 +1312,28 @@ describe("discover_movies/discover_tv reject incomplete filter pairs", () => {
     assert.match(toolText(res), /min_runtime/);
   });
 
+  test("an inverted release_date range is rejected, not sent to TMDB as a 0-result query", async (t) => {
+    // Live TMDB answers an inverted date range with 200 + total_results:0,
+    // which reads as "nothing matched" instead of "fix the input".
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    await using client = await connectServer(ENV);
+    for (const name of ["discover_movies", "discover_tv"]) {
+      const res = await client.callTool({
+        name,
+        arguments: { release_date_gte: "2020-01-01", release_date_lte: "2019-12-31" },
+      });
+      assert.equal(res.isError, true, name);
+      assert.match(toolText(res), /release_date_gte must be <= release_date_lte/, name);
+    }
+    assert.ok(!mock.calls.some((c) => c.url.includes("/discover/")));
+    const ok = await client.callTool({
+      name: "discover_movies",
+      arguments: { release_date_gte: "2020-01-01", release_date_lte: "2020-01-01" },
+    });
+    assert.notEqual(ok.isError, true);
+  });
+
   test("watch_region / certification_country alone are rejected, not silently ignored", async (t) => {
     installFetch(t, mockFetch(router));
     await using client = await connectServer(ENV);
@@ -1691,6 +1713,21 @@ describe("person", () => {
       arguments: { id: 6384, limit: 30 },
     });
     assert.equal((raisedRes.structuredContent as { crew: unknown[] }).crew.length, 30);
+  });
+
+  test("get_person_credits reuses one cached combined_credits fetch across department/limit", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    await using client = await connectServer(ENV);
+    for (const args of [{}, { department: "Directing" }, { limit: 5 }]) {
+      const res = await client.callTool({
+        name: "get_person_credits",
+        arguments: { id: 6384, ...args },
+      });
+      assert.notEqual(res.isError, true);
+    }
+    const fetches = mock.calls.filter((c) => c.url.includes("/person/6384/combined_credits"));
+    assert.equal(fetches.length, 1, "department/limit only reshape the same upstream response");
   });
 
   test("get_person returns full biography details and a human-readable gender", async (t) => {

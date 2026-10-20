@@ -169,30 +169,26 @@ export function registerDetailsTools(
       annotations: READ_ONLY,
     },
     ({ ids, language: lang, include_ratings }, ctx) => {
-      return requireTmdbCached(async (onStale) => {
-        const settled = await Promise.allSettled(
-          ids.map((id) =>
-            getEnrichedDetail(
-              "movie",
-              id,
-              undefined,
-              lang,
-              include_ratings ?? false,
-              tmdb,
-              omdb,
-              false,
-              onStale,
-            ),
+      return requireTmdbCached(
+        (onStale) =>
+          getCards(
+            ids,
+            (id) =>
+              getEnrichedDetail(
+                "movie",
+                id,
+                undefined,
+                lang,
+                include_ratings ?? false,
+                tmdb,
+                omdb,
+                false,
+                onStale,
+              ),
+            movieCard,
           ),
-        );
-        return {
-          results: settled.map((result, i) =>
-            result.status === "fulfilled"
-              ? movieCard(result.value)
-              : notFoundCard(ids[i]!, errorReason(result.reason)),
-          ),
-        };
-      }, ctx.mcpReq.signal);
+        ctx.mcpReq.signal,
+      );
     },
   );
 
@@ -219,30 +215,26 @@ export function registerDetailsTools(
       annotations: READ_ONLY,
     },
     ({ ids, language: lang, include_ratings }, ctx) => {
-      return requireTmdbCached(async (onStale) => {
-        const settled = await Promise.allSettled(
-          ids.map((id) =>
-            getEnrichedDetail(
-              "tv",
-              id,
-              undefined,
-              lang,
-              include_ratings ?? false,
-              tmdb,
-              omdb,
-              false,
-              onStale,
-            ),
+      return requireTmdbCached(
+        (onStale) =>
+          getCards(
+            ids,
+            (id) =>
+              getEnrichedDetail(
+                "tv",
+                id,
+                undefined,
+                lang,
+                include_ratings ?? false,
+                tmdb,
+                omdb,
+                false,
+                onStale,
+              ),
+            tvCard,
           ),
-        );
-        return {
-          results: settled.map((result, i) =>
-            result.status === "fulfilled"
-              ? tvCard(result.value)
-              : notFoundCard(ids[i]!, errorReason(result.reason)),
-          ),
-        };
-      }, ctx.mcpReq.signal);
+        ctx.mcpReq.signal,
+      );
     },
   );
 
@@ -406,7 +398,7 @@ export function registerDetailsTools(
       description:
         "Get a movie collection/franchise and all its parts in release order (e.g. the whole " +
         "'The Dark Knight Collection'). Get the collection id from a movie's `collection` field in get_movie.",
-      inputSchema: z.strictObject({ id: tmdbId, language: language.optional() }),
+      inputSchema: z.strictObject({ id: tmdbId, language }),
       outputSchema: collectionSchema,
       annotations: READ_ONLY,
     },
@@ -509,19 +501,32 @@ async function getEnrichedDetail(
   expandEpisodes = false,
   onStale?: () => void,
 ): Promise<
-  Awaited<ReturnType<TmdbClient["getDetailWithImdb"]>>["shaped"] & {
+  Awaited<ReturnType<TmdbClient["getMovie"] | TmdbClient["getTv"]>> & {
     ratings?: ReturnType<typeof summarizeRatings>;
   }
 > {
-  const { shaped, imdbId } = await tmdb.getDetailWithImdb(
-    mediaType,
-    id,
-    region,
-    language,
-    expandEpisodes,
-    onStale,
-  );
-  return maybeEnrich(shaped, imdbId, wantRatings, omdb, onStale);
+  const shaped =
+    mediaType === "tv"
+      ? await tmdb.getTv(id, region, language, expandEpisodes, onStale)
+      : await tmdb.getMovie(id, region, language, onStale);
+  return maybeEnrich(shaped, shaped.imdb_id, wantRatings, omdb, onStale);
+}
+
+/** get_movies/get_tv_shows' shared body: one compact card per id, in `ids` order;
+ * a failed id becomes a `{id, found:false, reason}` card instead of failing the call. */
+async function getCards<D, C>(
+  ids: number[],
+  fetchOne: (id: number) => Promise<D>,
+  toCard: (detail: D) => C,
+): Promise<{ results: (C | ReturnType<typeof notFoundCard>)[] }> {
+  const settled = await Promise.allSettled(ids.map(fetchOne));
+  return {
+    results: settled.map((result, i) =>
+      result.status === "fulfilled"
+        ? toCard(result.value)
+        : notFoundCard(ids[i]!, errorReason(result.reason)),
+    ),
+  };
 }
 
 /** Attach OMDb ratings to a TMDB detail object when requested and possible. */
@@ -562,7 +567,14 @@ export async function maybeEnrich<T extends Record<string, unknown>>(
       };
     }
     return { ...shaped, ratings };
-  } catch {
-    return { ...shaped, ratings: ratingsNotFound("OMDb lookup failed") };
+  } catch (err) {
+    // Name the cause when it's a classified upstream failure (e.g. a rejected
+    // OMDB_API_KEY → 401 "unauthorized"), so the caller can tell a fixable
+    // config problem from a transient outage.
+    const reason =
+      err instanceof ApiError
+        ? `OMDb lookup failed: ${apiErrorMessage(err)}`
+        : "OMDb lookup failed";
+    return { ...shaped, ratings: ratingsNotFound(reason) };
   }
 }
