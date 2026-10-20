@@ -9,6 +9,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - Return `year` from `get_tv`, as `get_movie` already does ([e170e16](https://github.com/Grinv/tmdb-mcp/commit/e170e16)).
+- Add `exact_year` to `search_movies`, matching only the original release year ([a15a0e2](https://github.com/Grinv/tmdb-mcp/commit/a15a0e2)).
+- Return each video's `language` from `get_videos` ([a15a0e2](https://github.com/Grinv/tmdb-mcp/commit/a15a0e2)).
 - Return `popularity` and `known_for` for people in `find_by_imdb_id`, as `search_people` does ([e170e16](https://github.com/Grinv/tmdb-mcp/commit/e170e16)).
 
 ### Changed
@@ -17,6 +19,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Return English and untagged videos from `get_videos` on a non-English server, not just that language's few ([a15a0e2](https://github.com/Grinv/tmdb-mcp/commit/a15a0e2)).
 - Keep both credits in `get_person_credits` when a movie and a TV show share an id (Ron Perlman's `Hellboy` was dropped) ([761e2e4](https://github.com/Grinv/tmdb-mcp/commit/761e2e4)).
 - List a collection's undated, announced part last instead of first ([761e2e4](https://github.com/Grinv/tmdb-mcp/commit/761e2e4)).
 - Return `null`, not `0`, for the score of a title nobody has voted on yet ([761e2e4](https://github.com/Grinv/tmdb-mcp/commit/761e2e4)).
