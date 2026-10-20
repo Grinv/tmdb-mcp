@@ -377,19 +377,35 @@ export class TmdbClient {
     language?: string,
     onStale?: () => void,
   ): Promise<ReturnType<typeof detailMovie>> {
-    // region + language are dims because the headline `certification` and the
-    // localized text fields vary by them.
-    return this.#cache.wrapStaleOnError(
-      cacheKey(`movie:${id}`, { region, language: this.#lang(language) }),
-      async () => {
-        // release_dates appended so the detail carries age/content certifications.
-        const res = await this.#get<TmdbMovie>(
-          `movie/${id}`,
-          { append_to_response: "release_dates" },
-          language,
-        );
-        return detailMovie(res, region);
-      },
+    return detailMovie(await this.#movieRaw(id, language, onStale), region);
+  }
+
+  // The raw detail is cached, not the shaped one: `region` only picks which
+  // country's certification detailMovie/detailTv headline — release_dates /
+  // content_ratings carry every country — so a region-keyed cache would
+  // refetch the same response once per region.
+  #movieRaw(id: number, language?: string, onStale?: () => void): Promise<TmdbMovie> {
+    return this.#cached(
+      cacheKey(`movie:${id}`, { language: this.#lang(language) }),
+      `movie/${id}`,
+      (res: TmdbMovie) => res,
+      // release_dates appended so the detail carries age/content certifications.
+      { append_to_response: "release_dates" },
+      language,
+      onStale,
+    );
+  }
+
+  #tvRaw(id: number, language?: string, onStale?: () => void): Promise<TmdbTv> {
+    return this.#cached(
+      cacheKey(`tv:${id}`, { language: this.#lang(language) }),
+      `tv/${id}`,
+      (res: TmdbTv) => res,
+      // external_ids appended so the TV detail carries an imdb_id (the base
+      // /tv/{id} response, unlike /movie/{id}, does not include one);
+      // content_ratings appended for age/content certifications.
+      { append_to_response: "external_ids,content_ratings" },
+      language,
       onStale,
     );
   }
@@ -401,21 +417,7 @@ export class TmdbClient {
     expandEpisodes = false,
     onStale?: () => void,
   ): Promise<TvDetail> {
-    const shaped = await this.#cache.wrapStaleOnError(
-      cacheKey(`tv:${id}`, { region, language: this.#lang(language) }),
-      async () => {
-        // external_ids appended so the TV detail carries an imdb_id (the base
-        // /tv/{id} response, unlike /movie/{id}, does not include one);
-        // content_ratings appended for age/content certifications.
-        const res = await this.#get<TmdbTv>(
-          `tv/${id}`,
-          { append_to_response: "external_ids,content_ratings" },
-          language,
-        );
-        return detailTv(res, region);
-      },
-      onStale,
-    );
+    const shaped = detailTv(await this.#tvRaw(id, language, onStale), region);
     if (!expandEpisodes) return shaped;
     const seasons = shaped.seasons.filter(
       (s): s is typeof s & { season_number: number } => s.season_number !== null,
@@ -605,18 +607,12 @@ export class TmdbClient {
     language?: string,
   ): Promise<number[]> {
     try {
-      return await this.#cache.wrapStaleOnError(
-        cacheKey(`${mediaType}-genre-ids:${id}`, { language: this.#lang(language) }),
-        async () => {
-          const res =
-            mediaType === "tv"
-              ? await this.#get<TmdbTv>(`tv/${id}`, {}, language)
-              : await this.#get<TmdbMovie>(`movie/${id}`, {}, language);
-          return (res.genres ?? [])
-            .map((g) => g.id)
-            .filter((genreId): genreId is number => typeof genreId === "number");
-        },
-      );
+      // Shares get_movie/get_tv's cached raw detail instead of its own fetch.
+      const res =
+        mediaType === "tv" ? await this.#tvRaw(id, language) : await this.#movieRaw(id, language);
+      return (res.genres ?? [])
+        .map((g) => g.id)
+        .filter((genreId): genreId is number => typeof genreId === "number");
     } catch {
       return [];
     }
@@ -787,19 +783,14 @@ export class TmdbClient {
     region = this.#region,
     onStale?: () => void,
   ): Promise<ReturnType<typeof summarizeWatchProviders>> {
-    // region is a dim: summarizeWatchProviders returns a region-specific
-    // slice, so caching it under an id-only key would serve one region's
-    // providers for another.
-    return this.#cache.wrapStaleOnError(
-      cacheKey(`watch:${mediaType}:${id}`, { region }),
-      async () => {
-        const res = await this.#http.getJson<WatchProvidersResponse>(
-          `${mediaType}/${id}/watch/providers`,
-        );
-        return summarizeWatchProviders(res, region);
-      },
+    // Cached raw: the response carries every region, and `region` only picks
+    // which one summarizeWatchProviders headlines.
+    const res = await this.#cache.wrapStaleOnError(
+      cacheKey(`watch:${mediaType}:${id}`),
+      () => this.#http.getJson<WatchProvidersResponse>(`${mediaType}/${id}/watch/providers`),
       onStale,
     );
+    return summarizeWatchProviders(res, region);
   }
 
   // Provider ids feed discover_*'s with_watch_providers; this resolves a

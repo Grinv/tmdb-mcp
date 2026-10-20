@@ -602,3 +602,39 @@ describe("TmdbClient: getSimilar's source-genre lookup survives a TMDB outage vi
     );
   });
 });
+
+describe("TmdbClient: region only reshapes cached data, never refetches", () => {
+  // release_dates and /watch/providers carry every country; `region` only
+  // picks which one is headlined, so a second region must not hit TMDB again.
+  test("getMovie and getWatchProviders fetch once across two regions", async (t) => {
+    const mock = mockFetch((url) => {
+      if (url.includes("/watch/providers")) {
+        return jsonResponse({
+          id: 603,
+          results: {
+            US: { link: "https://www.themoviedb.org/movie/603/watch?locale=US", flatrate: [] },
+            DE: { link: "https://www.themoviedb.org/movie/603/watch?locale=DE", flatrate: [] },
+          },
+        });
+      }
+      return jsonResponse({
+        id: 603,
+        title: "The Matrix",
+        release_dates: {
+          results: [
+            { iso_3166_1: "US", release_dates: [{ certification: "R", type: 3 }] },
+            { iso_3166_1: "DE", release_dates: [{ certification: "16", type: 3 }] },
+          ],
+        },
+      });
+    });
+    installFetch(t, mock);
+    const c = client();
+    assert.equal((await c.getMovie(603, "US")).certification, "R");
+    assert.equal((await c.getMovie(603, "DE")).certification, "16");
+    await c.getWatchProviders("movie", 603, "US");
+    await c.getWatchProviders("movie", 603, "DE");
+    assert.equal(mock.calls.filter((x) => /\/movie\/603\?/.test(x.url)).length, 1);
+    assert.equal(mock.calls.filter((x) => x.url.includes("/watch/providers")).length, 1);
+  });
+});
