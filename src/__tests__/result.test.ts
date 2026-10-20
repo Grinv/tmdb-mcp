@@ -26,7 +26,6 @@ describe("apiErrorToResult", () => {
       ["unauthorized", /expired|credentials/i],
       ["forbidden", /denied access/i],
       ["not_found", /no matching resource|404/i],
-      ["not_modified", /not changed|304/i],
       ["rate_limited", /rate limit/i],
       ["server_error", /5xx|retry later/i],
       ["network", /network/i],

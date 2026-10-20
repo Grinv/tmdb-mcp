@@ -6,7 +6,6 @@ export type ApiErrorCode =
   | "unauthorized" // 401 — token missing/expired/invalid
   | "forbidden" // 403 — insufficient permissions/scope
   | "not_found" // 404 — no such resource
-  | "not_modified" // 304 — currently unreachable (this client sends no conditional requests); kept for completeness
   | "rate_limited" // 429 — slow down
   | "server_error" // 5xx — upstream broke
   | "network" // connection failed
@@ -38,7 +37,6 @@ export class ApiError extends Error {
 
 /** Map an HTTP status code to an ApiErrorCode and whether a retry may help. */
 export function classifyStatus(status: number): { code: ApiErrorCode; retryable: boolean } {
-  if (status === 304) return { code: "not_modified", retryable: false };
   if (status === 401) return { code: "unauthorized", retryable: false };
   if (status === 403) return { code: "forbidden", retryable: false };
   if (status === 404) return { code: "not_found", retryable: false };

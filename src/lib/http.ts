@@ -6,10 +6,6 @@ import type { Logger } from "./logger.js";
 import { USER_AGENT } from "../version.js";
 
 export interface RequestOptions {
-  method?: string;
-  headers?: Record<string, string>;
-  /** Already-serialized request body (e.g. URLSearchParams string or JSON). */
-  body?: string;
   query?: Record<string, string | number | boolean | undefined>;
   timeoutMs?: number;
   /** Max retry attempts for retryable failures (network/timeout/5xx/429). */
@@ -37,15 +33,8 @@ export class HttpClient {
     this.#opts = opts;
   }
 
+  /** GET a JSON resource. This server is read-only, so GET is the only verb. */
   async getJson<T>(path: string, options: RequestOptions = {}): Promise<T> {
-    return this.requestJson<T>(path, { ...options, method: options.method ?? "GET" });
-  }
-
-  // Every caller today goes through getJson() (GET, no body) — this server is
-  // read-only. The generic method/body/headers support in RequestOptions is
-  // latent for a future write endpoint; keep requestJson's surface minimal in
-  // spirit until one exists.
-  async requestJson<T>(path: string, options: RequestOptions = {}): Promise<T> {
     const url = this.#buildUrl(path, options.query);
     const retries = options.retries ?? this.#opts.retries ?? 2;
     const timeoutMs = options.timeoutMs ?? this.#opts.timeoutMs ?? 15000;
@@ -90,14 +79,12 @@ export class HttpClient {
     let res: Response;
     try {
       res = await fetch(url, {
-        method: options.method ?? "GET",
+        method: "GET",
         headers: {
           "User-Agent": USER_AGENT,
           Accept: "application/json",
           ...this.#opts.defaultHeaders,
-          ...options.headers,
         },
-        ...(options.body === undefined ? {} : { body: options.body }),
         signal,
       });
     } catch (err) {
@@ -221,13 +208,7 @@ function toNetworkError(err: unknown): ApiError {
 function backoffMs(attempt: number, err: ApiError): number {
   const hinted = (err.cause as { retryAfterMs?: number } | undefined)?.retryAfterMs;
   if (typeof hinted === "number" && hinted > 0) return Math.min(hinted, MAX_BACKOFF_MS);
-  const base = Math.min(MAX_BACKOFF_MS, 500 * 2 ** attempt);
-  return base + Math.floor(base * 0.25 * deterministicJitter(attempt));
-}
-
-// Jitter without Math.random: small deterministic spread by attempt index.
-function deterministicJitter(attempt: number): number {
-  return ((attempt * 2654435761) % 1000) / 1000;
+  return Math.min(MAX_BACKOFF_MS, 500 * 2 ** attempt);
 }
 
 function parseRetryAfter(header: string | null): number | undefined {

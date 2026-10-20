@@ -62,8 +62,6 @@ function messageFor(err: ApiError): string {
       return "The upstream service denied access (403). The credentials may lack permission.";
     case "not_found":
       return "No matching resource was found (404).";
-    case "not_modified":
-      return "The content has not changed since the last request (304).";
     case "rate_limited":
       return "Upstream rate limit hit (429). Please retry in a few seconds.";
     case "server_error":
