@@ -66,6 +66,10 @@
     { "name": "discover_tv", "description": "Find TV shows by filters." },
     { "name": "search_keywords", "description": "Resolve keyword names to ids for discover." },
     { "name": "search_companies", "description": "Resolve a production company name to its id." },
+    {
+      "name": "search_collections",
+      "description": "Resolve a movie franchise name to its collection id."
+    },
     { "name": "get_watch_providers", "description": "Where to stream/rent/buy, by region." },
     {
       "name": "search_watch_providers",

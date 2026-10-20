@@ -1,9 +1,11 @@
 // Name/title → TMDB id resolvers: search_movies/search_tv/search_people/
-// search_multi for titles and people, plus search_keywords/search_companies/
-// search_watch_providers for the ids discover_movies/discover_tv's filters need.
+// search_multi for titles and people, search_collections for get_collection's
+// franchise id, plus search_keywords/search_companies/search_watch_providers for
+// the ids discover_movies/discover_tv's filters need.
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/server";
 import {
+  collectionMatchesSchema,
   companiesSchema,
   keywordsSchema,
   multiItemSchema,
@@ -178,6 +180,35 @@ export function registerSearchTools(
     },
     ({ query, page: pg }, ctx) =>
       requireTmdb(() => tmdb.searchCompanies(query, pg, ctx.mcpReq.signal), ctx.mcpReq.signal),
+  );
+
+  server.registerTool(
+    "search_collections",
+    {
+      title: "Search movie collections",
+      description:
+        "Resolve a franchise/series name (e.g. 'harry potter', 'james bond') to its TMDB " +
+        "collection id — a collection is TMDB's grouping of a movie series' films. Pass the id " +
+        "to get_collection for every part in release order. Use this when you only have the " +
+        "franchise name; if you already have one of its movies, get_movie's `collection` field " +
+        "carries the same id. Movies only: collection parts are movies, and a TV series name " +
+        "finds nothing (e.g. 'breaking bad' → 0 results). A name can match several " +
+        "collections ('star wars' also returns 'LEGO Star Wars Collection' and other spin-off " +
+        "groupings) — pick by name/overview. Rows are id, name, overview, poster_url, " +
+        "localized per `language` (e.g. 'de-DE' → 'Harry Potter Filmreihe').",
+      inputSchema: z.strictObject({
+        query: z.string().min(1).describe("Franchise/collection name to look up."),
+        language,
+        page: page.optional(),
+      }),
+      outputSchema: collectionMatchesSchema,
+      annotations: READ_ONLY,
+    },
+    ({ query, language: lang, page: pg }, ctx) =>
+      requireTmdb(
+        () => tmdb.searchCollections(query, pg, lang, ctx.mcpReq.signal),
+        ctx.mcpReq.signal,
+      ),
   );
 
   server.registerTool(

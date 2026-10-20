@@ -261,6 +261,20 @@ const COMPANIES = pageOf([
   { id: 41077, name: "A24", origin_country: "US", logo_path: "/a24.png" },
 ]);
 
+// /search/collection's real row shape (live "harry potter", trimmed overview).
+const COLLECTION_SEARCH = pageOf([
+  {
+    adult: false,
+    backdrop_path: "/4gV0rKUjB1nLUdZB4zIltLvNZZr.jpg",
+    id: 1241,
+    name: "Harry Potter Collection",
+    original_language: "en",
+    original_name: "Harry Potter Collection",
+    overview: "The Harry Potter films are a fantasy series.",
+    poster_path: "/eVPs2Y0LyvTLZn6AP5Z6O2rtiGB.jpg",
+  },
+]);
+
 const REVIEWS = pageOf([
   {
     author: "Reviewer",
@@ -433,6 +447,7 @@ const MULTI_SEARCH = pageOf([
 function router(url: string) {
   if (url.includes("/search/keyword")) return jsonResponse(KEYWORDS);
   if (url.includes("/search/company")) return jsonResponse(COMPANIES);
+  if (url.includes("/search/collection")) return jsonResponse(COLLECTION_SEARCH);
   if (url.includes("/search/movie")) {
     return jsonResponse(pageOf([MOVIE_DETAIL]));
   }
@@ -1528,6 +1543,35 @@ describe("search keywords & language", () => {
     assert.equal(s.results[1]!.id, 41077);
     assert.equal(s.results[1]!.origin_country, "US");
     assert.match(s.results[1]!.logo_url!, /a24\.png$/);
+  });
+
+  test("search_collections resolves a franchise name to a trimmed collection row", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    await using client = await connectServer(ENV);
+    const res = await client.callTool({
+      name: "search_collections",
+      arguments: { query: "harry potter", language: "de-DE", page: 2 },
+    });
+    assert.notEqual(res.isError, true);
+    assert.deepEqual(res.structuredContent, {
+      results: [
+        {
+          id: 1241,
+          name: "Harry Potter Collection",
+          overview: "The Harry Potter films are a fantasy series.",
+          poster_url: "https://image.tmdb.org/t/p/w500/eVPs2Y0LyvTLZn6AP5Z6O2rtiGB.jpg",
+        },
+      ],
+      page: 1,
+      total_pages: 1,
+      total_results: 1,
+    });
+    const q = new URL(mock.calls.find((c) => c.url.includes("/search/collection"))!.url)
+      .searchParams;
+    assert.equal(q.get("query"), "harry potter");
+    assert.equal(q.get("language"), "de-DE");
+    assert.equal(q.get("page"), "2");
   });
 
   test("language: TMDB_LANGUAGE default is applied, and a per-call override wins", async (t) => {

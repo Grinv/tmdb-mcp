@@ -397,7 +397,8 @@ export function registerDetailsTools(
       title: "Get a movie collection",
       description:
         "Get a movie collection/franchise and all its parts in release order (e.g. the whole " +
-        "'The Dark Knight Collection'). Get the collection id from a movie's `collection` field in get_movie.",
+        "'The Dark Knight Collection'). Get the collection id from search_collections (by " +
+        "franchise name) or from a movie's `collection` field in get_movie.",
       inputSchema: z.strictObject({ id: tmdbId, language }),
       outputSchema: collectionSchema,
       annotations: READ_ONLY,

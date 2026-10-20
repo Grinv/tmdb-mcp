@@ -15,6 +15,7 @@ import {
   cardNotFoundSchema,
   cardRatingsSchema,
   collectionSchema,
+  collectionMatchSchema,
   companySchema,
   creditsSchema,
   tvCreditsSchema,
@@ -718,6 +719,29 @@ export function summarizeCollection(c: TmdbCollection): z.infer<typeof collectio
     overview: c.overview || null,
     poster_url: imageUrl(c.poster_path),
     parts: parts.map(summarizeMovie),
+  });
+}
+
+export interface TmdbCollectionMatch {
+  id: number;
+  name?: string;
+  original_name?: string;
+  overview?: string;
+  poster_path?: string | null;
+  backdrop_path?: string | null;
+  adult?: boolean;
+  original_language?: string;
+}
+
+// A /search/collection row; feeds get_collection's id.
+export function summarizeCollectionMatch(
+  c: TmdbCollectionMatch,
+): z.infer<typeof collectionMatchSchema> {
+  return collectionMatchSchema.parse({
+    id: c.id,
+    name: c.name,
+    overview: c.overview || null,
+    poster_url: imageUrl(c.poster_path),
   });
 }
 

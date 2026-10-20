@@ -6,6 +6,7 @@ import {
   detailTv,
   page,
   summarizeCollection,
+  summarizeCollectionMatch,
   summarizeCredits,
   summarizeTvCredits,
   summarizeEpisode,
@@ -199,6 +200,12 @@ describe("reviewSchema", () => {
 describe("collectionSchema", () => {
   test("summarizeCollection's output on a bare-minimum collection does not throw", () => {
     assert.doesNotThrow(() => summarizeCollection({}));
+  });
+});
+
+describe("collectionMatchSchema", () => {
+  test("summarizeCollectionMatch's output on a bare-minimum row does not throw", () => {
+    assert.doesNotThrow(() => summarizeCollectionMatch({ id: 1 }));
   });
 });
 

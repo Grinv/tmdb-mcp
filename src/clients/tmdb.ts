@@ -16,6 +16,7 @@ import {
   page,
   parseSeasons,
   summarizeCollection,
+  summarizeCollectionMatch,
   summarizeCompany,
   summarizeCredits,
   summarizeTvCredits,
@@ -38,6 +39,7 @@ import {
   type Page,
   type ProviderEntry,
   type TmdbCompany,
+  type TmdbCollectionMatch,
   type TmdbAggregateCredits,
   type TmdbCredits,
   type TmdbReview,
@@ -367,6 +369,24 @@ export class TmdbClient {
       signal,
     );
     return page(res, summarizeCompany);
+  }
+
+  // Collection ids feed get_collection. Only query/page/language are sent:
+  // verified live, include_adult and region don't change /search/collection's
+  // results ("bond" and "collection" return the same rows either way).
+  async searchCollections(
+    query: string,
+    pg?: number,
+    language?: string,
+    signal?: AbortSignal,
+  ): Promise<Page<ReturnType<typeof summarizeCollectionMatch>>> {
+    const res = await this.#get<TmdbPage<TmdbCollectionMatch>>(
+      "search/collection",
+      { query, page: pg },
+      language,
+      signal,
+    );
+    return page(res, summarizeCollectionMatch);
   }
 
   // ---- details (cached: stable, frequently re-requested) --------------------

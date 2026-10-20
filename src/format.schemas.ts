@@ -314,6 +314,18 @@ export const collectionSchema = z.strictObject({
   parts: z.array(movieSummarySchema),
 });
 
+// ---- summarizeCollectionMatch ----------------------------------------------------
+
+// One /search/collection row: enough to pick the right franchise and pass its
+// id to get_collection (which returns the parts).
+export const collectionMatchSchema = z.strictObject({
+  id: z.number(),
+  name: z.string().optional(),
+  overview: z.string().nullable(),
+  poster_url: z.string().nullable(),
+});
+export const collectionMatchesSchema = pageSchema(collectionMatchSchema);
+
 // ---- summarizeKeywords -----------------------------------------------------------
 
 export const keywordsSchema = pageSchema(idNameSchema);
