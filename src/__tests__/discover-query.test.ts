@@ -14,6 +14,15 @@ const ALL_PARAMS: DiscoverParams = {
   year: 1999,
   release_date_gte: "1999-01-01",
   release_date_lte: "1999-12-31",
+  any_release_date_gte: "2026-09-01",
+  any_release_date_lte: "2026-09-30",
+  with_release_type: ["theatrical", "theatrical_limited"],
+  region: "DE",
+  air_date_gte: "2026-10-19",
+  air_date_lte: "2026-10-25",
+  with_origin_country: ["KR", "JP"],
+  without_companies: "2",
+  without_watch_providers: "337",
   min_rating: 7,
   max_rating: 9,
   min_votes: 100,
@@ -128,6 +137,35 @@ describe("discoverQuery", () => {
     for (const kind of ["movie", "tv"] as const) {
       const q = discoverQuery(ALL_PARAMS, kind);
       assert.equal(q.with_watch_monetization_types, "flatrate|rent");
+    }
+  });
+
+  test("movie's any_release_date_*/with_release_type/region map to release_date.*, numeric codes", () => {
+    const q = discoverQuery(ALL_PARAMS, "movie");
+    assert.equal(q["release_date.gte"], "2026-09-01");
+    assert.equal(q["release_date.lte"], "2026-09-30");
+    assert.equal(q.with_release_type, "3|2");
+    assert.equal(q.region, "DE");
+    assert.equal(q["air_date.gte"], undefined);
+    assert.equal(q["air_date.lte"], undefined);
+  });
+
+  test("tv's air_date_* map to air_date.*, and the movie release-window fields are dropped", () => {
+    const q = discoverQuery(ALL_PARAMS, "tv");
+    assert.equal(q["air_date.gte"], "2026-10-19");
+    assert.equal(q["air_date.lte"], "2026-10-25");
+    assert.equal(q["release_date.gte"], undefined);
+    assert.equal(q["release_date.lte"], undefined);
+    assert.equal(q.with_release_type, undefined);
+    assert.equal(q.region, undefined);
+  });
+
+  test("with_origin_country is pipe-joined and the exclusion lists pass through, for both kinds", () => {
+    for (const kind of ["movie", "tv"] as const) {
+      const q = discoverQuery(ALL_PARAMS, kind);
+      assert.equal(q.with_origin_country, "KR|JP");
+      assert.equal(q.without_companies, "2");
+      assert.equal(q.without_watch_providers, "337");
     }
   });
 

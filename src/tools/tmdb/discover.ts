@@ -54,6 +54,16 @@ const TV_SORT_BY = [
 // TMDB's watch-offer access models (the same flatrate/rent/buy/ads/free keys
 // get_watch_providers reports per region).
 const WATCH_MONETIZATION_TYPES = ["flatrate", "free", "ads", "rent", "buy"] as const;
+// TMDB's release types (its numeric codes 1-6, in this order), exported for
+// clients/tmdb.ts's discoverQuery to translate the name into that code.
+export const RELEASE_TYPES = [
+  "premiere",
+  "theatrical_limited",
+  "theatrical",
+  "digital",
+  "physical",
+  "tv",
+] as const;
 const idListRegex = /^\d+(?:,\d+)*$/;
 const idList = (desc: string) =>
   z
@@ -101,8 +111,31 @@ const discoverShared = {
     )
     .describe("ISO-639-1 original-language code, e.g. 'en', 'ja'.")
     .optional(),
+  // Verified live (/discover/movie, primary_release_year=2019 → 20001): with_origin_country
+  // KR → 725, JP → 1573, "KR|JP" → 2295 (OR) vs "KR,JP" → 3 (AND: co-productions
+  // only), hence the "|" join in discoverQuery; lowercase "kr" → 725 too; an
+  // unknown code ("ZZ") → 0. /discover/tv (first_air_date_year=2019 → 8942):
+  // KR → 563, JP → 534, "KR|JP" → 1097.
+  with_origin_country: z
+    .array(z.string().regex(/^[A-Z]{2}$/, "Use a two-letter ISO-3166-1 country code, e.g. 'KR'."))
+    .min(1)
+    .describe(
+      "Only titles whose country of origin (where they were produced, not where they can be " +
+        "watched) is one of these ISO-3166-1 codes, e.g. ['KR'] for Korean titles; several " +
+        "codes match ANY of them. An unknown code matches nothing.",
+    )
+    .optional(),
   with_companies: idList(
     "Comma-separated TMDB production company ids (use search_companies to resolve names → ids).",
+  ),
+  // Verified live (/discover/movie, primary_release_year=2019&vote_count.gte=1000
+  // → 186; Marvel=420 has 3, Disney=2 has 6): without_companies=420 → 183,
+  // =2 → 180, "420,2" → 177 (drops either). /discover/tv
+  // (first_air_date.gte=2015-01-01&vote_count.gte=200 → 1514; company 1957 has
+  // 67) → 1447.
+  without_companies: idList(
+    "Comma-separated TMDB production company ids to exclude: titles produced by ANY of them " +
+      "are dropped (use search_companies to resolve names → ids).",
   ),
   with_keywords: idList(
     "Comma-separated TMDB keyword ids (use search_keywords to resolve names → ids).",
@@ -113,6 +146,17 @@ const discoverShared = {
   with_watch_providers: idList(
     "Comma-separated TMDB watch-provider ids (use search_watch_providers to resolve a " +
       "service name, e.g. 'Netflix', to its numeric id); requires watch_region to also be set.",
+  ),
+  // Verified live (/discover/movie, primary_release_year=2019&vote_count.gte=1000
+  // → 186; Netflix=8 in US → 54, "8|337" → 68): without_watch_providers=8 +
+  // watch_region=US → 132, "8,337" → 118 (drops either); without watch_region
+  // it is a silent no-op (186). /discover/tv
+  // (first_air_date.gte=2015-01-01&vote_count.gte=200 → 1514, Netflix US 585)
+  // → 929.
+  without_watch_providers: idList(
+    "Comma-separated TMDB watch-provider ids to exclude: titles that ANY of them offers in " +
+      "watch_region are dropped, e.g. 'not on Netflix' (use search_watch_providers to resolve a " +
+      "service name to its id); requires watch_region to also be set.",
   ),
   // Verified live (/discover/movie, primary_release_year=2019, watch_region=US):
   // with_watch_providers=2 alone → 2888; +flatrate → 1811; +rent → 2841;
@@ -139,8 +183,8 @@ const discoverShared = {
   watch_region: watchRegion
     .describe(
       "Two-letter ISO-3166-1 country code, e.g. 'US', whose streaming catalog " +
-        "with_watch_providers / with_watch_monetization_types filter on. Only valid together " +
-        "with at least one of them.",
+        "with_watch_providers / without_watch_providers / with_watch_monetization_types filter " +
+        "on. Only valid together with at least one of them.",
     )
     .optional(),
   // Shared, not movie-only: verified live against the real /discover/tv (not
@@ -154,11 +198,21 @@ const discoverShared = {
   // returned a total_results count matching the fully-unfiltered call
   // (~1.16M either way), not the ~10K a real US-certification-country filter
   // returns, confirming the filter is disabled rather than applied-and-empty.
+  //
+  // "|" is OR, verified live (US, primary_release_year=2019): G → 161, PG → 293,
+  // "G|PG" → 454 (also "g|pg"); "G,PG" → 0; an unknown member is just dropped
+  // ("G|PG13" → 161). TMDB's certification.lte is deliberately NOT exposed: it
+  // compares by the rating's `order`, where the US's "NR" (unrated) is 0, so
+  // lte=G → 1251 (161 G + ~1091 NR) and an unknown value ("PG13") silently
+  // turns into "any rated title" (2359, same as lte=NC-17) — the "|" list is
+  // the predictable way to ask for "PG or below".
   certification: z
     .string()
     .regex(/\S/, "certification must not be blank.")
     .describe(
-      "Filter by exact age/content certification, e.g. 'PG-13' (movies) or 'TV-Y7' (TV). Requires " +
+      "Filter by exact age/content certification, e.g. 'PG-13' (movies) or 'TV-Y7' (TV); join " +
+        "several with '|' to match ANY of them, e.g. 'G|PG' for kids/family movies or " +
+        "'TV-Y|TV-Y7|TV-G' for kids' TV. Requires " +
         "certification_country, and a certification_country TMDB doesn't recognize silently " +
         "disables this filter (returns unfiltered results) instead of erroring or matching nothing " +
         "— double-check the country actually has data for that rating system. Matching is " +
@@ -208,36 +262,63 @@ const discoverMovieSchema = {
     "Comma-separated TMDB person ids, matching either a cast or crew role. Use search_people " +
       "to resolve a name to their id.",
   ),
-  // TMDB's own docs describe this as picking which country's release date
-  // counts as a movie's release date for date-based filtering/sorting — but
-  // verified live, combining it with release_date_gte/lte, year, or
-  // with_release_type produced byte-identical total_results/ordering with
-  // vs. without it, for a real region (US/FR/DE/JP), so don't rely on the
-  // documented mechanism actually kicking in. The one live-reproducible
-  // effect: even with NO other filter at all, supplying any value here
-  // (including one TMDB doesn't recognize, e.g. "ZZ") shifts total_results
-  // by a handful of titles versus omitting the field — real and repeatable,
-  // but too small/unexplained to use for precise filtering.
-  // Movie-only: verified live against /discover/tv, every value (real,
-  // nonsense, or omitted) returns identical total_results there — TMDB does
-  // not support this param for TV discover at all.
-  // Deliberately NOT built via the shared regionSchema(defaultRegion) factory
-  // above: that factory's description asserts a "(default 'XXX')" fallback,
-  // but discoverQuery (clients/tmdb.ts) never defaults this to config.tmdbRegion
+  // TMDB's release_date.gte/lte (NOT primary_release_date, which
+  // release_date_gte/lte above map to): matches a movie with ANY single
+  // release — any country, any type, re-releases included — in the window.
+  // Verified live: release_date 2026-09-01..30 → 7895 vs primary_release_date
+  // → 4364; + region=DE → 473, US → 1504, ZZ → 0; + with_release_type=3 → 1566,
+  // + region=DE → 95, every top-10 result checked had a DE type-3 release in
+  // the window (incl. 299534 Avengers: Endgame and 920 Cars, re-released
+  // there, whose rows still carry their original release_date 2019-04-24 /
+  // 2006-09-07). One bound alone works (release_date.lte=2000-01-01 at
+  // vote_count.gte=5000: 204, + region=DE 195, + with_release_type=3 193).
+  // Inverted range → 0, so it's rejected like release_date_gte/lte.
+  any_release_date_gte: dateStr(
+    "Only movies with at least one release (any country and release type, re-releases " +
+      "included) on/after this date (YYYY-MM-DD) — unlike release_date_gte, which uses each " +
+      "movie's original premiere date. Narrow it with region and with_release_type, e.g. " +
+      "region='DE' + with_release_type=['theatrical'] + this window = movies in German cinemas " +
+      "then. A re-released movie matches, but its row's release_date stays the original one. " +
+      "Must be <= any_release_date_lte if both are given.",
+  ),
+  any_release_date_lte: dateStr(
+    "Only movies with at least one release (see any_release_date_gte) on/before this date " +
+      "(YYYY-MM-DD).",
+  ),
+  // Verified live (release_date 2026-09-01..30, region=DE): theatrical (3) →
+  // 95, theatrical_limited (2) → 13, "2|3" → 107 (OR; "2,3" → 259, matching
+  // neither AND nor OR, hence the "|" join in discoverQuery), digital (4) →
+  // 110. Without any_release_date_gte/lte it is a silent no-op (vote_count.gte=5000:
+  // 1083 with and without with_release_type=3 or 6, with or without region=DE).
+  with_release_type: z
+    .array(z.enum(RELEASE_TYPES))
+    .min(1)
+    .describe(
+      "Only count releases of these types toward any_release_date_gte/lte (and region): " +
+        "'premiere', 'theatrical_limited', 'theatrical' (wide cinema release), 'digital' (VOD/" +
+        "streaming), 'physical' (DVD/Blu-ray), 'tv' (TV broadcast). Several values match ANY of " +
+        "them. Requires any_release_date_gte or any_release_date_lte.",
+    )
+    .optional(),
+  // Verified live: only any_release_date_gte/lte reads it (see the comment
+  // above them). With neither set it is a silent no-op — vote_count.gte=5000
+  // gives 1083 with and without region=DE, and the same holds alongside year
+  // or release_date_gte/lte (primary release date). Rejected in that case
+  // instead. Movie-only: /discover/tv first_air_date_year=2019 gives 8942 with
+  // and without region=DE.
+  // Deliberately NOT built via the shared regionSchema(defaultRegion) factory:
+  // that factory's description asserts a "(default 'XXX')" fallback, but
+  // discoverQuery (clients/tmdb.ts) never defaults this to config.tmdbRegion
   // the way getMovie/getTv/getWatchProviders do — it's a pure pass-through,
-  // omitted entirely from the query when not given. Reusing that factory here
-  // would advertise a fallback that doesn't exist.
+  // omitted entirely from the query when not given.
   region: z
     .string()
     .regex(/^[A-Z]{2}$/, "Use a two-letter ISO-3166-1 country code, e.g. 'US'.")
     .describe(
-      "ISO-3166-1 country code. TMDB's docs describe this as picking which country's release " +
-        "date counts as a movie's release date for date-based filtering (year, release_date_gte/" +
-        "lte) — but live testing found no measurable effect there; use certification_country " +
-        "instead to scope the certification filter, which does work. The one confirmed live " +
-        "effect: supplying any value (even one TMDB doesn't recognize) shifts total_results by a " +
-        "handful of titles versus omitting this field entirely, even with no other filter — real " +
-        "but too small and unexplained to use for precise filtering. Movie-only.",
+      "ISO-3166-1 country code: limits any_release_date_gte/lte (and with_release_type) to " +
+        "releases in this country, e.g. 'DE'. Requires any_release_date_gte or " +
+        "any_release_date_lte; it has no effect on year/release_date_gte/lte. An unknown code " +
+        "matches nothing. Movie-only.",
     )
     .optional(),
 };
@@ -294,6 +375,22 @@ const discoverTvSchema = {
         "documentaries/reality/talk shows/etc. that would otherwise mix into a genre/rating search.",
     )
     .optional(),
+  // Verified live (/discover/tv): air_date 2026-10-19..25 → 1744 (any show
+  // with an episode airing that week); + with_networks=213 (Netflix) → 29;
+  // a past week works too (2020-03-02..08 → 3386; 60694 Last Week Tonight is
+  // in it, with an episode on 2020-03-08). gte alone → 2454. Inverted → 0.
+  // TMDB's default timezone is America/New_York (single day 2026-10-20: 444
+  // with no timezone and with America/New_York, 450 for UTC, 490 for
+  // Europe/Berlin); the timezone param itself is not exposed (an unknown zone
+  // silently falls back to the default).
+  air_date_gte: dateStr(
+    "Only shows with an episode airing on/after this date (YYYY-MM-DD) — e.g. 'what's airing " +
+      "this week' with air_date_lte; unlike release_date_gte, which uses the show's first " +
+      "air date. Dates are US Eastern time. Must be <= air_date_lte if both are given.",
+  ),
+  air_date_lte: dateStr(
+    "Only shows with an episode airing on/before this date (YYYY-MM-DD), see air_date_gte.",
+  ),
   with_status: z
     .enum(TV_STATUSES)
     .describe(
@@ -325,8 +422,8 @@ export const discoverParamsSchema = z.object({
 export type DiscoverParams = z.infer<typeof discoverParamsSchema>;
 
 // TMDB silently ignores certification/with_watch_providers/
-// with_watch_monetization_types when their required
-// pair field is missing, instead of erroring — which reads as "the filter was
+// without_watch_providers/with_watch_monetization_types/with_release_type/region
+// when their required pair field is missing, instead of erroring — which reads as "the filter was
 // applied" when it wasn't. Catch that here instead of round-tripping to TMDB.
 function checkDiscoverFilterPairs(
   val: {
@@ -336,7 +433,14 @@ function checkDiscoverFilterPairs(
     max_runtime?: number;
     release_date_gte?: string;
     release_date_lte?: string;
+    any_release_date_gte?: string;
+    any_release_date_lte?: string;
+    air_date_gte?: string;
+    air_date_lte?: string;
+    with_release_type?: readonly string[];
+    region?: string;
     with_watch_providers?: string;
+    without_watch_providers?: string;
     with_watch_monetization_types?: readonly string[];
     watch_region?: string;
     certification?: string;
@@ -369,22 +473,42 @@ function checkDiscoverFilterPairs(
   // Verified live: an inverted date range is not an error upstream — TMDB
   // answers 200 with total_results:0, which reads as "nothing matched".
   // Both are z.iso.date() (YYYY-MM-DD), so a string compare orders them.
-  if (
-    val.release_date_gte !== undefined &&
-    val.release_date_lte !== undefined &&
-    val.release_date_gte > val.release_date_lte
-  ) {
-    ctx.addIssue({
-      code: "custom",
-      message: "release_date_gte must be <= release_date_lte.",
-      path: ["release_date_gte"],
-    });
+  for (const [gte, lte] of [
+    ["release_date_gte", "release_date_lte"],
+    ["any_release_date_gte", "any_release_date_lte"],
+    ["air_date_gte", "air_date_lte"],
+  ] as const) {
+    const lo = val[gte];
+    const hi = val[lte];
+    if (lo !== undefined && hi !== undefined && lo > hi) {
+      ctx.addIssue({ code: "custom", message: `${gte} must be <= ${lte}.`, path: [gte] });
+    }
+  }
+  // Verified live: with neither any_release_date bound, with_release_type and
+  // region leave total_results unchanged (see their schema comments).
+  const hasReleaseWindow =
+    val.any_release_date_gte !== undefined || val.any_release_date_lte !== undefined;
+  for (const field of ["with_release_type", "region"] as const) {
+    if (val[field] !== undefined && !hasReleaseWindow) {
+      ctx.addIssue({
+        code: "custom",
+        message: `${field} requires any_release_date_gte or any_release_date_lte to also be set.`,
+        path: [field],
+      });
+    }
   }
   if (val.with_watch_providers !== undefined && val.watch_region === undefined) {
     ctx.addIssue({
       code: "custom",
       message: "with_watch_providers requires watch_region to also be set.",
       path: ["with_watch_providers"],
+    });
+  }
+  if (val.without_watch_providers !== undefined && val.watch_region === undefined) {
+    ctx.addIssue({
+      code: "custom",
+      message: "without_watch_providers requires watch_region to also be set.",
+      path: ["without_watch_providers"],
     });
   }
   if (val.with_watch_monetization_types !== undefined && val.watch_region === undefined) {
@@ -407,12 +531,14 @@ function checkDiscoverFilterPairs(
   if (
     val.watch_region !== undefined &&
     val.with_watch_providers === undefined &&
+    val.without_watch_providers === undefined &&
     val.with_watch_monetization_types === undefined
   ) {
     ctx.addIssue({
       code: "custom",
       message:
-        "watch_region only applies to with_watch_providers / with_watch_monetization_types; " +
+        "watch_region only applies to with_watch_providers / without_watch_providers / " +
+        "with_watch_monetization_types; " +
         "set it together with at least one of them, or omit it.",
       path: ["watch_region"],
     });
@@ -554,11 +680,13 @@ export function registerDiscoverTools(
       description:
         "Find movies by structured filters instead of a title query: genres (include/exclude), " +
         "year or release-date range, TMDB vote-average range, vote count, runtime range, original language, " +
-        "cast/crew/people, companies, keywords, watch providers and access model (subscription/" +
-        "rent/buy/free/ads), certification, a region code " +
-        "(minor effect only — see its own description), an adult-content toggle, and sort order. " +
-        "certification/with_watch_providers/with_watch_monetization_types have validation and silent-fallback rules — see their " +
-        "own field descriptions. Use for " +
+        "cast/crew/people, companies (include/exclude), origin country, keywords, watch providers " +
+        "(include/exclude) and access model (subscription/rent/buy/free/ads), certification, " +
+        "a release window in one country by release type (any_release_date_gte/lte + region + " +
+        "with_release_type — e.g. 'movies in German cinemas this month'), an adult-content " +
+        "toggle, and sort order. certification/with_watch_providers/without_watch_providers/" +
+        "with_watch_monetization_types/with_release_type/region have validation and " +
+        "silent-fallback rules — see their own field descriptions. Use for " +
         "'popular sci-fi from the 1990s with a TMDB vote average above 7 available on Netflix', or for a specific " +
         "person's work in one genre — 'which of this director's/actor's/composer's films are " +
         "animated' — via with_crew/with_cast/with_people + with_genres together; get_person_credits " +
@@ -579,14 +707,16 @@ export function registerDiscoverTools(
       title: "Discover TV shows (filters)",
       description:
         "Find TV shows by structured filters (genres, first-air year or date range, TMDB vote-average range, " +
-        "vote count, runtime, language, companies, networks, keywords, watch providers and access " +
-        "model (subscription/rent/buy/free/ads), type, " +
+        "vote count, runtime, language, origin country, companies (include/exclude), networks, " +
+        "keywords, watch providers (include/exclude) and access model (subscription/rent/buy/" +
+        "free/ads), episodes airing in a date range (air_date_gte/lte), type, " +
         "status, certification, an adult-content toggle, sort) — but NOT cast/crew/person: this " +
         "tool doesn't accept those " +
         "params for TV at all (calling with them is a validation error, not a silent no-op) " +
         "because TMDB's own /discover/tv would silently ignore them anyway, unlike /discover/movie; " +
         "to find TV shows featuring someone, call get_person_credits instead and filter its results " +
-        "to media_type 'tv'. certification/with_watch_providers/with_watch_monetization_types have validation and silent-fallback " +
+        "to media_type 'tv'. certification/with_watch_providers/without_watch_providers/" +
+        "with_watch_monetization_types have validation and silent-fallback " +
         "rules — see their own field descriptions. The TV counterpart of discover_movies; " +
         "use with_networks for 'HBO shows', with_type='Miniseries' for short/limited series (e.g. " +
         "'best miniseries to binge in a weekend'), with_status='Ended' to exclude shows still " +

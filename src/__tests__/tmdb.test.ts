@@ -1244,17 +1244,50 @@ describe("discover_movies", () => {
     assert.match(u, /certification_country=US/);
   });
 
-  test("passes region and include_adult through to TMDB", async (t) => {
+  test("passes region, the release window and include_adult through to TMDB", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
     await using client = await connectServer(ENV);
-    await client.callTool({
+    const res = await client.callTool({
       name: "discover_movies",
-      arguments: { region: "US", include_adult: true },
+      arguments: {
+        region: "US",
+        any_release_date_gte: "2026-09-01",
+        with_release_type: ["theatrical", "digital"],
+        include_adult: true,
+      },
     });
-    const u = mock.calls.find((c) => c.url.includes("/discover/movie"))!.url;
-    assert.match(u, /region=US/);
-    assert.match(u, /include_adult=true/);
+    assert.notEqual(res.isError, true);
+    const u = new URL(mock.calls.find((c) => c.url.includes("/discover/movie"))!.url);
+    assert.equal(u.searchParams.get("region"), "US");
+    assert.equal(u.searchParams.get("release_date.gte"), "2026-09-01");
+    assert.equal(u.searchParams.get("with_release_type"), "3|4");
+    assert.equal(u.searchParams.get("include_adult"), "true");
+  });
+
+  test("region / with_release_type without an any_release_date bound are rejected", async (t) => {
+    // Verified live: without release_date.gte/lte TMDB ignores both
+    // (identical total_results).
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    await using client = await connectServer(ENV);
+    for (const [args, msg] of [
+      [{ region: "DE" }, /region requires any_release_date_gte or any_release_date_lte/],
+      [
+        { with_release_type: ["theatrical"], release_date_gte: "2026-09-01" },
+        /with_release_type requires any_release_date_gte or any_release_date_lte/,
+      ],
+    ] as const) {
+      const res = await client.callTool({ name: "discover_movies", arguments: args });
+      assert.equal(res.isError, true);
+      assert.match(toolText(res), msg);
+    }
+    const unknownType = await client.callTool({
+      name: "discover_movies",
+      arguments: { any_release_date_gte: "2026-09-01", with_release_type: ["cinema"] },
+    });
+    assert.equal(unknownType.isError, true);
+    assert.ok(!mock.calls.some((c) => c.url.includes("/discover/")));
   });
 
   test("rejects a lowercase region up front instead of reaching TMDB", async (t) => {
@@ -1443,6 +1476,48 @@ describe("discover_movies/discover_tv reject incomplete filter pairs", () => {
     assert.match(toolText(res), /watch_region/);
   });
 
+  test("without_watch_providers is rejected without watch_region, and satisfies watch_region alone", async (t) => {
+    // Verified live: without watch_region TMDB ignores it (unfiltered total_results).
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    await using client = await connectServer(ENV);
+    for (const name of ["discover_movies", "discover_tv"]) {
+      const res = await client.callTool({ name, arguments: { without_watch_providers: "8" } });
+      assert.equal(res.isError, true, name);
+      assert.match(toolText(res), /without_watch_providers requires watch_region/, name);
+    }
+    assert.ok(!mock.calls.some((c) => c.url.includes("/discover/")));
+    const ok = await client.callTool({
+      name: "discover_tv",
+      arguments: { without_watch_providers: "8,337", watch_region: "US" },
+    });
+    assert.notEqual(ok.isError, true);
+    const u = new URL(mock.calls.find((c) => c.url.includes("/discover/tv"))!.url);
+    assert.equal(u.searchParams.get("without_watch_providers"), "8,337");
+    assert.equal(u.searchParams.get("watch_region"), "US");
+  });
+
+  test("with_origin_country is pipe-joined; lowercase or empty is rejected", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    await using client = await connectServer(ENV);
+    const ok = await client.callTool({
+      name: "discover_tv",
+      arguments: { with_origin_country: ["KR", "JP"], without_companies: "420" },
+    });
+    assert.notEqual(ok.isError, true);
+    const u = new URL(mock.calls.find((c) => c.url.includes("/discover/tv"))!.url);
+    assert.equal(u.searchParams.get("with_origin_country"), "KR|JP");
+    assert.equal(u.searchParams.get("without_companies"), "420");
+    for (const bad of [["kr"], []]) {
+      const res = await client.callTool({
+        name: "discover_movies",
+        arguments: { with_origin_country: bad },
+      });
+      assert.equal(res.isError, true, JSON.stringify(bad));
+    }
+  });
+
   test("min_rating greater than max_rating is rejected", async (t) => {
     installFetch(t, mockFetch(router));
     await using client = await connectServer(ENV);
@@ -1478,6 +1553,22 @@ describe("discover_movies/discover_tv reject incomplete filter pairs", () => {
       });
       assert.equal(res.isError, true, name);
       assert.match(toolText(res), /release_date_gte must be <= release_date_lte/, name);
+    }
+    for (const [name, args, msg] of [
+      [
+        "discover_movies",
+        { any_release_date_gte: "2026-09-30", any_release_date_lte: "2026-09-01" },
+        /any_release_date_gte must be <= any_release_date_lte/,
+      ],
+      [
+        "discover_tv",
+        { air_date_gte: "2026-10-25", air_date_lte: "2026-10-19" },
+        /air_date_gte must be <= air_date_lte/,
+      ],
+    ] as const) {
+      const res = await client.callTool({ name, arguments: args });
+      assert.equal(res.isError, true, name);
+      assert.match(toolText(res), msg, name);
     }
     assert.ok(!mock.calls.some((c) => c.url.includes("/discover/")));
     const ok = await client.callTool({

@@ -60,7 +60,12 @@ import type { Config } from "../config.js";
 // `import type` is fully erased at build, so this doesn't create a runtime
 // circular import even though tools/tmdb/discover.ts also imports TmdbClient
 // from here.
-import type { DiscoverParams, TV_STATUSES, TV_TYPES } from "../tools/tmdb/discover.js";
+import type {
+  DiscoverParams,
+  RELEASE_TYPES,
+  TV_STATUSES,
+  TV_TYPES,
+} from "../tools/tmdb/discover.js";
 
 type Query = Record<string, string | number | boolean | undefined>;
 
@@ -940,6 +945,12 @@ const DISCOVER_FIELD_MAP: Record<
   year: { movie: "primary_release_year", tv: "first_air_date_year" },
   release_date_gte: { movie: "primary_release_date.gte", tv: "first_air_date.gte" },
   release_date_lte: { movie: "primary_release_date.lte", tv: "first_air_date.lte" },
+  any_release_date_gte: { movie: "release_date.gte" },
+  any_release_date_lte: { movie: "release_date.lte" },
+  with_release_type: { movie: "with_release_type" },
+  air_date_gte: { tv: "air_date.gte" },
+  air_date_lte: { tv: "air_date.lte" },
+  with_origin_country: { movie: "with_origin_country", tv: "with_origin_country" },
   min_rating: { movie: "vote_average.gte", tv: "vote_average.gte" },
   max_rating: { movie: "vote_average.lte", tv: "vote_average.lte" },
   min_votes: { movie: "vote_count.gte", tv: "vote_count.gte" },
@@ -950,9 +961,11 @@ const DISCOVER_FIELD_MAP: Record<
   with_crew: { movie: "with_crew" },
   with_people: { movie: "with_people" },
   with_companies: { movie: "with_companies", tv: "with_companies" },
+  without_companies: { movie: "without_companies", tv: "without_companies" },
   with_keywords: { movie: "with_keywords", tv: "with_keywords" },
   without_keywords: { movie: "without_keywords", tv: "without_keywords" },
   with_watch_providers: { movie: "with_watch_providers", tv: "with_watch_providers" },
+  without_watch_providers: { movie: "without_watch_providers", tv: "without_watch_providers" },
   watch_region: { movie: "watch_region", tv: "watch_region" },
   with_watch_monetization_types: {
     movie: "with_watch_monetization_types",
@@ -991,14 +1004,28 @@ const TV_STATUS_IDS: Record<(typeof TV_STATUSES)[number], number> = {
   Pilot: 5,
 };
 
+// TMDB's with_release_type codes, same pattern as TV_TYPE_IDS above.
+const RELEASE_TYPE_IDS: Record<(typeof RELEASE_TYPES)[number], number> = {
+  premiere: 1,
+  theatrical_limited: 2,
+  theatrical: 3,
+  digital: 4,
+  physical: 5,
+  tv: 6,
+};
+
 export function discoverQuery(p: DiscoverParams, kind: "movie" | "tv"): Query {
   const query: Query = {};
   for (const field of Object.keys(DISCOVER_FIELD_MAP) as (keyof typeof DISCOVER_FIELD_MAP)[]) {
     const tmdbKey = DISCOVER_FIELD_MAP[field][kind];
     const value = p[field];
-    // with_watch_monetization_types is the one array field: TMDB reads "|" as
-    // OR (verified live; "," would require every listed type at once).
+    // Array fields (with_watch_monetization_types, with_origin_country,
+    // with_release_type): TMDB reads "|" as OR (verified live; "," would AND
+    // them, or for with_release_type do neither).
     if (tmdbKey) query[tmdbKey] = Array.isArray(value) ? value.join("|") : value;
+  }
+  if (kind === "movie" && p.with_release_type !== undefined) {
+    query.with_release_type = p.with_release_type.map((t) => RELEASE_TYPE_IDS[t]).join("|");
   }
   if (kind === "tv") {
     if (p.with_type !== undefined) query.with_type = TV_TYPE_IDS[p.with_type];
