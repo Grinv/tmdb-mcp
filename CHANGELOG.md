@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-20
+
 ### Added
 
 - Add `search_collections` to find a franchise's collection id by name ([7e51069](https://github.com/Grinv/tmdb-mcp/commit/7e51069)).
