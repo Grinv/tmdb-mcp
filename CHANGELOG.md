@@ -25,6 +25,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Return `get_similar` as TMDB ranks it, 20 per page, without the genre filter that left pages short or empty ([a2f1fc5](https://github.com/Grinv/tmdb-mcp/commit/a2f1fc5)).
 - Fetch a movie's or show's details and watch providers once, not once per `region` ([53d377c](https://github.com/Grinv/tmdb-mcp/commit/53d377c)).
 - Fetch a person's credits once per language in `get_person_credits`, not once per `department`/`limit` ([5b6fe6b](https://github.com/Grinv/tmdb-mcp/commit/5b6fe6b)).
+- Cache only the credit fields `get_person_credits` reads, not a prolific person's full ~900 KB filmography ([91f3c81](https://github.com/Grinv/tmdb-mcp/commit/91f3c81)).
 
 ### Fixed
 
@@ -40,6 +41,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Keep the seasons that loaded when one of `expand_episodes`' requests fails, and don't cache that partial result ([5b6fe6b](https://github.com/Grinv/tmdb-mcp/commit/5b6fe6b), [aa430fc](https://github.com/Grinv/tmdb-mcp/commit/aa430fc)).
 - Fill `year` on `get_tv_shows` cards when TMDB gives only a year ([e170e16](https://github.com/Grinv/tmdb-mcp/commit/e170e16)).
 - Return `null`, not `"N/A"`, for a title or year OMDb doesn't have ([e170e16](https://github.com/Grinv/tmdb-mcp/commit/e170e16)).
+- State in PRIVACY.md which responses are cached and which are always fetched fresh ([4d0d623](https://github.com/Grinv/tmdb-mcp/commit/4d0d623)).
+- Publish to the MCP Registry only once npm serves the release, so it no longer fails on a 404 ([4521e8d](https://github.com/Grinv/tmdb-mcp/commit/4521e8d)).
 
 ### Security
 
