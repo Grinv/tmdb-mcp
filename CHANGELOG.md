@@ -8,6 +8,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Filter `discover_*` by country of origin (`with_origin_country`) and exclude companies or streaming services (`without_companies`, `without_watch_providers`) ([c86df49](https://github.com/Grinv/tmdb-mcp/commit/c86df49)).
+- Find movies released in a country within a date window, optionally by release type (`any_release_date_gte`/`_lte`, `with_release_type`) ([c86df49](https://github.com/Grinv/tmdb-mcp/commit/c86df49)).
+- Find TV shows with an episode airing in a date window (`air_date_gte`/`_lte`) ([c86df49](https://github.com/Grinv/tmdb-mcp/commit/c86df49)).
 - Add `search_collections` to find a franchise's collection id by name ([7e51069](https://github.com/Grinv/tmdb-mcp/commit/7e51069)).
 - Add `get_movie_releases` for movies in a country's cinemas now or opening soon ([b93b210](https://github.com/Grinv/tmdb-mcp/commit/b93b210)).
 - Filter `discover_*` by access model (subscription, free, ads, rent, buy) with `with_watch_monetization_types` ([90316a9](https://github.com/Grinv/tmdb-mcp/commit/90316a9)).
@@ -18,6 +21,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Require a release-date window for `discover_movies`' `region`, which TMDB otherwise ignores ([c86df49](https://github.com/Grinv/tmdb-mcp/commit/c86df49)).
 - Return `get_similar` as TMDB ranks it, 20 per page, without the genre filter that left pages short or empty ([a2f1fc5](https://github.com/Grinv/tmdb-mcp/commit/a2f1fc5)).
 - Fetch a movie's or show's details and watch providers once, not once per `region` ([53d377c](https://github.com/Grinv/tmdb-mcp/commit/53d377c)).
 - Fetch a person's credits once per language in `get_person_credits`, not once per `department`/`limit` ([5b6fe6b](https://github.com/Grinv/tmdb-mcp/commit/5b6fe6b)).
