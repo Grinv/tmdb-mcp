@@ -7,6 +7,7 @@ import {
   page,
   summarizeCollection,
   summarizeCollectionMatch,
+  summarizeMovieReleases,
   summarizeCredits,
   summarizeTvCredits,
   summarizeEpisode,
@@ -200,6 +201,12 @@ describe("reviewSchema", () => {
 describe("collectionSchema", () => {
   test("summarizeCollection's output on a bare-minimum collection does not throw", () => {
     assert.doesNotThrow(() => summarizeCollection({}));
+  });
+});
+
+describe("movieReleasesSchema", () => {
+  test("summarizeMovieReleases's output on an empty response does not throw", () => {
+    assert.doesNotThrow(() => summarizeMovieReleases({}));
   });
 });
 

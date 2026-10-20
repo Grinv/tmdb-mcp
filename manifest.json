@@ -57,6 +57,10 @@
     { "name": "get_movie_recommendations", "description": "Movies similar to one." },
     { "name": "get_tv_recommendations", "description": "TV shows similar to one." },
     { "name": "get_trending", "description": "Trending movies/TV/people." },
+    {
+      "name": "get_movie_releases",
+      "description": "Movies in cinemas now or opening soon, by country."
+    },
     { "name": "get_movie_genres", "description": "List movie genres." },
     { "name": "get_tv_genres", "description": "List TV genres." },
     {

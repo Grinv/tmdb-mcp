@@ -1,6 +1,7 @@
 // Finding titles by criteria rather than a known id/title: get_trending
-// (what's popular right now), get_movie_genres/get_tv_genres (reference data
-// feeding with_genres/without_genres below), and discover_movies/discover_tv
+// (what's popular right now), get_movie_releases (in cinemas now / soon),
+// get_movie_genres/get_tv_genres (reference data feeding
+// with_genres/without_genres below), and discover_movies/discover_tv
 // (the actual structured-filter search). TV_TYPES/TV_STATUSES/DiscoverParams/
 // discoverParamsSchema are exported for clients/tmdb.ts's discoverQuery — see
 // AGENTS.md's Conventions section for why that's a lower-layer file type-
@@ -10,6 +11,7 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import {
   genresSchema,
   movieSummarySchema,
+  movieReleasesSchema,
   multiItemSchema,
   pageSchema,
   tvSummarySchema,
@@ -433,7 +435,7 @@ const discoverTvInputSchema = z
 
 export function registerDiscoverTools(
   server: McpServer,
-  { tmdb, requireTmdb, requireTmdbCached }: TmdbToolDeps,
+  { tmdb, requireTmdb, requireTmdbCached, region }: TmdbToolDeps,
 ): void {
   server.registerTool(
     "get_trending",
@@ -470,6 +472,41 @@ export function registerDiscoverTools(
           ),
         ctx.mcpReq.signal,
       ),
+  );
+
+  server.registerTool(
+    "get_movie_releases",
+    // Verified live 2026-10-20: now_playing DE → 162 results, US → 539, no
+    // region → 7320, ZZ → 0; `dates` identical across regions. Rows carry the
+    // region's release date (e.g. upcoming DE included 131631, a 2014 film
+    // with a DE theatrical re-release on 2026-10-22, release_date 2014-11-20).
+    {
+      title: "Get movies in or coming to cinemas",
+      description:
+        "List movies in cinemas now (list='now_playing') or opening soon (list='upcoming') in " +
+        "one country — for 'what's playing in theaters' or 'what comes out next month'. Use " +
+        "get_trending for overall popularity regardless of release, discover_movies for an " +
+        "arbitrary date range. `region` filters to movies with a theatrical release in that " +
+        "country inside the window (a different set per country, not just a re-sort; an " +
+        "unknown code returns an empty page), and each row's release_date is that country's " +
+        "release date, which can predate the window for a re-release (e.g. a 2014 film " +
+        "re-released this month). The window itself comes from TMDB and is returned as " +
+        "`dates` {minimum, maximum} (YYYY-MM-DD; same for every region — roughly the last six " +
+        "weeks for now_playing, the next three weeks for upcoming). TMDB's own order: roughly " +
+        "most popular first, not by date.",
+      inputSchema: z.strictObject({
+        list: z
+          .enum(["now_playing", "upcoming"])
+          .describe("'now_playing' = in cinemas now; 'upcoming' = opening soon."),
+        region,
+        language,
+        page: page.optional(),
+      }),
+      outputSchema: movieReleasesSchema,
+      annotations: READ_ONLY,
+    },
+    ({ list, ...p }, ctx) =>
+      requireTmdb(() => tmdb.getMovieReleases(list, p, ctx.mcpReq.signal), ctx.mcpReq.signal),
   );
 
   server.registerTool(

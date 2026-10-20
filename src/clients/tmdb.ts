@@ -24,6 +24,7 @@ import {
   summarizeFind,
   summarizeGenres,
   summarizeKeywords,
+  summarizeMovieReleases,
   summarizeMovie,
   summarizeMultiItem,
   summarizePerson,
@@ -44,6 +45,7 @@ import {
   type TmdbCredits,
   type TmdbReview,
   type TmdbMovie,
+  type TmdbMovieReleases,
   type TmdbMultiItem,
   type TmdbPage,
   type TmdbSeason,
@@ -751,6 +753,22 @@ export class TmdbClient {
       signal,
     );
     return page(res, summarizeMultiItem);
+  }
+
+  // Theatrical lists: what's in cinemas now / opening soon in `region`
+  // (defaults to the configured TMDB_REGION). Not cached, like trending.
+  async getMovieReleases(
+    list: "now_playing" | "upcoming",
+    p: { region?: string; language?: string; page?: number },
+    signal?: AbortSignal,
+  ): Promise<ReturnType<typeof summarizeMovieReleases>> {
+    const res = await this.#get<TmdbMovieReleases>(
+      `movie/${list}`,
+      { page: p.page, region: p.region ?? this.#region },
+      p.language,
+      signal,
+    );
+    return summarizeMovieReleases(res);
   }
 
   // Genre lists drive the readable names in search results; very static → cache.

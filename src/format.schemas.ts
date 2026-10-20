@@ -288,6 +288,18 @@ export function pageSchema<T extends z.ZodTypeAny>(item: T) {
   });
 }
 
+// ---- summarizeMovieReleases ------------------------------------------------------
+
+// get_movie_releases: a normal movie page plus TMDB's own release-date window
+// for the list (/movie/now_playing, /movie/upcoming). Plain strings, not
+// z.iso.date(): the window is TMDB's to define and is passed through as-is.
+export const movieReleasesSchema = pageSchema(movieSummarySchema).extend({
+  dates: z.strictObject({
+    minimum: z.string().nullable(),
+    maximum: z.string().nullable(),
+  }),
+});
+
 // ---- summarizeGenres -----------------------------------------------------------
 
 export const genresSchema = z.strictObject({

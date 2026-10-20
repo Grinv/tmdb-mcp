@@ -261,6 +261,34 @@ const COMPANIES = pageOf([
   { id: 41077, name: "A24", origin_country: "US", logo_path: "/a24.png" },
 ]);
 
+// /movie/now_playing's real shape (live, region=DE): a movie page plus the
+// `dates` window. /movie/upcoming has the identical shape.
+const NOW_PLAYING = {
+  dates: { maximum: "2026-10-21", minimum: "2026-09-09" },
+  page: 1,
+  results: [
+    {
+      adult: false,
+      backdrop_path: "/qqHFLg90IUSoTmSMpKOOW5RyqN3.jpg",
+      genre_ids: [878, 9648, 28],
+      id: 1058424,
+      title: "Hope",
+      original_language: "ko",
+      original_title: "호프",
+      overview: "In the remote South Korean village of Hope Harbor, police chief…",
+      popularity: 385.9445,
+      poster_path: "/6VY1ZKgpsc8CfGsQcCGiYEgHdH0.jpg",
+      release_date: "2026-10-08",
+      softcore: false,
+      video: false,
+      vote_average: 6.884,
+      vote_count: 279,
+    },
+  ],
+  total_pages: 9,
+  total_results: 162,
+};
+
 // /search/collection's real row shape (live "harry potter", trimmed overview).
 const COLLECTION_SEARCH = pageOf([
   {
@@ -459,6 +487,9 @@ function router(url: string) {
     return jsonResponse(pageOf([PERSON_SEARCH_ROW_NO_MEDIA_TYPE]));
   }
   if (url.includes("/trending/")) return jsonResponse(MULTI_SEARCH);
+  if (url.includes("/movie/now_playing") || url.includes("/movie/upcoming")) {
+    return jsonResponse(NOW_PLAYING);
+  }
   if (url.includes("/discover/movie")) {
     return jsonResponse(pageOf([MOVIE_DETAIL]));
   }
@@ -662,6 +693,62 @@ describe("trending & recommendations", () => {
     );
     // Defaults: media_type "all", time_window "week".
     assert.match(mock.calls[0]!.url, /\/trending\/all\/week/);
+  });
+
+  test("get_movie_releases returns movie summaries plus TMDB's dates window", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    await using client = await connectServer(ENV);
+    const res = await client.callTool({
+      name: "get_movie_releases",
+      arguments: { list: "now_playing", region: "DE", language: "en-US", page: 2 },
+    });
+    assert.notEqual(res.isError, true);
+    const s = res.structuredContent as {
+      results: { id: number; title: string; original_title?: string; release_date: string }[];
+      dates: { minimum: string | null; maximum: string | null };
+      total_results: number;
+    };
+    assert.deepEqual(s.dates, { minimum: "2026-09-09", maximum: "2026-10-21" });
+    assert.equal(s.total_results, 162);
+    assert.equal(s.results[0]!.id, 1058424);
+    assert.equal(s.results[0]!.original_title, "호프");
+    assert.equal(s.results[0]!.release_date, "2026-10-08");
+    const u = new URL(mock.calls[0]!.url);
+    assert.match(u.pathname, /\/movie\/now_playing$/);
+    assert.equal(u.searchParams.get("region"), "DE");
+    assert.equal(u.searchParams.get("language"), "en-US");
+    assert.equal(u.searchParams.get("page"), "2");
+  });
+
+  test("get_movie_releases hits /movie/upcoming and defaults region to TMDB_REGION", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    await using client = await connectServer({ ...ENV, TMDB_REGION: "GB" });
+    const res = await client.callTool({
+      name: "get_movie_releases",
+      arguments: { list: "upcoming" },
+    });
+    assert.notEqual(res.isError, true);
+    const u = new URL(mock.calls[0]!.url);
+    assert.match(u.pathname, /\/movie\/upcoming$/);
+    assert.equal(u.searchParams.get("region"), "GB");
+  });
+
+  test("get_movie_releases maps a missing dates window to nulls", async (t) => {
+    const { dates: _dates, ...noDates } = NOW_PLAYING;
+    installFetch(
+      t,
+      mockFetch(() => jsonResponse(noDates)),
+    );
+    await using client = await connectServer(ENV);
+    const res = await client.callTool({
+      name: "get_movie_releases",
+      arguments: { list: "now_playing" },
+    });
+    assert.notEqual(res.isError, true);
+    const s = res.structuredContent as { dates: unknown };
+    assert.deepEqual(s.dates, { minimum: null, maximum: null });
   });
 
   test("get_movie_recommendations returns compact movie summaries", async (t) => {

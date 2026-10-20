@@ -28,6 +28,7 @@ import {
   movieCardSchema,
   movieDetailSchema,
   movieSummarySchema,
+  movieReleasesSchema,
   multiItemSchema,
   personCreditsSchema,
   personSummarySchema,
@@ -670,6 +671,21 @@ export function page<T, S>(res: TmdbPage<T>, summarize: (item: T) => S): Page<S>
     total_pages: Math.min(res.total_pages ?? 1, TMDB_MAX_PAGE),
     total_results: res.total_results ?? res.results?.length ?? 0,
   };
+}
+
+export interface TmdbMovieReleases extends TmdbPage<TmdbMovie> {
+  dates?: { minimum?: string; maximum?: string };
+}
+
+// /movie/now_playing and /movie/upcoming: a movie page plus the release-date
+// window TMDB used for that list.
+export function summarizeMovieReleases(
+  res: TmdbMovieReleases,
+): z.infer<typeof movieReleasesSchema> {
+  return movieReleasesSchema.parse({
+    ...page(res, summarizeMovie),
+    dates: { minimum: res.dates?.minimum || null, maximum: res.dates?.maximum || null },
+  });
 }
 
 export function summarizeGenres(genres: NamedRef[]): z.infer<typeof genresSchema> {
