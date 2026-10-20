@@ -223,7 +223,7 @@ export interface TmdbTv {
   content_ratings?: { results?: { iso_3166_1?: string; rating?: string }[] };
 }
 
-export interface TmdbEpisodeBrief {
+interface TmdbEpisodeBrief {
   air_date?: string | null;
   episode_number?: number;
   season_number?: number;
@@ -695,7 +695,7 @@ export function summarizeReview(r: TmdbReview): z.infer<typeof reviewSchema> {
   });
 }
 
-export interface TmdbCollection {
+interface TmdbCollection {
   id?: number;
   name?: string;
   overview?: string;
@@ -981,7 +981,7 @@ interface VideoEntry {
   official?: boolean;
   published_at?: string;
 }
-export interface VideosResponse {
+interface VideosResponse {
   results?: VideoEntry[];
 }
 
@@ -1000,7 +1000,7 @@ export function summarizeVideos(r: VideosResponse): z.infer<typeof videosSchema>
 
 // ---- find by external id ----------------------------------------------------
 
-export interface FindResponse {
+interface FindResponse {
   movie_results?: TmdbMovie[];
   tv_results?: TmdbTv[];
   person_results?: TmdbMultiItem[];

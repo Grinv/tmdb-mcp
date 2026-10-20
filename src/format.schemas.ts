@@ -354,7 +354,7 @@ export const watchProvidersSchema = z.discriminatedUnion("available", [
 
 // ---- summarizeWatchProviderMatches -------------------------------------------------
 
-export const watchProviderMatchSchema = z.strictObject({
+const watchProviderMatchSchema = z.strictObject({
   provider_id: z.number(),
   provider_name: z.string(),
   logo_url: z.string().nullable(),
