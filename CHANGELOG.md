@@ -8,6 +8,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Add `search_collections` to find a franchise's collection id by name ([7e51069](https://github.com/Grinv/tmdb-mcp/commit/7e51069)).
+- Add `get_movie_releases` for movies in a country's cinemas now or opening soon ([b93b210](https://github.com/Grinv/tmdb-mcp/commit/b93b210)).
+- Filter `discover_*` by access model (subscription, free, ads, rent, buy) with `with_watch_monetization_types` ([90316a9](https://github.com/Grinv/tmdb-mcp/commit/90316a9)).
 - Return `year` from `get_tv`, as `get_movie` already does ([e170e16](https://github.com/Grinv/tmdb-mcp/commit/e170e16)).
 - Add `exact_year` to `search_movies`, matching only the original release year ([a15a0e2](https://github.com/Grinv/tmdb-mcp/commit/a15a0e2)).
 - Return each video's `language` from `get_videos` ([a15a0e2](https://github.com/Grinv/tmdb-mcp/commit/a15a0e2)).
@@ -15,6 +18,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Fetch a movie's or show's details and watch providers once, not once per `region` ([53d377c](https://github.com/Grinv/tmdb-mcp/commit/53d377c)).
 - Fetch a person's credits once per language in `get_person_credits`, not once per `department`/`limit` ([5b6fe6b](https://github.com/Grinv/tmdb-mcp/commit/5b6fe6b)).
 
 ### Fixed
