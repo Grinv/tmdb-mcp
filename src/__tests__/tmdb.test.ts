@@ -2176,6 +2176,23 @@ describe("get_videos", () => {
     );
   });
 
+  // Live: Spirited Away (129) under en-US loses its Japanese trailer unless
+  // ja is asked for; the original language comes from the title's detail.
+  test("also asks for the title's original language", async (t) => {
+    const mock = mockFetch((url) => {
+      if (url.includes("/videos")) return jsonResponse(VIDEOS);
+      if (/\/movie\/129\?/.test(url)) {
+        return jsonResponse({ ...MOVIE_DETAIL, id: 129, original_language: "ja" });
+      }
+      return router(url);
+    });
+    installFetch(t, mock);
+    await using client = await connectServer(ENV);
+    await client.callTool({ name: "get_videos", arguments: { media_type: "movie", id: 129 } });
+    const call = mock.calls.find((c) => c.url.includes("/videos"))!;
+    assert.equal(new URL(call.url).searchParams.get("include_video_language"), "en,ja,null");
+  });
+
   test("works for media_type tv", async (t) => {
     installFetch(t, mockFetch(router));
     await using client = await connectServer(ENV);

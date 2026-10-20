@@ -40,6 +40,7 @@ import {
   type Page,
   type ProviderEntry,
   type TmdbCompany,
+  type VideosResponse,
   type TmdbCollectionMatch,
   type TmdbAggregateCredits,
   type TmdbCredits,
@@ -154,10 +155,12 @@ class PartialSeasons extends Error {
   }
 }
 
-// "de-DE" → "de,en,null": the configured language, English, and videos with
-// no language tag.
-function videoLanguages(language: string): string {
-  return [...new Set([language.split("-")[0], "en", "null"])].join(",");
+// "de-DE" + original "ja" → "de,en,ja,null": the configured language,
+// English, the title's original language (its native trailers), and videos
+// with no language tag.
+function videoLanguages(language: string, originalLanguage?: string): string {
+  const langs = [language.split("-")[0], "en", originalLanguage, "null"];
+  return [...new Set(langs.filter(Boolean))].join(",");
 }
 
 interface SearchParams {
@@ -826,14 +829,26 @@ export class TmdbClient {
     language?: string,
     onStale?: () => void,
   ): Promise<ReturnType<typeof summarizeVideos>> {
-    return this.#cached(
+    return this.#cache.wrapStaleOnError(
       cacheKey(`${mediaType}-videos:${id}`, { language: this.#lang(language) }),
-      `${mediaType}/${id}/videos`,
-      summarizeVideos,
-      // `language` alone filters videos down to that one language (29 → 2 for
-      // a title under de-DE); also include English and language-neutral ones.
-      { include_video_language: videoLanguages(this.#lang(language)) },
-      language,
+      async () => {
+        // The original language comes from the cached raw detail (shared with
+        // get_movie/get_tv); without it a non-English film's native trailers
+        // are dropped (Spirited Away: no ja trailer under en). Best effort.
+        const detail = await (
+          mediaType === "tv" ? this.#tvRaw(id, language) : this.#movieRaw(id, language)
+        ).catch(() => undefined);
+        // `language` alone filters videos down to that one language (29 → 2
+        // for a title under de-DE); also include English and untagged ones.
+        const res = await this.#get<VideosResponse>(
+          `${mediaType}/${id}/videos`,
+          {
+            include_video_language: videoLanguages(this.#lang(language), detail?.original_language),
+          },
+          language,
+        );
+        return summarizeVideos(res);
+      },
       onStale,
     );
   }

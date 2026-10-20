@@ -1048,7 +1048,7 @@ interface VideoEntry {
   official?: boolean;
   published_at?: string;
 }
-interface VideosResponse {
+export interface VideosResponse {
   results?: VideoEntry[];
 }
 

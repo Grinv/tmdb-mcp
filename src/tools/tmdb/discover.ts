@@ -136,7 +136,7 @@ const discoverShared = {
     .describe(
       "Only titles whose country of origin (where they were produced, not where they can be " +
         "watched) is one of these ISO-3166-1 codes, e.g. ['KR'] for Korean titles; several " +
-        "codes match ANY of them. An unknown code matches nothing.",
+        "codes match ANY of them. An unrecognized code such as 'ZZ' matches nothing.",
     )
     .optional(),
   with_companies: idMatch(
@@ -329,8 +329,8 @@ const discoverMovieSchema = {
     .describe(
       "ISO-3166-1 country code: limits any_release_date_gte/lte (and with_release_type) to " +
         "releases in this country, e.g. 'DE'. Requires any_release_date_gte or " +
-        "any_release_date_lte; it has no effect on year/release_date_gte/lte. An unknown code " +
-        "matches nothing. Movie-only.",
+        "any_release_date_lte; it has no effect on year/release_date_gte/lte. An unrecognized code " +
+        "such as 'ZZ' matches nothing ('XX' is a real TMDB pseudo-region, not an error). Movie-only.",
     )
     .optional(),
 };
@@ -626,7 +626,7 @@ export function registerDiscoverTools(
         "get_trending for overall popularity regardless of release, discover_movies for an " +
         "arbitrary date range. `region` filters to movies with a theatrical release in that " +
         "country inside the window (a different set per country, not just a re-sort; an " +
-        "unknown code returns an empty page), and each row's release_date is that country's " +
+        "unrecognized code such as 'ZZ' returns an empty page, but 'XX' is a real TMDB pseudo-region), and each row's release_date is that country's " +
         "release date, which can predate the window for a re-release (e.g. a 2014 film " +
         "re-released this month). The window itself comes from TMDB and is returned as " +
         "`dates` {minimum, maximum} (YYYY-MM-DD; same for every region — roughly the last six " +
