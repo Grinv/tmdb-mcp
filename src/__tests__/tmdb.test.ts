@@ -1941,8 +1941,7 @@ describe("MCP client cancellation reaches cached client calls too", () => {
     // Deliberately resolves on its own after a short real delay (never hangs
     // forever) so nothing is left dangling once this test returns, even
     // though the point of the test is that the CALLER stops waiting first.
-    let resolveFetchStarted!: () => void;
-    const fetchStarted = new Promise<void>((r) => (resolveFetchStarted = r));
+    const { promise: fetchStarted, resolve: resolveFetchStarted } = Promise.withResolvers<void>();
     const mock = mockFetch(() => {
       resolveFetchStarted();
       return new Promise<Response>((resolve) =>
@@ -2370,8 +2369,7 @@ describe("MCP client cancellation reaches non-cached client calls", () => {
     // A never-resolving fetch (only settles if aborted) so there's a window
     // for the client's cancellation to actually reach the server mid-flight.
     let sawAbort = false;
-    let resolveFetchStarted!: () => void;
-    const fetchStarted = new Promise<void>((r) => (resolveFetchStarted = r));
+    const { promise: fetchStarted, resolve: resolveFetchStarted } = Promise.withResolvers<void>();
     installFetch(
       t,
       hangingFetch({ onStart: resolveFetchStarted, onAbort: () => (sawAbort = true) }),

@@ -82,9 +82,8 @@ describe("e2e: built bundle", () => {
     mkdirSync(sandbox, { recursive: true });
     copyFileSync(distPath, join(sandbox, "index.js"));
     // The bundle is ESM; ship the package.json that flags it as such, exactly as
-    // the real npm/.mcpb artifact does. Without it a bare `.js` is parsed as CJS
-    // on Node < 20.19 (which lacks ESM syntax auto-detection) and the child dies
-    // with "Cannot use import statement outside a module".
+    // the real npm/.mcpb artifact does, rather than leaning on Node's ESM syntax
+    // auto-detection (which also re-parses the file and can be disabled).
     writeFileSync(join(sandbox, "package.json"), JSON.stringify({ type: "module" }));
 
     // Inherit env but force the credentials unset, to test the config gate.

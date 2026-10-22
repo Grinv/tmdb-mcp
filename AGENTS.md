@@ -59,12 +59,12 @@ npm run inspector      # run under the MCP Inspector
 
 - **Docs and in-code text are English** (README, docs, comments, tool
   descriptions, error messages).
-- Runtime floor is **Node ≥ 20.11** (global `fetch`, stable `node:test`,
-  `AbortSignal.any()`); tsup targets `node20`. This is the floor for the
-  _shipped server_. The _dev_ toolchain needs **Node ≥ 20.19** (eslint's own
-  `engines`), so `lint` runs only on the Node 24 CI job while build/test run on
-  the 20.11 floor too — don't raise `engines` to 20.19 to "fix" that mismatch,
-  it would warn end users whose runtime is fine.
+- Runtime floor is **Node ≥ 22.13** (`engines`, `manifest.json`'s
+  `compatibility.runtimes.node` and the CI floor job must agree); tsup and the
+  test build target `node22`, `tsconfig` targets ES2024. 22.13 is also eslint's
+  own floor on the 22 line, so the dev toolchain and the shipped server share
+  one minimum. Native TS type-stripping (on by default only from 22.18) is
+  _not_ relied on — tests are still transpiled with esbuild.
 - Log to **stderr only** — stdout is the MCP protocol channel. Use the logger;
   it redacts credentials.
 - Tool failures return `{ isError: true }` results (via `requireConfigured()` /

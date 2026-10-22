@@ -1,9 +1,9 @@
 {
   "compilerOptions": {
-    "target": "ES2023",
+    "target": "ES2024",
     "module": "Node16",
     "moduleResolution": "Node16",
-    "lib": ["ES2023", "ESNext.Disposable"],
+    "lib": ["ES2024", "ESNext.Disposable"],
     "types": ["node"],
     "rootDir": "src",
     "strict": true,

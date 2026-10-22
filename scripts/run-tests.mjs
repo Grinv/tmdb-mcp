@@ -12,27 +12,11 @@ const coverage = rawArgs.includes("--coverage");
 // `node --test`, so `npm test -- --test-name-pattern=foo` works locally.
 const passthrough = rawArgs.filter((a) => a !== "--coverage");
 
-// `--test-coverage-lines` (a hard, fail-the-run threshold) landed in Node 22.8.
-// On older runtimes — including the Node 20 floor — fall back to reporting
-// coverage without enforcing it, so `npm run test:coverage` still works there.
-const [major, minor] = process.versions.node.split(".").map(Number);
-const supportsThreshold = major > 22 || (major === 22 && minor >= 8);
-
 const args = ["--test", ...passthrough];
 if (coverage) {
-  args.push("--experimental-test-coverage");
-  if (supportsThreshold) {
-    args.push(`--test-coverage-lines=${COVERAGE_LINES_THRESHOLD}`);
-  } else {
-    // Make the un-enforced case loud, so a local `test:coverage` pass on the
-    // Node 20 floor isn't mistaken for the gate having actually run. CI enforces
-    // it on Node 24 (.github/workflows/ci.yml).
-    console.warn(
-      `run-tests: Node ${process.versions.node} predates --test-coverage-lines (22.8) — ` +
-        `coverage is REPORTED but the ${COVERAGE_LINES_THRESHOLD}% threshold is NOT enforced here. ` +
-        "CI enforces it on Node 24.",
-    );
-  }
+  // `--test-coverage-lines` (Node 22.8+, below the 22.13 floor) fails the run
+  // when line coverage drops under the threshold.
+  args.push("--experimental-test-coverage", `--test-coverage-lines=${COVERAGE_LINES_THRESHOLD}`);
 }
 
 const child = spawn(process.execPath, args, { cwd: "dist-tests", stdio: "inherit" });

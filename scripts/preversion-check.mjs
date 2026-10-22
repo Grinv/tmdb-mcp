@@ -9,11 +9,10 @@
 // real judgment step before releasing.
 import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { unreleasedHasBullets } from "./sync-version.mjs";
 
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const root = join(import.meta.dirname, "..");
 
 // Guards against the exact race that orphaned anilist-mcp-server's v0.1.2: two
 // `npm version` runs close together with no push in between. `npm version`

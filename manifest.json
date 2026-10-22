@@ -38,6 +38,9 @@
       }
     }
   },
+  "compatibility": {
+    "runtimes": { "node": ">=22.13.0" }
+  },
   "tools_generated": false,
   "tools": [
     { "name": "search_movies", "description": "Search movies by title." },

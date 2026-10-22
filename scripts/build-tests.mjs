@@ -1,7 +1,7 @@
 // Transpile every src/**/*.ts (tests + sources) to dist-tests/ as ESM,
 // preserving the directory layout so relative ".js" imports resolve.
-// Decoupled from the runtime: lets `node --test` run on any Node >=20.11
-// regardless of native TS type-stripping support.
+// Decoupled from the runtime: native TS type-stripping is only on by default
+// from Node 22.18, above the 22.13 floor, and needs `.ts` import specifiers.
 import { build } from "esbuild";
 import { readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -33,6 +33,6 @@ await build({
   bundle: false,
   format: "esm",
   platform: "node",
-  target: "node20",
+  target: "node22",
   sourcemap: true,
 });
