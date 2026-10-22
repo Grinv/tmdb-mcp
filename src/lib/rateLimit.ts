@@ -10,7 +10,7 @@ export class RateLimiter {
   // `null` is an explicit "no acquisition yet" sentinel — NOT a stand-in for
   // "far in the past". Using 0 for that purpose implicitly relied on real
   // Date.now() always being far from the epoch, which breaks if the clock is
-  // ever mocked to start at/near 0 (e.g. Node 20's t.mock.timers in tests).
+  // ever mocked to start at/near 0 (e.g. by t.mock.timers in tests).
   #lastStart: number | null = null;
 
   constructor(minIntervalMs: number) {
