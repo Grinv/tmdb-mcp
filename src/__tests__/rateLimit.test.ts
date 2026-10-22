@@ -14,9 +14,13 @@ async function timeAcquires(limiter: RateLimiter, n: number): Promise<number[]> 
 }
 
 describe("RateLimiter", () => {
-  test("zero interval imposes no delay", async () => {
-    const stamps = await timeAcquires(new RateLimiter(0), 5);
-    assert.ok(stamps[4]! < 30, `expected near-instant, got ${stamps[4]}ms`);
+  test("zero interval imposes no delay", async (t) => {
+    // Assert on the timer itself rather than elapsed wall time, which a loaded
+    // machine can stretch past any small threshold.
+    const setTimeoutSpy = t.mock.method(globalThis, "setTimeout");
+    const limiter = new RateLimiter(0);
+    for (let i = 0; i < 5; i += 1) await limiter.acquire();
+    assert.equal(setTimeoutSpy.mock.callCount(), 0, "no acquisition should schedule a wait");
   });
 
   test("min interval spaces consecutive acquisitions", async () => {
@@ -29,14 +33,16 @@ describe("RateLimiter", () => {
     // Regression: #delayUntilAllowed used to compare against a `#lastStart = 0`
     // sentinel, silently relying on Date.now() always being far from 0 — true
     // for any real clock, but not for one mocked to start at 0. Mock only Date
-    // (not setTimeout) and measure REAL elapsed time via performance.now()
-    // (unaffected by the Date mock): if the bug were back, the first acquire()
-    // would await a genuine ~40ms setTimeout, which this would catch.
+    // and spy on (not fake) setTimeout: if the bug were back, the first
+    // acquire() would schedule a ~40ms wait. Checking the timer call instead of
+    // elapsed wall time keeps this deterministic on a loaded machine.
     t.mock.timers.enable({ apis: ["Date"], now: 0 });
+    const setTimeoutSpy = t.mock.method(globalThis, "setTimeout");
     const limiter = new RateLimiter(40);
-    const realStart = performance.now();
     await limiter.acquire();
-    const realElapsed = performance.now() - realStart;
-    assert.ok(realElapsed < 20, `first acquisition should not really wait, took ${realElapsed}ms`);
+    assert.equal(setTimeoutSpy.mock.callCount(), 0, "first acquisition should not wait");
+    // The spy itself must see a real wait, or the zero above proves nothing.
+    await limiter.acquire();
+    assert.equal(setTimeoutSpy.mock.callCount(), 1, "second acquisition should wait");
   });
 });
