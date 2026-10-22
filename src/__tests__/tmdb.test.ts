@@ -9,8 +9,8 @@ import {
   toolText,
   hangingFetch,
   DEFAULT_ENV as ENV,
-} from "./helpers.js";
-import { MAX_TOOL_INPUT_ELEMENTS } from "../server.js";
+} from "./helpers.ts";
+import { MAX_TOOL_INPUT_ELEMENTS } from "../server.ts";
 
 const MOVIE_DETAIL = {
   id: 603,
@@ -534,8 +534,8 @@ function router(url: string) {
 }
 
 describe("server / auth", () => {
-  test("the server advertises its tools", async () => {
-    await using client = await connectServer(ENV);
+  test("the server advertises its tools", async (t) => {
+    const client = await connectServer(t, ENV);
     const { tools } = await client.listTools();
     const names = tools.map((tool) => tool.name);
     for (const expected of [
@@ -549,8 +549,8 @@ describe("server / auth", () => {
     }
   });
 
-  test("the region parameter's description names the server's actual TMDB_REGION default", async () => {
-    await using client = await connectServer({ ...ENV, TMDB_REGION: "RU" });
+  test("the region parameter's description names the server's actual TMDB_REGION default", async (t) => {
+    const client = await connectServer(t, { ...ENV, TMDB_REGION: "RU" });
     const { tools } = await client.listTools();
     const getMovie = tools.find((tool) => tool.name === "get_movie")!;
     const desc = (getMovie.inputSchema.properties as Record<string, { description?: string }>)
@@ -558,17 +558,17 @@ describe("server / auth", () => {
     assert.match(desc ?? "", /default 'RU'/);
   });
 
-  test("TMDB tools report a clear error when no token is configured", async () => {
+  test("TMDB tools report a clear error when no token is configured", async (t) => {
     // No TMDB_API_TOKEN in env → short-circuit before any network call.
-    await using client = await connectServer({});
+    const client = await connectServer(t, {});
     const res = await client.callTool({ name: "search_movies", arguments: { query: "x" } });
     assert.equal(res.isError, true);
     const text = toolText(res);
     assert.match(text, /TMDB_API_TOKEN/);
   });
 
-  test("the largest legitimate discover_movies call fits under the input-element cap", async () => {
-    await using client = await connectServer(ENV);
+  test("the largest legitimate discover_movies call fits under the input-element cap", async (t) => {
+    const client = await connectServer(t, ENV);
     const { tools } = await client.listTools();
     const discover = tools.find((tool) => tool.name === "discover_movies")!;
     const fields = Object.keys(discover.inputSchema.properties ?? {}).length;
@@ -577,7 +577,7 @@ describe("server / auth", () => {
 
   test("an oversized tools/call payload is rejected as an isError result before Zod validation", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "get_movies",
       arguments: { ids: Array.from({ length: MAX_TOOL_INPUT_ELEMENTS + 1 }, (_, i) => i + 1) },
@@ -590,7 +590,7 @@ describe("server / auth", () => {
 describe("search", () => {
   test("search_movies returns compact, structured results", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({ name: "search_movies", arguments: { query: "matrix" } });
     assert.notEqual(res.isError, true);
     const s = res.structuredContent as { results: { id: number; title: string; year: number }[] };
@@ -602,7 +602,7 @@ describe("search", () => {
   test("search_movies sends a soft `year` by default and primary_release_year with exact_year", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     await client.callTool({ name: "search_movies", arguments: { query: "alien", year: 2003 } });
     await client.callTool({
       name: "search_movies",
@@ -620,7 +620,7 @@ describe("search", () => {
   test("search_movies rejects exact_year without year instead of ignoring it", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "search_movies",
       arguments: { query: "alien", exact_year: true },
@@ -631,7 +631,7 @@ describe("search", () => {
 
   test("page beyond TMDB's 500-page cap is rejected before hitting TMDB", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "search_movies",
       arguments: { query: "matrix", page: 501 },
@@ -641,7 +641,7 @@ describe("search", () => {
 
   test("search_multi dispatches each result to its media_type's shaper", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({ name: "search_multi", arguments: { query: "matrix" } });
     assert.notEqual(res.isError, true);
     const s = res.structuredContent as {
@@ -665,7 +665,7 @@ describe("search", () => {
 
   test("search_people returns compact person summaries", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({ name: "search_people", arguments: { query: "dicaprio" } });
     assert.notEqual(res.isError, true);
     const s = res.structuredContent as {
@@ -681,7 +681,7 @@ describe("trending & recommendations", () => {
   test("get_trending surfaces mixed-media results", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({ name: "get_trending", arguments: {} });
     assert.notEqual(res.isError, true);
     const s = res.structuredContent as { results: { media_type: string }[] };
@@ -696,7 +696,7 @@ describe("trending & recommendations", () => {
   test("get_movie_releases returns movie summaries plus TMDB's dates window", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "get_movie_releases",
       arguments: { list: "now_playing", region: "DE", language: "en-US", page: 2 },
@@ -722,7 +722,7 @@ describe("trending & recommendations", () => {
   test("get_movie_releases hits /movie/upcoming and defaults region to TMDB_REGION", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer({ ...ENV, TMDB_REGION: "GB" });
+    const client = await connectServer(t, { ...ENV, TMDB_REGION: "GB" });
     const res = await client.callTool({
       name: "get_movie_releases",
       arguments: { list: "upcoming" },
@@ -739,7 +739,7 @@ describe("trending & recommendations", () => {
       t,
       mockFetch(() => jsonResponse(noDates)),
     );
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "get_movie_releases",
       arguments: { list: "now_playing" },
@@ -751,7 +751,7 @@ describe("trending & recommendations", () => {
 
   test("get_movie_recommendations returns compact movie summaries", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "get_movie_recommendations",
       arguments: { id: 603 },
@@ -767,7 +767,7 @@ describe("get_movie", () => {
   test("folds in OMDb ratings by default", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({ name: "get_movie", arguments: { id: 603 } });
     assert.notEqual(res.isError, true);
     const s = res.structuredContent as {
@@ -785,7 +785,7 @@ describe("get_movie", () => {
   test("with include_ratings=false skips the OMDb call", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "get_movie",
       arguments: { id: 603, include_ratings: false },
@@ -798,7 +798,7 @@ describe("get_movie", () => {
   test("degrades gracefully when OMDb is not configured", async (t) => {
     installFetch(t, mockFetch(router));
     // TMDB only — no OMDB_API_KEY.
-    await using client = await connectServer({
+    const client = await connectServer(t, {
       TMDB_API_TOKEN: "t",
       TMDB_MIN_INTERVAL_MS: "0",
     });
@@ -814,7 +814,7 @@ describe("get_movie", () => {
       return router(url);
     });
     installFetch(t, mock);
-    await using client = await connectServer({ ...ENV, HTTP_RETRIES: "0" });
+    const client = await connectServer(t, { ...ENV, HTTP_RETRIES: "0" });
     const res = await client.callTool({ name: "get_movie", arguments: { id: 603 } });
     assert.notEqual(res.isError, true); // one upstream failing must not sink the whole call
     const s = res.structuredContent as {
@@ -843,7 +843,7 @@ describe("get_movie", () => {
       return router(url);
     });
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({ name: "get_movie", arguments: { id: 603 } });
     assert.notEqual(res.isError, true);
     const s = res.structuredContent as { ratings: { found: boolean; reason: string } };
@@ -856,7 +856,7 @@ describe("get_movie", () => {
       t,
       mockFetch(() => jsonResponse({ error: "server exploded" }, { status: 500 })),
     );
-    await using client = await connectServer({ ...ENV, HTTP_RETRIES: "0" });
+    const client = await connectServer(t, { ...ENV, HTTP_RETRIES: "0" });
     const res = await client.callTool({ name: "get_movie", arguments: { id: 603 } });
     assert.equal(res.isError, true);
     const text = toolText(res);
@@ -874,7 +874,7 @@ describe("get_movie", () => {
       return router(url);
     });
     installFetch(t, mock);
-    await using client = await connectServer({ ...ENV, HTTP_RETRIES: "0", CACHE_TTL_MS: "1" });
+    const client = await connectServer(t, { ...ENV, HTTP_RETRIES: "0", CACHE_TTL_MS: "1" });
 
     const first = await client.callTool({
       name: "get_movie",
@@ -905,7 +905,7 @@ describe("get_movie", () => {
       return router(url);
     });
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({ name: "get_movie", arguments: { id: 603 } });
     assert.notEqual(res.isError, true);
     const s = res.structuredContent as { ratings: { found: boolean; reason: string } };
@@ -917,7 +917,7 @@ describe("get_movie", () => {
   test("returns the age certification for the requested region", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "get_movie",
       arguments: { id: 603, region: "GB", include_ratings: false },
@@ -936,7 +936,7 @@ describe("get_movie", () => {
 
   test("is cached per region (not region-agnostic)", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const us = (
       await client.callTool({
         name: "get_movie",
@@ -956,7 +956,7 @@ describe("get_movie", () => {
 
   test("surfaces collection and origin_country", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "get_movie",
       arguments: { id: 603, include_ratings: false },
@@ -975,7 +975,7 @@ describe("get_movie", () => {
 describe("get_movies", () => {
   test("returns a compact card without ratings by default", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({ name: "get_movies", arguments: { ids: [603] } });
     assert.notEqual(res.isError, true);
     const s = res.structuredContent as {
@@ -1000,7 +1000,7 @@ describe("get_movies", () => {
   test("include_ratings=true folds in compact ratings for every id", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "get_movies",
       arguments: { ids: [603], include_ratings: true },
@@ -1022,7 +1022,7 @@ describe("get_movies", () => {
       return router(url);
     });
     installFetch(t, mock);
-    await using client = await connectServer({ ...ENV, HTTP_RETRIES: "0" });
+    const client = await connectServer(t, { ...ENV, HTTP_RETRIES: "0" });
     const res = await client.callTool({
       name: "get_movies",
       arguments: { ids: [603, 999] },
@@ -1050,7 +1050,7 @@ describe("get_movies", () => {
       return router(url);
     });
     installFetch(t, mock);
-    await using client = await connectServer({ ...ENV, HTTP_RETRIES: "0" });
+    const client = await connectServer(t, { ...ENV, HTTP_RETRIES: "0" });
     const res = await client.callTool({ name: "get_movies", arguments: { ids: [999] } });
     const { reason } = (res.structuredContent as { results: { reason: string }[] }).results[0]!;
     // Same text get_movie returns for the same 404 — not ApiError.message's
@@ -1065,7 +1065,7 @@ describe("get_tv", () => {
   test("appends external_ids and enriches via the resulting imdb_id", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({ name: "get_tv", arguments: { id: 1396 } });
     const s = res.structuredContent as { imdb_id: string; ratings: { found: boolean } };
     assert.equal(s.imdb_id, "tt0903747");
@@ -1077,7 +1077,7 @@ describe("get_tv", () => {
   test("returns the content rating (default US region)", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "get_tv",
       arguments: { id: 1396, include_ratings: false },
@@ -1094,7 +1094,7 @@ describe("get_tv", () => {
 
   test("surfaces episode air info, seasons, homepage and type", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({ name: "get_tv", arguments: { id: 1396 } });
     const s = res.structuredContent as {
       type: string;
@@ -1114,7 +1114,7 @@ describe("get_tv", () => {
   test("expand_episodes fetches every season's episodes in one extra request", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "get_tv",
       arguments: { id: 1396, expand_episodes: true },
@@ -1137,7 +1137,7 @@ describe("get_tv", () => {
   test("without expand_episodes, get_tv makes no season requests", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     await client.callTool({ name: "get_tv", arguments: { id: 1396 } });
     assert.ok(!mock.calls.some((c) => c.url.toLowerCase().includes("season")));
   });
@@ -1146,7 +1146,7 @@ describe("get_tv", () => {
 describe("get_tv_shows", () => {
   test("returns a compact card (year derived from first_air_date) without ratings by default", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({ name: "get_tv_shows", arguments: { ids: [1396] } });
     assert.notEqual(res.isError, true);
     const s = res.structuredContent as {
@@ -1176,7 +1176,7 @@ describe("get_tv_shows", () => {
       return router(url);
     });
     installFetch(t, mock);
-    await using client = await connectServer({ ...ENV, HTTP_RETRIES: "0" });
+    const client = await connectServer(t, { ...ENV, HTTP_RETRIES: "0" });
     const res = await client.callTool({
       name: "get_tv_shows",
       arguments: { ids: [1396, 999] },
@@ -1198,7 +1198,7 @@ describe("discover_movies", () => {
   test("maps friendly filters to TMDB dotted query keys", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "discover_movies",
       arguments: { with_genres: "878", year: 1999, min_rating: 7, min_votes: 100 },
@@ -1215,7 +1215,7 @@ describe("discover_movies", () => {
   test("maps the new filters (dates, cast, keywords, providers, certification)", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     await client.callTool({
       name: "discover_movies",
       arguments: {
@@ -1247,7 +1247,7 @@ describe("discover_movies", () => {
   test("passes region, the release window and include_adult through to TMDB", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "discover_movies",
       arguments: {
@@ -1270,7 +1270,7 @@ describe("discover_movies", () => {
     // (identical total_results).
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     for (const [args, msg] of [
       [{ region: "DE" }, /region requires any_release_date_gte or any_release_date_lte/],
       [
@@ -1292,7 +1292,7 @@ describe("discover_movies", () => {
 
   test("rejects a lowercase region up front instead of reaching TMDB", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "discover_movies",
       arguments: { region: "us" },
@@ -1304,7 +1304,7 @@ describe("discover_movies", () => {
   test("rejects a non-numeric with_genres up front instead of silently no-opping at TMDB", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     // A genre NAME (not an id) would pass an unvalidated z.string() and be
     // forwarded verbatim, where TMDB matches nothing and returns
     // total_results:0 — indistinguishable from a real empty answer. The id-list
@@ -1320,7 +1320,7 @@ describe("discover_movies", () => {
   test("accepts a valid comma-separated with_genres id list", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "discover_movies",
       arguments: { with_genres: "28,878" },
@@ -1335,7 +1335,7 @@ describe("discover_movies", () => {
   test("passes a |-joined (OR) with_* id list through, and rejects a mixed one", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const ok = await client.callTool({
       name: "discover_movies",
       arguments: { with_watch_providers: "8|9", watch_region: "US" },
@@ -1353,7 +1353,7 @@ describe("discover_movies", () => {
   test("accepts a movie-only sort_by value (revenue.desc)", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "discover_movies",
       arguments: { sort_by: "revenue.desc" },
@@ -1365,7 +1365,7 @@ describe("discover_movies", () => {
 
   test("rejects a tv-only sort_by value (name.asc) and a nonsense value", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const tvOnly = await client.callTool({
       name: "discover_movies",
       arguments: { sort_by: "name.asc" },
@@ -1383,7 +1383,7 @@ describe("discover_tv", () => {
   test("passes include_adult through to TMDB, but rejects region (movie-only)", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     await client.callTool({
       name: "discover_tv",
       arguments: { include_adult: true },
@@ -1402,7 +1402,7 @@ describe("discover_tv", () => {
   test("accepts a tv-only sort_by value (name.asc), rejects a movie-only one (revenue.desc)", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const ok = await client.callTool({
       name: "discover_tv",
       arguments: { sort_by: "name.asc" },
@@ -1425,7 +1425,7 @@ describe("discover_movies/discover_tv reject a malformed with_original_language"
   // instead of reaching TMDB and silently no-op'ing the filter.
   test("a malformed with_original_language is rejected before hitting TMDB", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "discover_movies",
       arguments: { with_original_language: "english" },
@@ -1435,7 +1435,7 @@ describe("discover_movies/discover_tv reject a malformed with_original_language"
 
   test("a region-qualified with_original_language (valid for `language` but not this field) is rejected", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "discover_movies",
       arguments: { with_original_language: "en-US" },
@@ -1447,7 +1447,7 @@ describe("discover_movies/discover_tv reject a malformed with_original_language"
   // certification/certification_country below.
   test("a malformed with_original_language is rejected before hitting TMDB (discover_tv)", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "discover_tv",
       arguments: { with_original_language: "english" },
@@ -1462,7 +1462,7 @@ describe("discover_movies/discover_tv reject incomplete filter pairs", () => {
   // filter was applied" when it wasn't — so the tool schema rejects it upfront.
   test("certification without certification_country is rejected before hitting TMDB", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "discover_movies",
       arguments: { certification: "R" },
@@ -1476,7 +1476,7 @@ describe("discover_movies/discover_tv reject incomplete filter pairs", () => {
   // same pairing rule must apply there, not just to discover_movies.
   test("certification without certification_country is rejected before hitting TMDB (discover_tv)", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "discover_tv",
       arguments: { certification: "TV-Y7" },
@@ -1487,7 +1487,7 @@ describe("discover_movies/discover_tv reject incomplete filter pairs", () => {
 
   test("with_watch_providers without watch_region is rejected before hitting TMDB (discover_tv)", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "discover_tv",
       arguments: { with_watch_providers: "8" },
@@ -1500,7 +1500,7 @@ describe("discover_movies/discover_tv reject incomplete filter pairs", () => {
     // Verified live: without watch_region TMDB ignores it (unfiltered total_results).
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     for (const name of ["discover_movies", "discover_tv"]) {
       const res = await client.callTool({ name, arguments: { without_watch_providers: "8" } });
       assert.equal(res.isError, true, name);
@@ -1520,7 +1520,7 @@ describe("discover_movies/discover_tv reject incomplete filter pairs", () => {
   test("with_origin_country is pipe-joined; lowercase or empty is rejected", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const ok = await client.callTool({
       name: "discover_tv",
       arguments: { with_origin_country: ["KR", "JP"], without_companies: "420" },
@@ -1540,7 +1540,7 @@ describe("discover_movies/discover_tv reject incomplete filter pairs", () => {
 
   test("min_rating greater than max_rating is rejected", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "discover_movies",
       arguments: { min_rating: 9, max_rating: 2 },
@@ -1551,7 +1551,7 @@ describe("discover_movies/discover_tv reject incomplete filter pairs", () => {
 
   test("min_runtime greater than max_runtime is rejected", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "discover_movies",
       arguments: { min_runtime: 180, max_runtime: 60 },
@@ -1565,7 +1565,7 @@ describe("discover_movies/discover_tv reject incomplete filter pairs", () => {
     // which reads as "nothing matched" instead of "fix the input".
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     for (const name of ["discover_movies", "discover_tv"]) {
       const res = await client.callTool({
         name,
@@ -1600,7 +1600,7 @@ describe("discover_movies/discover_tv reject incomplete filter pairs", () => {
 
   test("watch_region / certification_country alone are rejected, not silently ignored", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     for (const [args, field] of [
       [{ watch_region: "US" }, /watch_region only applies/],
       [{ certification_country: "US" }, /certification_country only applies/],
@@ -1614,7 +1614,7 @@ describe("discover_movies/discover_tv reject incomplete filter pairs", () => {
   test("with_watch_monetization_types reaches TMDB pipe-joined, with or without providers", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     for (const [name, extra] of [
       ["discover_movies", { with_watch_providers: "2" }],
       ["discover_tv", {}],
@@ -1642,7 +1642,7 @@ describe("discover_movies/discover_tv reject incomplete filter pairs", () => {
     // Verified live: without watch_region TMDB ignores it (unfiltered total_results).
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     for (const name of ["discover_movies", "discover_tv"]) {
       const res = await client.callTool({
         name,
@@ -1667,7 +1667,7 @@ describe("discover_movies/discover_tv reject incomplete filter pairs", () => {
 
   test("a blank certification is rejected instead of disabling the filter", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "discover_movies",
       arguments: { certification: " ", certification_country: "US" },
@@ -1681,7 +1681,7 @@ describe("discover_tv", () => {
   test("maps tv-specific filters (networks, first_air_date)", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     await client.callTool({
       name: "discover_tv",
       arguments: { with_networks: "49", release_date_gte: "2010-01-01", year: 2012 },
@@ -1694,7 +1694,7 @@ describe("discover_tv", () => {
 
   test("returns TV results", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "discover_tv",
       arguments: { with_genres: "18" },
@@ -1707,7 +1707,7 @@ describe("discover_tv", () => {
 describe("search keywords & language", () => {
   test("search_keywords resolves names to ids", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "search_keywords",
       arguments: { query: "time travel" },
@@ -1719,7 +1719,7 @@ describe("search keywords & language", () => {
 
   test("search_companies resolves names to ids and keeps origin_country to disambiguate", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "search_companies",
       arguments: { query: "A24" },
@@ -1744,7 +1744,7 @@ describe("search keywords & language", () => {
   test("search_collections resolves a franchise name to a trimmed collection row", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "search_collections",
       arguments: { query: "harry potter", language: "de-DE", page: 2 },
@@ -1773,7 +1773,7 @@ describe("search keywords & language", () => {
   test("language: TMDB_LANGUAGE default is applied, and a per-call override wins", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer({
+    const client = await connectServer(t, {
       TMDB_API_TOKEN: "t",
       TMDB_LANGUAGE: "ru-RU",
       TMDB_MIN_INTERVAL_MS: "0",
@@ -1795,7 +1795,7 @@ describe("search keywords & language", () => {
   // reaching TMDB and looking like a legitimate no-translation response.
   test("a malformed language (not an ISO-639-1[-REGION] shape) is rejected before hitting TMDB", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "search_movies",
       arguments: { query: "matrix", language: "english" },
@@ -1807,7 +1807,7 @@ describe("search keywords & language", () => {
 describe("get_watch_providers", () => {
   test("returns providers for the requested region", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "get_watch_providers",
       arguments: { media_type: "movie", id: 603, region: "US" },
@@ -1828,7 +1828,7 @@ describe("get_watch_providers", () => {
 
   test("reports unavailable for a region with no data", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "get_watch_providers",
       arguments: { media_type: "movie", id: 603, region: "JP" },
@@ -1840,7 +1840,7 @@ describe("get_watch_providers", () => {
 
   test("is cached per region (not region-agnostic)", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const us = (
       await client.callTool({
         name: "get_watch_providers",
@@ -1864,7 +1864,7 @@ describe("get_watch_providers", () => {
 describe("search_watch_providers", () => {
   test("resolves a provider name to its id, matching substrings case-insensitively", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "search_watch_providers",
       arguments: { query: "netflix", media_type: "tv" },
@@ -1892,7 +1892,7 @@ describe("search_watch_providers", () => {
 
   test("an unmatched query returns an empty result, not an error", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "search_watch_providers",
       arguments: { query: "no such service", media_type: "movie" },
@@ -1906,7 +1906,7 @@ describe("search_watch_providers", () => {
   test("passes watch_region through as a query param (movie vs. tv use separate endpoints)", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     await client.callTool({
       name: "search_watch_providers",
       arguments: { query: "Disney", media_type: "movie", watch_region: "US" },
@@ -1917,7 +1917,7 @@ describe("search_watch_providers", () => {
 
   test("requesting a page past the last one returns an empty page, not an error", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "search_watch_providers",
       arguments: { query: "netflix", media_type: "tv", page: 2 },
@@ -1949,7 +1949,7 @@ describe("MCP client cancellation reaches cached client calls too", () => {
       );
     });
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
 
     const controller = new AbortController();
     const call = client.callTool(
@@ -1977,7 +1977,7 @@ describe("MCP client cancellation reaches cached client calls too", () => {
 describe("person", () => {
   test("get_person_credits returns cast/crew sorted by popularity, both media types", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({ name: "get_person_credits", arguments: { id: 6384 } });
     const s = res.structuredContent as {
       cast: { title: string; year: number; media_type: string }[];
@@ -2024,7 +2024,7 @@ describe("person", () => {
       return router(url);
     });
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "get_person_credits",
       arguments: { id: 6384, department: "Directing" },
@@ -2048,7 +2048,7 @@ describe("person", () => {
       url.includes("combined_credits") ? jsonResponse({ crew }) : router(url),
     );
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const defaultRes = await client.callTool({
       name: "get_person_credits",
       arguments: { id: 6384 },
@@ -2064,7 +2064,7 @@ describe("person", () => {
   test("get_person_credits reuses one cached combined_credits fetch across department/limit", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     for (const args of [{}, { department: "Directing" }, { limit: 5 }]) {
       const res = await client.callTool({
         name: "get_person_credits",
@@ -2078,7 +2078,7 @@ describe("person", () => {
 
   test("get_person returns full biography details and a human-readable gender", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({ name: "get_person", arguments: { id: 6193 } });
     assert.notEqual(res.isError, true);
     const s = res.structuredContent as {
@@ -2100,7 +2100,7 @@ describe("get_movie_credits / get_tv_credits", () => {
   // Director does. get_tv_credits reads /aggregate_credits instead.
   test("get_movie_credits sorts cast by order and keeps only headline crew", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({ name: "get_movie_credits", arguments: { id: 603 } });
     assert.notEqual(res.isError, true);
     const s = res.structuredContent as {
@@ -2116,7 +2116,7 @@ describe("get_movie_credits / get_tv_credits", () => {
   test("get_tv_credits ranks whole-run cast and crew by episode count", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({ name: "get_tv_credits", arguments: { id: 1396 } });
     assert.notEqual(res.isError, true);
     assert.ok(mock.calls.some((c) => c.url.includes("/tv/1396/aggregate_credits")));
@@ -2146,7 +2146,7 @@ describe("get_movie_credits / get_tv_credits", () => {
 describe("get_videos", () => {
   test("keeps a YouTube watch URL and omits it for other sites", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "get_videos",
       arguments: { media_type: "movie", id: 603 },
@@ -2161,7 +2161,7 @@ describe("get_videos", () => {
   test("asks for the configured language plus English and untagged videos", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer({ ...ENV, TMDB_LANGUAGE: "de-DE" });
+    const client = await connectServer(t, { ...ENV, TMDB_LANGUAGE: "de-DE" });
     const res = await client.callTool({
       name: "get_videos",
       arguments: { media_type: "movie", id: 603 },
@@ -2186,7 +2186,7 @@ describe("get_videos", () => {
       return router(url);
     });
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     await client.callTool({ name: "get_videos", arguments: { media_type: "movie", id: 129 } });
     const call = mock.calls.find((c) => c.url.includes("/videos"))!;
     assert.equal(new URL(call.url).searchParams.get("include_video_language"), "en,ja,null");
@@ -2194,7 +2194,7 @@ describe("get_videos", () => {
 
   test("works for media_type tv", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "get_videos",
       arguments: { media_type: "tv", id: 1396 },
@@ -2208,7 +2208,7 @@ describe("get_videos", () => {
 test("find_by_imdb_id resolves to TMDB results", async (t) => {
   const mock = mockFetch(router);
   installFetch(t, mock);
-  await using client = await connectServer(ENV);
+  const client = await connectServer(t, ENV);
   const res = await client.callTool({
     name: "find_by_imdb_id",
     arguments: { imdb_id: "tt0133093" },
@@ -2222,7 +2222,7 @@ test("find_by_imdb_id resolves to TMDB results", async (t) => {
 describe("tv season & episode", () => {
   test("get_tv_season returns the episode list", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "get_tv_season",
       arguments: { id: 1396, season_number: 1 },
@@ -2239,7 +2239,7 @@ describe("tv season & episode", () => {
 
   test("get_tv_episode returns episode details with guest stars and crew", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "get_tv_episode",
       arguments: { id: 1396, season_number: 1, episode_number: 1 },
@@ -2261,7 +2261,7 @@ describe("tv season & episode", () => {
   test("get_tv_episode returns the episode's own IMDb id, appended to the same request", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "get_tv_episode",
       arguments: { id: 1396, season_number: 1, episode_number: 1 },
@@ -2278,7 +2278,7 @@ describe("tv season & episode", () => {
 describe("get_similar", () => {
   test("returns similar titles for a movie", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "get_similar",
       arguments: { media_type: "movie", id: 603 },
@@ -2290,7 +2290,7 @@ describe("get_similar", () => {
 
   test("returns TV results for media_type tv", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "get_similar",
       arguments: { media_type: "tv", id: 1396 },
@@ -2303,7 +2303,7 @@ describe("get_similar", () => {
 
 test("get_reviews returns author, rating and clipped content", async (t) => {
   installFetch(t, mockFetch(router));
-  await using client = await connectServer(ENV);
+  const client = await connectServer(t, ENV);
   const res = await client.callTool({
     name: "get_reviews",
     arguments: { media_type: "movie", id: 603 },
@@ -2326,7 +2326,7 @@ describe("upstream failures reach the tool layer for non-cached client paths", (
       t,
       mockFetch(() => jsonResponse({ error: "server exploded" }, { status: 500 })),
     );
-    await using client = await connectServer({ ...ENV, HTTP_RETRIES: "0" });
+    const client = await connectServer(t, { ...ENV, HTTP_RETRIES: "0" });
     const res = await client.callTool({ name: "search_movies", arguments: { query: "matrix" } });
     assert.equal(res.isError, true);
     const text = toolText(res);
@@ -2338,7 +2338,7 @@ describe("upstream failures reach the tool layer for non-cached client paths", (
       t,
       mockFetch(() => jsonResponse({ error: "nope" }, { status: 404 })),
     );
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({
       name: "discover_movies",
       arguments: { with_genres: "878" },
@@ -2353,7 +2353,7 @@ describe("upstream failures reach the tool layer for non-cached client paths", (
       t,
       mockFetch(() => jsonResponse({}, { status: 429 })),
     );
-    await using client = await connectServer({ ...ENV, HTTP_RETRIES: "0" });
+    const client = await connectServer(t, { ...ENV, HTTP_RETRIES: "0" });
     const res = await client.callTool({
       name: "get_similar",
       arguments: { media_type: "movie", id: 603 },
@@ -2374,7 +2374,7 @@ describe("MCP client cancellation reaches non-cached client calls", () => {
       t,
       hangingFetch({ onStart: resolveFetchStarted, onAbort: () => (sawAbort = true) }),
     );
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
 
     const controller = new AbortController();
     // client.callTool's own `signal` sends notifications/cancelled to the
@@ -2399,7 +2399,7 @@ describe("MCP client cancellation reaches non-cached client calls", () => {
 describe("collections & genres", () => {
   test("get_collection returns parts ordered chronologically", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({ name: "get_collection", arguments: { id: 2344 } });
     const s = res.structuredContent as {
       name: string;
@@ -2413,7 +2413,7 @@ describe("collections & genres", () => {
 
   test("get_tv_genres returns id/name pairs", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({ name: "get_tv_genres", arguments: {} });
     const s = res.structuredContent as { genres: { id: number; name: string }[] };
     assert.ok(s.genres.some((g) => g.name === "Drama"));
@@ -2421,7 +2421,7 @@ describe("collections & genres", () => {
 
   test("get_movie_genres returns id/name pairs", async (t) => {
     installFetch(t, mockFetch(router));
-    await using client = await connectServer(ENV);
+    const client = await connectServer(t, ENV);
     const res = await client.callTool({ name: "get_movie_genres", arguments: {} });
     const s = res.structuredContent as { genres: { id: number; name: string }[] };
     assert.ok(s.genres.some((g) => g.name === "Comedy"));

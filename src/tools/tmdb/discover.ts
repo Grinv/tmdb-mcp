@@ -15,8 +15,8 @@ import {
   multiItemSchema,
   pageSchema,
   tvSummarySchema,
-} from "../../format.schemas.js";
-import { READ_ONLY } from "../shared.js";
+} from "../../format.schemas.ts";
+import { READ_ONLY } from "../shared.ts";
 import {
   includeAdult,
   language,
@@ -24,7 +24,7 @@ import {
   watchRegion,
   yearFilter,
   type TmdbToolDeps,
-} from "./fields.js";
+} from "./fields.ts";
 
 const SHARED_SORT_FIELDS = ["popularity", "vote_average", "vote_count"] as const;
 const MOVIE_SORT_BY = [

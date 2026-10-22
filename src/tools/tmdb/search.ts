@@ -14,8 +14,8 @@ import {
   movieSummarySchema,
   tvSummarySchema,
   watchProviderMatchesSchema,
-} from "../../format.schemas.js";
-import { READ_ONLY } from "../shared.js";
+} from "../../format.schemas.ts";
+import { READ_ONLY } from "../shared.ts";
 import {
   includeAdult,
   language,
@@ -24,7 +24,7 @@ import {
   watchRegion,
   yearFilter,
   type TmdbToolDeps,
-} from "./fields.js";
+} from "./fields.ts";
 
 export function registerSearchTools(
   server: McpServer,

@@ -8,7 +8,7 @@
 // .mcpb passing a blank/unfilled user_config field does not crash startup or
 // send garbage upstream.
 import { z } from "zod";
-import type { LogLevel } from "./lib/logger.js";
+import type { LogLevel } from "./lib/logger.ts";
 
 // Shared with tools/tmdb/fields.ts's per-call `language` param — both accept
 // the same ISO-639-1[-ISO-3166-1] shape, so the regex is defined once here.

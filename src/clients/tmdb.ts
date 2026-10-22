@@ -6,9 +6,9 @@
 //
 // Localization: a default `language` (e.g. "ru-RU") and `region` come from
 // config and are applied to every request; callers may override per call.
-import { HttpClient } from "../lib/http.js";
-import { TtlCache, cacheKey } from "../lib/cache.js";
-import { createUpstream } from "../lib/upstream.js";
+import { HttpClient } from "../lib/http.ts";
+import { TtlCache, cacheKey } from "../lib/cache.ts";
+import { createUpstream } from "../lib/upstream.ts";
 import {
   detailMovie,
   detailPerson,
@@ -52,9 +52,9 @@ import {
   type TmdbSeason,
   type TmdbTv,
   type WatchProvidersResponse,
-} from "../format.js";
-import type { Logger } from "../lib/logger.js";
-import type { Config } from "../config.js";
+} from "../format.ts";
+import type { Logger } from "../lib/logger.ts";
+import type { Config } from "../config.ts";
 // Type-only: DiscoverParams' source of truth is the input zod schema in
 // tools/tmdb/discover.ts (per-field descriptions/validation belong there),
 // z.infer'd and re-exported for client code — see discoverParamsSchema there.
@@ -66,7 +66,7 @@ import type {
   RELEASE_TYPES,
   TV_STATUSES,
   TV_TYPES,
-} from "../tools/tmdb/discover.js";
+} from "../tools/tmdb/discover.ts";
 
 type Query = Record<string, string | number | boolean | undefined>;
 
@@ -150,8 +150,10 @@ function capTotalEpisodesBySize(
 // Carries a partially-fetched expand_episodes result out of the cache's
 // compute() without caching it — see #getTvSeasonsBulk.
 class PartialSeasons extends Error {
-  constructor(readonly result: { seasons: ReturnType<typeof summarizeSeason>[] }) {
+  readonly result: { seasons: ReturnType<typeof summarizeSeason>[] };
+  constructor(result: PartialSeasons["result"]) {
     super("some expand_episodes chunks failed");
+    this.result = result;
   }
 }
 

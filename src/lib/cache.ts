@@ -20,7 +20,7 @@
  * region) was silently left out of a key and one request's response leaked
  * into another's cache slot.
  */
-import type { Logger } from "./logger.js";
+import type { Logger } from "./logger.ts";
 
 export function cacheKey(
   resource: string,

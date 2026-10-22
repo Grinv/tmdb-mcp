@@ -1,8 +1,8 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { OmdbClient } from "../clients/omdb.js";
-import { loadConfig } from "../config.js";
-import { silentLogger, installFetch, mockFetch, jsonResponse } from "./helpers.js";
+import { OmdbClient } from "../clients/omdb.ts";
+import { loadConfig } from "../config.ts";
+import { silentLogger, installFetch, mockFetch, jsonResponse } from "./helpers.ts";
 
 // Direct tests against OmdbClient's own interface, no MCP transport.
 

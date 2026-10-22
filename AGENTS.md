@@ -31,8 +31,8 @@ src/
                   # (get_ratings), shared.ts (READ_ONLY, requireConfigured(Cached) — try/catch →
                   # ToolResult)
   __tests__/      # node:test (*.test.ts) + helpers.ts
-scripts/          # build-tests.mjs, run-tests.mjs (generic), check-api.mjs (domain),
-                  # sync-version.mjs (npm version hook), preversion-check.mjs (npm version
+scripts/          # run-tests.ts (generic), check-api.ts (domain),
+                  # sync-version.ts (npm version hook), preversion-check.ts (npm version
                   # gate — see .agents/skills/release/SKILL.md)
 .agents/skills/   # reusable agent workflows for this repo (e.g. live-audit/) — plain Markdown
                   # with a YAML frontmatter name/description, not tied to any one tool's
@@ -47,7 +47,7 @@ scripts/          # build-tests.mjs, run-tests.mjs (generic), check-api.mjs (dom
 
 ```sh
 npm run build          # tsc --noEmit + tsup → dist/index.js (single ESM bundle)
-npm test               # build tests with esbuild, run with node:test
+npm test               # run src/**/*.test.ts with node:test (native type stripping)
 npm run test:coverage  # same, with coverage (gate: ~80%)
 npm run lint           # eslint
 npm run format         # prettier --write
@@ -59,12 +59,14 @@ npm run inspector      # run under the MCP Inspector
 
 - **Docs and in-code text are English** (README, docs, comments, tool
   descriptions, error messages).
-- Runtime floor is **Node ≥ 22.13** (`engines`, `manifest.json`'s
-  `compatibility.runtimes.node` and the CI floor job must agree); tsup and the
-  test build target `node22`, `tsconfig` targets ES2024. 22.13 is also eslint's
-  own floor on the 22 line, so the dev toolchain and the shipped server share
-  one minimum. Native TS type-stripping (on by default only from 22.18) is
-  _not_ relied on — tests are still transpiled with esbuild.
+- Runtime floor is **Node ≥ 22.18** (`engines`, `manifest.json`'s
+  `compatibility.runtimes.node` and the CI floor job must agree); tsup targets
+  `node22`, `tsconfig` targets ES2024. 22.18 is where Node's built-in TS type
+  stripping is on by default, which the tests rely on: they run as `.ts`
+  directly, with no transpile step. So relative imports name the real `.ts`
+  file (`./x.ts`, never `./x.js`) and only erasable TS syntax is allowed — no
+  `enum`, `namespace` or constructor parameter properties (`tsc` enforces this
+  via `erasableSyntaxOnly`).
 - Log to **stderr only** — stdout is the MCP protocol channel. Use the logger;
   it redacts credentials.
 - Tool failures return `{ isError: true }` results (via `requireConfigured()` /

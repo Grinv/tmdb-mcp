@@ -2,14 +2,14 @@
 // (index.ts) so tests can import buildServer without triggering startup.
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import { McpServer, type CacheHint } from "@modelcontextprotocol/server";
-import { loadConfig, type Config } from "./config.js";
-import { createLogger, type Logger } from "./lib/logger.js";
-import { TmdbClient } from "./clients/tmdb.js";
-import { OmdbClient } from "./clients/omdb.js";
-import { registerTmdbTools } from "./tools/tmdb/index.js";
-import { registerOmdbTools } from "./tools/omdb.js";
-import { registerPrompts } from "./prompts.js";
-import { VERSION } from "./version.js";
+import { loadConfig, type Config } from "./config.ts";
+import { createLogger, type Logger } from "./lib/logger.ts";
+import { TmdbClient } from "./clients/tmdb.ts";
+import { OmdbClient } from "./clients/omdb.ts";
+import { registerTmdbTools } from "./tools/tmdb/index.ts";
+import { registerOmdbTools } from "./tools/omdb.ts";
+import { registerPrompts } from "./prompts.ts";
+import { VERSION } from "./version.ts";
 
 const INSTRUCTIONS =
   "Query movies, TV shows and people from The Movie Database (TMDB). Typical flow: " +

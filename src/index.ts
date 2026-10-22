@@ -1,6 +1,6 @@
 // Bin entry point. tsup prepends the `#!/usr/bin/env node` shebang.
-import { redact } from "./lib/errors.js";
-import { start } from "./server.js";
+import { redact } from "./lib/errors.ts";
+import { start } from "./server.ts";
 
 start().catch((err: unknown) => {
   // Fatal startup error: report on stderr and exit non-zero. This runs before

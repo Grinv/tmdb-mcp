@@ -30,7 +30,7 @@ import {
   type TmdbMultiItem,
   type TmdbPerson,
   type TmdbTv,
-} from "../format.js";
+} from "../format.ts";
 
 // Direct unit tests for shaping edge cases that are cheap to hit without any
 // HTTP/MCP scaffolding, and that the tool-level tests don't happen to exercise.

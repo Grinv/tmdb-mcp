@@ -9,9 +9,9 @@ import {
   seasonSchema,
   videosSchema,
   watchProvidersSchema,
-} from "../../format.schemas.js";
-import { READ_ONLY } from "../shared.js";
-import { mediaKind, seasonNumber, tmdbId, type TmdbToolDeps } from "./fields.js";
+} from "../../format.schemas.ts";
+import { READ_ONLY } from "../shared.ts";
+import { mediaKind, seasonNumber, tmdbId, type TmdbToolDeps } from "./fields.ts";
 
 export function registerLookupTools(
   server: McpServer,

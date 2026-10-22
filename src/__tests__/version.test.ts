@@ -2,18 +2,16 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { VERSION } from "../version.js";
-import { connectServer, DEFAULT_ENV } from "./helpers.js";
-// Imports the real, unbundled script directly (scripts/build-tests.mjs only
-// compiles src/) — this relies on sync-version.mjs's own module-guard
+import { VERSION } from "../version.ts";
+import { connectServer, DEFAULT_ENV } from "./helpers.ts";
+// Imports the real script directly — this relies on sync-version.ts's own module-guard
 // (`import.meta.url === pathToFileURL(process.argv[1]).href`) to keep main()
 // from running as a side effect of this import. If that guard is ever
 // weakened, `npm test` would start writing to package.json/manifest.json/
 // server.json/CHANGELOG.md — keep that invariant in mind before touching it.
-import { renderChangelogRelease, unreleasedHasBullets } from "../../scripts/sync-version.mjs";
+import { renderChangelogRelease, unreleasedHasBullets } from "../../scripts/sync-version.ts";
 
-// Tests run from the dist-tests/ working directory; the repo root is one level up.
-const root = join(process.cwd(), "..");
+const root = join(import.meta.dirname, "..", "..");
 const readJson = (rel: string) => JSON.parse(readFileSync(join(root, rel), "utf8"));
 
 const pkg = readJson("package.json") as { version: string; mcpName: string };
@@ -35,7 +33,7 @@ const server = readJson("server.json") as {
   }[];
 };
 
-// package.json is the single source of truth; scripts/sync-version.mjs (the npm
+// package.json is the single source of truth; scripts/sync-version.ts (the npm
 // `version` hook) propagates it everywhere below. These assertions fail loudly
 // if any file drifts — including a hand-edit that bypassed the hook.
 describe("release metadata stays in sync with package.json", () => {
@@ -71,7 +69,7 @@ describe("release metadata stays in sync with package.json", () => {
     );
   });
 
-  // scripts/sync-version.mjs moves CHANGELOG.md's [Unreleased] notes under a
+  // scripts/sync-version.ts moves CHANGELOG.md's [Unreleased] notes under a
   // "## [x.y.z] - <date>" heading as part of every version bump (atomically
   // with bumping package.json itself), so this heading must always exist for
   // the current version — a v0.9.0 release once shipped with this heading
@@ -88,7 +86,7 @@ describe("release metadata stays in sync with package.json", () => {
   });
 });
 
-// Guards the pure string-transform sync-version.mjs uses to file [Unreleased]
+// Guards the pure string-transform sync-version.ts uses to file [Unreleased]
 // under a dated version heading — the exact mechanism the "CHANGELOG.md has a
 // heading for the current version" test above verifies end-to-end.
 describe("renderChangelogRelease", () => {
@@ -187,8 +185,8 @@ describe("manifest.json/server.json stay in sync with the running server", () =>
   // count against manifest.tools.length), this closes the triangle: built
   // binary count === manifest.json count === in-memory server names (a strictly
   // stronger check than count, since it also catches a rename/swap).
-  test("manifest.json tools list matches the server's registered tools", async () => {
-    await using client = await connectServer(DEFAULT_ENV);
+  test("manifest.json tools list matches the server's registered tools", async (t) => {
+    const client = await connectServer(t, DEFAULT_ENV);
     const { tools } = await client.listTools();
     const serverToolCount = tools.length;
     assert.equal(
@@ -199,8 +197,8 @@ describe("manifest.json/server.json stay in sync with the running server", () =>
     assert.deepEqual(tools.map((tl) => tl.name).sort(), manifest.tools.map((tl) => tl.name).sort());
   });
 
-  test("manifest.json's prompts match every registered prompt", async () => {
-    await using client = await connectServer(DEFAULT_ENV);
+  test("manifest.json's prompts match every registered prompt", async (t) => {
+    const client = await connectServer(t, DEFAULT_ENV);
     const { prompts } = await client.listPrompts();
     // Same name set first (catches an added/removed/renamed prompt regardless
     // of how many there are), then description + argument names per prompt.

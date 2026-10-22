@@ -8,7 +8,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- **Breaking:** raise runtime floor to Node ≥ 22.13 (was ≥ 20.11); Node 20 reached end-of-life in April 2026.
+- **Breaking:** raise runtime floor to Node ≥ 22.18 (was ≥ 20.11); Node 20 reached end-of-life in April 2026.
 
 ## [0.13.0] - 2026-10-20
 

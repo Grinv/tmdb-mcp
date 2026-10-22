@@ -6,7 +6,7 @@ description: Cut a release of tmdb-mcp — draft CHANGELOG entries, check docs/m
 # Releasing
 
 `package.json` is the **single source of truth** for the version. The npm
-`version` lifecycle hook runs `scripts/sync-version.mjs`, which propagates it to
+`version` lifecycle hook runs `scripts/sync-version.ts`, which propagates it to
 `src/version.ts`, `manifest.json` and `server.json` (incl. the `.mcpb` release-asset
 URL), and moves `CHANGELOG.md`'s `[Unreleased]` notes under a new
 `## [x.y.z] - <date>` heading (leaving `[Unreleased]` empty); `version.test.ts`
@@ -16,12 +16,12 @@ X.Y.Z" step that had to happen **before** `npm version` — easy to forget, or
 easy to do in the wrong order (a v0.9.0 release once shipped tagged with
 `CHANGELOG.md` still saying "Unreleased", caught by nothing). It's now
 atomic with the version bump itself, so there's no ordering to get wrong.
-`sync-version.mjs` and `preversion-check.mjs` locate the repo root via
+`sync-version.ts` and `preversion-check.ts` locate the repo root via
 `import.meta.dirname` — no Node-version floor above
-the package's own `engines.node` (≥ 22.13) applies to running `npm version`
+the package's own `engines.node` (≥ 22.18) applies to running `npm version`
 yourself.
 
-A `preversion` hook (`scripts/preversion-check.mjs`) runs first, with two checks:
+A `preversion` hook (`scripts/preversion-check.ts`) runs first, with two checks:
 
 - **Unpushed-tag race**: if the _current_ `package.json` version already has a
   local git tag, it blocks unless that tag is also on `origin` — this is the
@@ -46,7 +46,7 @@ don't rely on the `preversion` hook alone to catch a skipped one:
    `[Unreleased]` — do **not** hand-rename that heading to the target version;
    `npm version` (step 4) does that automatically now.
 2. Run the `docs-consistency-check` skill — none of this is version-bump
-   mechanics, so `sync-version.mjs`/`version.test.ts` don't catch drift here,
+   mechanics, so `sync-version.ts`/`version.test.ts` don't catch drift here,
    and it accumulates silently across several PRs (`manifest.json`'s
    `tools`/`prompts` arrays, `server.json`'s `environmentVariables`/
    description length, README's tool table, AGENTS.md's `src/` tree). Note
@@ -63,7 +63,7 @@ scripts never see publishing credentials): check the tag equals `v` +
 `package.json`'s version (a hand-pushed mismatched tag fails here) → build →
 test → pack `.mcpb` → extract `CHANGELOG.md`'s section for this version (fails
 loudly, not silently, if that section is empty — the workflow's own safety net
-for whatever slipped past `sync-version.mjs`/`preversion-check.mjs`) → upload
+for whatever slipped past `sync-version.ts`/`preversion-check.ts`) → upload
 `dist/`, the `.mcpb` and the notes as an artifact. **publish** (`contents:
 write` + `id-token: write`, installs no dependencies): `npm publish` of the
 downloaded `dist/` (OIDC trusted publishing, with provenance, pinned to an

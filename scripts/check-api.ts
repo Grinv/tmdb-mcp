@@ -16,10 +16,16 @@ const OMDB_BASE = process.env.OMDB_BASE_URL ?? "https://www.omdbapi.com";
 const TMDB_TOKEN = process.env.TMDB_API_TOKEN;
 const OMDB_KEY = process.env.OMDB_API_KEY;
 const SPACING_MS = 300;
-const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+interface Check {
+  name: string;
+  skip?: string;
+  run: () => Promise<void>;
+}
 
 // Assert a 200 + minimal shape from a TMDB endpoint, with auth + the skip guard.
-const tmdbCheck = (name, path, assert) => ({
+const tmdbCheck = <T>(name: string, path: string, assert: (body: T) => void): Check => ({
   name,
   skip: TMDB_TOKEN ? undefined : "TMDB_API_TOKEN not set",
   run: async () => {
@@ -27,19 +33,23 @@ const tmdbCheck = (name, path, assert) => ({
       headers: { Accept: "application/json", Authorization: `Bearer ${TMDB_TOKEN}` },
     });
     if (res.status !== 200) throw new Error(`expected 200, got ${res.status}`);
-    assert(await res.json());
+    assert((await res.json()) as T);
   },
 });
 
-const hasResults = (b) => {
+interface AggregateCredits {
+  cast?: { roles?: unknown }[];
+  crew?: { jobs?: unknown }[];
+}
+
+const hasResults = (b: { results?: unknown }) => {
   if (!Array.isArray(b.results)) throw new Error("missing `results` array");
 };
 
-/** @type {{name:string, skip?:string, run:() => Promise<void>}[]} */
-const checks = [
+const checks: Check[] = [
   tmdbCheck("tmdb search/movie", "/search/movie?query=matrix", hasResults),
   // 603 = The Matrix; its detail must carry imdb_id (the OMDb enrichment depends on it).
-  tmdbCheck("tmdb movie/{id} has imdb_id", "/movie/603", (b) => {
+  tmdbCheck("tmdb movie/{id} has imdb_id", "/movie/603", (b: { imdb_id?: unknown }) => {
     if (typeof b.imdb_id !== "string") throw new Error("missing `imdb_id`");
   }),
   tmdbCheck(
@@ -50,7 +60,7 @@ const checks = [
   tmdbCheck("tmdb movie/{id}/similar", "/movie/603/similar", hasResults),
   tmdbCheck("tmdb movie/{id}/reviews", "/movie/155/reviews", hasResults),
   // 263 = The Dark Knight Collection; get_collection depends on `parts`.
-  tmdbCheck("tmdb collection/{id} has parts", "/collection/263", (b) => {
+  tmdbCheck("tmdb collection/{id} has parts", "/collection/263", (b: { parts?: unknown }) => {
     if (!Array.isArray(b.parts)) throw new Error("missing `parts` array");
   }),
   // 1396/5/14 = Breaking Bad "Ozymandias". get_tv_episode's imdb_id — the only
@@ -60,7 +70,7 @@ const checks = [
   tmdbCheck(
     "tmdb tv episode external_ids has imdb_id",
     "/tv/1396/season/5/episode/14?append_to_response=external_ids",
-    (b) => {
+    (b: { external_ids?: { imdb_id?: unknown } }) => {
       if (typeof b.external_ids?.imdb_id !== "string")
         throw new Error("missing `external_ids.imdb_id`");
     },
@@ -68,10 +78,14 @@ const checks = [
   // get_tv_credits ranks on these per-role/per-job episode counts; the plain
   // /tv/{id}/credits endpoint has neither, so a reshaped payload here would
   // silently empty the crew list.
-  tmdbCheck("tmdb tv aggregate_credits has roles/jobs", "/tv/1396/aggregate_credits", (b) => {
-    if (!Array.isArray(b.cast?.[0]?.roles)) throw new Error("missing `cast[].roles`");
-    if (!Array.isArray(b.crew?.[0]?.jobs)) throw new Error("missing `crew[].jobs`");
-  }),
+  tmdbCheck(
+    "tmdb tv aggregate_credits has roles/jobs",
+    "/tv/1396/aggregate_credits",
+    (b: AggregateCredits) => {
+      if (!Array.isArray(b.cast?.[0]?.roles)) throw new Error("missing `cast[].roles`");
+      if (!Array.isArray(b.crew?.[0]?.jobs)) throw new Error("missing `crew[].jobs`");
+    },
+  ),
   {
     name: "omdb ratings by imdb_id",
     skip: OMDB_KEY ? undefined : "OMDB_API_KEY not set",
@@ -80,14 +94,18 @@ const checks = [
         headers: { Accept: "application/json" },
       });
       if (res.status !== 200) throw new Error(`expected 200, got ${res.status}`);
-      const body = await res.json();
+      const body = (await res.json()) as {
+        Response?: string;
+        Error?: string;
+        imdbRating?: unknown;
+      };
       if (body.Response !== "True") throw new Error(`OMDb error: ${body.Error ?? "unknown"}`);
       if (typeof body.imdbRating !== "string") throw new Error("missing `imdbRating`");
     },
   },
 ];
 
-const failures = [];
+const failures: string[] = [];
 let ran = 0;
 for (const check of checks) {
   if (check.skip) {

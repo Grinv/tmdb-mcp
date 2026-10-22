@@ -39,7 +39,7 @@
     }
   },
   "compatibility": {
-    "runtimes": { "node": ">=22.13.0" }
+    "runtimes": { "node": ">=22.18.0" }
   },
   "tools_generated": false,
   "tools": [

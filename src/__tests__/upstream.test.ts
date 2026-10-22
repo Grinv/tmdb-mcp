@@ -1,7 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { createUpstream } from "../lib/upstream.js";
-import { silentLogger, jsonResponse, mockFetch, installFetch } from "./helpers.js";
+import { createUpstream } from "../lib/upstream.ts";
+import { silentLogger, jsonResponse, mockFetch, installFetch } from "./helpers.ts";
 
 function upstream(extra: Partial<Parameters<typeof createUpstream>[0]> = {}) {
   return createUpstream({

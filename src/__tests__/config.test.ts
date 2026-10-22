@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { loadConfig } from "../config.js";
+import { loadConfig } from "../config.ts";
 
 describe("loadConfig", () => {
   test("empty strings are treated as unset (so .mcpb blanks don't override defaults)", () => {

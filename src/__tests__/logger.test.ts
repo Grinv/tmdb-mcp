@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { createLogger } from "../lib/logger.js";
+import { createLogger } from "../lib/logger.ts";
 
 function captureStderr<T>(fn: () => T): { result: T; lines: string[] } {
   const lines: string[] = [];

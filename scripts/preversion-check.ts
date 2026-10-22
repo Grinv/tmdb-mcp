@@ -1,4 +1,3 @@
-// @ts-check
 // Wired into the npm `preversion` lifecycle hook (see package.json) — runs
 // before `npm version <bump>` touches anything. This is a presence-only
 // safety net for "did we completely forget," NOT a substitute for actually
@@ -10,7 +9,7 @@
 import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
-import { unreleasedHasBullets } from "./sync-version.mjs";
+import { unreleasedHasBullets } from "./sync-version.ts";
 
 const root = join(import.meta.dirname, "..");
 
@@ -29,7 +28,7 @@ const root = join(import.meta.dirname, "..");
 // sha against a locally-dereferenced commit sha, which never match even when
 // the tag is genuinely up to date. Fetching and dereferencing locally sidesteps
 // that parsing entirely.
-function remoteTagCommitSha(tag, root) {
+function remoteTagCommitSha(tag: string, root: string): string | undefined {
   // Includes this process's pid so two concurrent `npm version` invocations
   // checking the same tag never collide on the same scratch ref.
   const tmpRef = `refs/tmp-preversion-check/${process.pid}-${tag}`;
@@ -42,7 +41,7 @@ function remoteTagCommitSha(tag, root) {
     // Only a missing remote ref means "not pushed yet" — anything else
     // (network down, DNS failure, auth failure) is a real problem the
     // caller needs to know about, not silently treated the same way.
-    const stderr = err.stderr ? err.stderr.toString() : "";
+    const stderr = (err as { stderr?: Buffer }).stderr?.toString() ?? "";
     if (/couldn't find remote ref/i.test(stderr)) {
       return undefined;
     }
@@ -58,7 +57,9 @@ function remoteTagCommitSha(tag, root) {
 }
 
 function checkUnpushedTagRace() {
-  const { version } = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+  const { version } = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as {
+    version: string;
+  };
   const tag = `v${version}`;
   const localTagExists =
     execFileSync("git", ["tag", "--list", tag], { cwd: root }).toString().trim() === tag;
@@ -71,13 +72,13 @@ function checkUnpushedTagRace() {
     .toString()
     .trim();
 
-  let remoteSha;
+  let remoteSha: string | undefined;
   try {
     remoteSha = remoteTagCommitSha(tag, root);
   } catch (err) {
     console.error(
       `preversion-check: could not verify whether git tag ${tag} is on origin ` +
-        `(${err.message}) — this looks like a network/auth problem, not necessarily an ` +
+        `(${err instanceof Error ? err.message : String(err)}) — this looks like a network/auth problem, not necessarily an ` +
         "unpushed tag. Check connectivity to origin and retry; if the tag turns out to " +
         `genuinely be unpushed, push it (git push origin ${tag}) or delete it ` +
         `(git tag -d ${tag}) if it was a mistake.`,
@@ -111,11 +112,11 @@ function checkUnpushedTagRace() {
 
 function checkChangelog() {
   const changelog = readFileSync(join(root, "CHANGELOG.md"), "utf8");
-  let hasBullets;
+  let hasBullets: boolean;
   try {
     hasBullets = unreleasedHasBullets(changelog);
   } catch (err) {
-    console.error(`preversion-check: ${err.message}`);
+    console.error(`preversion-check: ${err instanceof Error ? err.message : String(err)}`);
     process.exit(1);
   }
   if (hasBullets) {

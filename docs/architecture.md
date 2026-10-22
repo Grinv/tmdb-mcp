@@ -60,5 +60,5 @@ list — and can surface `_meta` like any other cached tool.
 This server was generated from the **`mcp-server-template`** repository: a
 generic carcass (`src/lib/` + build tooling, tests infra, CI) plus a thin
 domain layer (`config.ts`, `format.ts`, `clients/`, domain `tools/`,
-`check-api.mjs`). When fixing carcass bugs, consider whether the fix belongs
+`check-api.ts`). When fixing carcass bugs, consider whether the fix belongs
 upstream in the template.

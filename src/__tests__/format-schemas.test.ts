@@ -25,13 +25,13 @@ import {
   summarizeVideos,
   summarizeWatchProviders,
   type TmdbMultiItem,
-} from "../format.js";
+} from "../format.ts";
 import {
   movieOrTvSchema,
   movieSummarySchema,
   multiItemSchema,
   pageSchema,
-} from "../format.schemas.js";
+} from "../format.schemas.ts";
 
 // Every shaper in format.ts is now schema-first: it builds its result and
 // runs it through its own paired schema via `.parse()` before returning, so a

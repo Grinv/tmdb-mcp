@@ -2,9 +2,9 @@
 import type { TestContext } from "node:test";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import assert from "node:assert/strict";
-import { createLogger, type Logger } from "../lib/logger.js";
-import { buildServer } from "../server.js";
-import { loadConfig } from "../config.js";
+import { createLogger, type Logger } from "../lib/logger.ts";
+import { buildServer } from "../server.ts";
+import { loadConfig } from "../config.ts";
 
 export function silentLogger(): Logger {
   return createLogger("silent");
@@ -108,12 +108,10 @@ export function hangingFetch(opts: { onStart?: () => void; onAbort?: () => void 
 }
 
 /** Build the server and connect an in-memory client for end-to-end tool tests.
- *  The returned client is itself disposable (`await using client = await
- *  connectServer(...)`) — closing both the client and server is wired up as
- *  its `Symbol.asyncDispose`, so callers don't need a separate `t.after()`. */
-export async function connectServer(
-  env: NodeJS.ProcessEnv = {},
-): Promise<Client & AsyncDisposable> {
+ *  Closing both the client and server is registered on `t.after()`, so callers
+ *  don't need their own cleanup. (Not `await using`: Node 22 has no native
+ *  `using` syntax, and tests run untranspiled under type stripping.) */
+export async function connectServer(t: TestContext, env: NodeJS.ProcessEnv = {}): Promise<Client> {
   const server = buildServer(loadConfig(env), silentLogger());
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test", version: "0" });
@@ -123,10 +121,9 @@ export async function connectServer(
   // already populated, so every callTool() in the suite doubles as an
   // outputSchema conformance check instead of silently skipping validation.
   await client.listTools();
-  return Object.assign(client, {
-    async [Symbol.asyncDispose]() {
-      await client.close();
-      await server.close();
-    },
+  t.after(async () => {
+    await client.close();
+    await server.close();
   });
+  return client;
 }

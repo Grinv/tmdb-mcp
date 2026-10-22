@@ -1,8 +1,8 @@
 // Small pieces shared by every tool-registration module: the read-only
 // annotation, and the "does this client have credentials" short-circuit that
 // every TMDB/OMDb tool needs before it can call its client.
-import { ApiError } from "../lib/errors.js";
-import { apiErrorToResult, errorResult, jsonResult, type ToolResult } from "../lib/result.js";
+import { ApiError } from "../lib/errors.ts";
+import { apiErrorToResult, errorResult, jsonResult, type ToolResult } from "../lib/result.ts";
 
 export const READ_ONLY = { readOnlyHint: true, openWorldHint: true } as const;
 

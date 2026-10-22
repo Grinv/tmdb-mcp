@@ -6,12 +6,12 @@
 // OMDb quirk: it answers 200 OK even for "not found", with a JSON body of
 // { Response: "False", Error: "..." }. summarizeRatings() turns that into a
 // soft { found: false } object so enrichment never hard-fails a TMDB lookup.
-import { HttpClient } from "../lib/http.js";
-import { TtlCache, cacheKey } from "../lib/cache.js";
-import { createUpstream } from "../lib/upstream.js";
-import { summarizeRatings, type OmdbResponse } from "../format.js";
-import type { Logger } from "../lib/logger.js";
-import type { Config } from "../config.js";
+import { HttpClient } from "../lib/http.ts";
+import { TtlCache, cacheKey } from "../lib/cache.ts";
+import { createUpstream } from "../lib/upstream.ts";
+import { summarizeRatings, type OmdbResponse } from "../format.ts";
+import type { Logger } from "../lib/logger.ts";
+import type { Config } from "../config.ts";
 
 export class OmdbClient {
   readonly #http: HttpClient;

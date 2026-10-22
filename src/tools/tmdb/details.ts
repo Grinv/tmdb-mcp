@@ -5,8 +5,8 @@
 // maybeEnrich below) is the one place this server's two upstreams meet.
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/server";
-import type { TmdbClient } from "../../clients/tmdb.js";
-import type { OmdbClient } from "../../clients/omdb.js";
+import type { TmdbClient } from "../../clients/tmdb.ts";
+import type { OmdbClient } from "../../clients/omdb.ts";
 import {
   movieCard,
   notFoundCard,
@@ -14,7 +14,7 @@ import {
   ratingsYearConflict,
   summarizeRatings,
   tvCard,
-} from "../../format.js";
+} from "../../format.ts";
 import {
   collectionSchema,
   creditsSchema,
@@ -30,10 +30,10 @@ import {
   tvCreditsSchema,
   tvDetailEnrichedSchema,
   tvSummarySchema,
-} from "../../format.schemas.js";
-import { ApiError } from "../../lib/errors.js";
-import { apiErrorMessage } from "../../lib/result.js";
-import { READ_ONLY } from "../shared.js";
+} from "../../format.schemas.ts";
+import { ApiError } from "../../lib/errors.ts";
+import { apiErrorMessage } from "../../lib/result.ts";
+import { READ_ONLY } from "../shared.ts";
 import {
   includeRatings,
   includeRatingsBatch,
@@ -47,7 +47,7 @@ import {
   tvIdsBatch,
   expandEpisodes,
   type TmdbToolDeps,
-} from "./fields.js";
+} from "./fields.ts";
 
 export function registerDetailsTools(
   server: McpServer,

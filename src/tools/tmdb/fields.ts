@@ -5,11 +5,11 @@
 // media-type toggle, a region code, the configured-client short-circuit, …)
 // isn't redefined slightly differently in more than one spot.
 import { z } from "zod";
-import type { TmdbClient } from "../../clients/tmdb.js";
-import type { OmdbClient } from "../../clients/omdb.js";
-import { LANGUAGE_REGEX } from "../../config.js";
-import { TMDB_MAX_PAGE } from "../../format.js";
-import type { ToolResult } from "../../lib/result.js";
+import type { TmdbClient } from "../../clients/tmdb.ts";
+import type { OmdbClient } from "../../clients/omdb.ts";
+import { LANGUAGE_REGEX } from "../../config.ts";
+import { TMDB_MAX_PAGE } from "../../format.ts";
+import type { ToolResult } from "../../lib/result.ts";
 
 // index.ts constructs the real closures (over the actual tmdb client and, for
 // requireTmdbCached, a fresh staleness tracker per call) and passes them into

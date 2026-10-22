@@ -1,8 +1,8 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { maybeEnrich } from "../tools/tmdb/details.js";
-import type { OmdbClient } from "../clients/omdb.js";
-import { ApiError } from "../lib/errors.js";
+import { maybeEnrich } from "../tools/tmdb/details.ts";
+import type { OmdbClient } from "../clients/omdb.ts";
+import { ApiError } from "../lib/errors.ts";
 
 // get_movie/get_tv's degrade-gracefully policy, tested directly against the
 // policy function instead of round-tripping the full MCP server twice (once

@@ -5,17 +5,22 @@
     "moduleResolution": "Node16",
     "lib": ["ES2024", "ESNext.Disposable"],
     "types": ["node"],
-    "rootDir": "src",
     "strict": true,
     "noImplicitOverride": true,
     "noUncheckedIndexedAccess": true,
     "noFallthroughCasesInSwitch": true,
     "verbatimModuleSyntax": true,
+    // Tests run as .ts straight under Node's built-in type stripping: only
+    // erasable syntax, and relative imports must name the real .ts file.
+    "erasableSyntaxOnly": true,
+    "allowImportingTsExtensions": true,
+    // Type-check eslint.config.js too (it opts in via `// @ts-check`).
+    "allowJs": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "noEmit": true
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*", "scripts/**/*", "tsup.config.ts", "eslint.config.js"]
 }

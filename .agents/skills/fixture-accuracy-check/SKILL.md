@@ -38,6 +38,6 @@ Before writing or changing a fixture for an endpoint:
 - If two routes share a summarizer, write a fixture per route rather than one
   shared constant, even if they look identical today — that's what keeps a
   future divergence (like the one above) from going unnoticed.
-- `scripts/check-api.mjs` (`npm run check:api`) hits the live APIs and is a
+- `scripts/check-api.ts` (`npm run check:api`) hits the live APIs and is a
   reasonable place to add a minimal shape assertion for a field a unit test
   fixture depends on, if you want drift caught in CI too.

@@ -1,10 +1,10 @@
 // Wires the generic pieces every upstream API client needs (rate limiter,
 // HTTP client, TTL cache) from Config-shaped values, so each client only
 // declares its own endpoints and response shaping.
-import { HttpClient } from "./http.js";
-import { RateLimiter } from "./rateLimit.js";
-import { TtlCache } from "./cache.js";
-import type { Logger } from "./logger.js";
+import { HttpClient } from "./http.ts";
+import { RateLimiter } from "./rateLimit.ts";
+import { TtlCache } from "./cache.ts";
+import type { Logger } from "./logger.ts";
 
 export interface UpstreamOptions {
   baseUrl: string;

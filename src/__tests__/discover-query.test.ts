@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { discoverQuery, type DiscoverParams } from "../clients/tmdb.js";
+import { discoverQuery, type DiscoverParams } from "../clients/tmdb.ts";
 
 // discoverQuery maps the friendly DiscoverParams the tool schema exposes to
 // TMDB's actual (often dotted) query keys. A field silently dropped from this

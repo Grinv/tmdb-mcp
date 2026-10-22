@@ -5,15 +5,15 @@
 // lookups). Descriptions and per-field .describe() text are written for the
 // calling model: when to use a tool and the meaning of every parameter.
 import type { McpServer } from "@modelcontextprotocol/server";
-import type { TmdbClient } from "../../clients/tmdb.js";
-import type { OmdbClient } from "../../clients/omdb.js";
-import type { Config } from "../../config.js";
-import { requireConfigured, requireConfiguredCached } from "../shared.js";
-import { regionSchema, type TmdbToolDeps } from "./fields.js";
-import { registerSearchTools } from "./search.js";
-import { registerDetailsTools } from "./details.js";
-import { registerDiscoverTools } from "./discover.js";
-import { registerLookupTools } from "./lookups.js";
+import type { TmdbClient } from "../../clients/tmdb.ts";
+import type { OmdbClient } from "../../clients/omdb.ts";
+import type { Config } from "../../config.ts";
+import { requireConfigured, requireConfiguredCached } from "../shared.ts";
+import { regionSchema, type TmdbToolDeps } from "./fields.ts";
+import { registerSearchTools } from "./search.ts";
+import { registerDetailsTools } from "./details.ts";
+import { registerDiscoverTools } from "./discover.ts";
+import { registerLookupTools } from "./lookups.ts";
 
 export function registerTmdbTools(
   server: McpServer,

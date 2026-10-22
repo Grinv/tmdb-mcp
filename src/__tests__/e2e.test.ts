@@ -15,7 +15,7 @@ import { z } from "zod";
 // It guards the integration boundary that earlier shipped bugs hid in — the bundle
 // must start, complete the initialize handshake, register every tool, and run
 // self-contained (a non-inlined dep would crash the child with ERR_MODULE_NOT_FOUND).
-const root = join(process.cwd(), "..");
+const root = join(import.meta.dirname, "..", "..");
 const distPath = join(root, "dist", "index.js");
 // Tool count comes from manifest.json (itself checked against the in-memory
 // server's registered tools in version.test.ts) instead of a hardcoded number

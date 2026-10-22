@@ -5,9 +5,9 @@ import {
   MAX_EXPANDED_EPISODES,
   MAX_EXPANDED_EPISODES_CHARS,
   MAX_SEASON_EPISODES,
-} from "../clients/tmdb.js";
-import { ApiError } from "../lib/errors.js";
-import { loadConfig } from "../config.js";
+} from "../clients/tmdb.ts";
+import { ApiError } from "../lib/errors.ts";
+import { loadConfig } from "../config.ts";
 import {
   silentLogger,
   installFetch,
@@ -15,7 +15,7 @@ import {
   jsonResponse,
   pageOf,
   hangingFetch,
-} from "./helpers.js";
+} from "./helpers.ts";
 
 // Direct tests against TmdbClient's own interface — no MCP transport, no zod
 // validation, no JSON-RPC round-trip. Covers behavior the tool-layer e2e tests

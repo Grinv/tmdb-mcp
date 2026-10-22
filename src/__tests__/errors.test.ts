@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { classifyStatus, redact } from "../lib/errors.js";
+import { classifyStatus, redact } from "../lib/errors.ts";
 
 describe("classifyStatus", () => {
   test("maps HTTP codes to error codes and retryability", () => {

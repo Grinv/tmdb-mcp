@@ -41,7 +41,7 @@ import {
   videosSchema,
   watchProviderMatchesSchema,
   watchProvidersSchema,
-} from "./format.schemas.js";
+} from "./format.schemas.ts";
 
 // TMDB returns image fields as bare paths ("/abc.jpg"); the CDN base + a size
 // segment make them usable URLs. w500 is a good poster/profile default.

@@ -3,9 +3,9 @@
 // (e.g. from an external source) or want to look up ratings by raw title.
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/server";
-import type { OmdbClient } from "../clients/omdb.js";
-import { ratingsSchema } from "../format.schemas.js";
-import { READ_ONLY, requireConfiguredCached } from "./shared.js";
+import type { OmdbClient } from "../clients/omdb.ts";
+import { ratingsSchema } from "../format.schemas.ts";
+import { READ_ONLY, requireConfiguredCached } from "./shared.ts";
 
 export function registerOmdbTools(server: McpServer, omdb: OmdbClient): void {
   server.registerTool(

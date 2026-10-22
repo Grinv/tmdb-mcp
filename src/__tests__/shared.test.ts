@@ -1,7 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { ApiError } from "../lib/errors.js";
-import { READ_ONLY, requireConfigured, requireConfiguredCached } from "../tools/shared.js";
+import { ApiError } from "../lib/errors.ts";
+import { READ_ONLY, requireConfigured, requireConfiguredCached } from "../tools/shared.ts";
 
 describe("READ_ONLY", () => {
   test("marks tools as read-only and open-world", () => {
