@@ -8,7 +8,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- **Breaking:** raise runtime floor to Node ≥ 22.18 (was ≥ 20.11); Node 20 reached end-of-life in April 2026.
+- **Breaking:** raise runtime floor to Node ≥ 22.18 (was ≥ 20.11); Node 20 reached end-of-life in April 2026. ([dab54b1](https://github.com/Grinv/tmdb-mcp/commit/dab54b1), [77f087a](https://github.com/Grinv/tmdb-mcp/commit/77f087a))
 
 ## [0.13.0] - 2026-10-20
 
