@@ -30,4 +30,7 @@ export default defineConfig({
   // A bundler warning (circular import, eval, …) fails the build instead of
   // scrolling past.
   failOnWarn: true,
+  // Lint package.json/files for npm-publishing mistakes (bin, files, …). CI
+  // only: it reads the packed tarball, too slow to pay on every local build.
+  publint: "ci-only",
 });
