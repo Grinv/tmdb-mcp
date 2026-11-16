@@ -86,17 +86,10 @@ export class HttpClient {
         apiErr = this.#opts.refusedBody?.(body!);
         if (apiErr === undefined) return body as T;
       }
-      const backoff = backoffMs(attempt, apiErr);
       // Never retry a caller-cancelled request, even if its code is retryable
       // (e.g. it raced a timeout).
-      if (
-        !apiErr.retryable ||
-        attempt >= retries ||
-        options.signal?.aborted ||
-        backoff === undefined
-      ) {
-        throw apiErr;
-      }
+      if (!apiErr.retryable || attempt >= retries || options.signal?.aborted) throw apiErr;
+      const backoff = backoffMs(attempt, apiErr);
       this.#opts.logger.debug(
         `retrying ${loggable(url)} after ${backoff}ms (attempt ${attempt + 1}/${retries}, ${apiErr.code})`,
       );
@@ -258,14 +251,14 @@ function loggable(url: string): string {
   return `${origin}${pathname}`;
 }
 
-// Our exponential backoff, or longer if the upstream's Retry-After asks: a
-// hint never shortens it (a "0" or a date already past, perhaps from clock
-// skew, would otherwise retry back to back). Undefined when the upstream asks
-// for longer than MAX_BACKOFF_MS: a retry before then is sure to be refused.
-function backoffMs(attempt: number, err: ApiError): number | undefined {
-  const hinted = err.retryAfterMs ?? 0;
-  if (hinted > MAX_BACKOFF_MS) return undefined;
-  return Math.max(hinted, Math.min(MAX_BACKOFF_MS, 500 * 2 ** attempt));
+// The retry policy: our exponential backoff, which the upstream's
+// Retry-After can lengthen but never shorten (a "0", or a date already past
+// through clock skew, would retry back to back into an overloaded server),
+// all capped at MAX_BACKOFF_MS so one call never stalls longer than
+// retries × the cap (a long hint, or a future date skewed by our clock, is
+// retried at the cap instead of not at all).
+function backoffMs(attempt: number, err: ApiError): number {
+  return Math.min(MAX_BACKOFF_MS, Math.max(err.retryAfterMs ?? 0, 500 * 2 ** attempt));
 }
 
 function parseRetryAfter(header: string | null): number | undefined {

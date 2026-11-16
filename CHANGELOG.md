@@ -28,7 +28,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- Stop retrying when `Retry-After` asks to wait longer than the backoff cap, and never retry sooner than the backoff ([e0d374f](https://github.com/Grinv/tmdb-mcp/commit/e0d374f)).
+- Never retry sooner than the exponential backoff, even when `Retry-After` asks for less ([e0d374f](https://github.com/Grinv/tmdb-mcp/commit/e0d374f)).
 - Stop hiding a bug, a 404 or a rejected key behind stale cached data ([f301a01](https://github.com/Grinv/tmdb-mcp/commit/f301a01), [f549dfe](https://github.com/Grinv/tmdb-mcp/commit/f549dfe)).
 - Measure cache age in real elapsed time, counting sleep and not shortened by the system clock stepping back while awake ([f301a01](https://github.com/Grinv/tmdb-mcp/commit/f301a01), [2af5931](https://github.com/Grinv/tmdb-mcp/commit/2af5931)).
 - Treat an HTTP 408 from a proxy as a timeout: retried, and a cached copy may stand in ([5281d94](https://github.com/Grinv/tmdb-mcp/commit/5281d94)).

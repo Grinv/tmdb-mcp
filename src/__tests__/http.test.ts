@@ -265,40 +265,55 @@ describe("retries", () => {
 });
 
 describe("Retry-After handling", () => {
-  // The delay a retry waits, read off the debug line; the wait itself is cut
-  // short by aborting the call, so the test doesn't sleep through it.
-  async function backoffFor(t: TestContext, retryAfter: string): Promise<string | undefined> {
+  // The delay each Retry-After value yields, read off the retry's debug
+  // line; the wait itself is cut short by aborting the call. One fetch mock
+  // per test (node:test restores stacked mocks of one method out of order).
+  function backoffProbe(t: TestContext): (retryAfter: string) => Promise<string> {
+    let header = "";
     installFetch(
       t,
-      mockFetch(() => jsonResponse({}, { status: 429, headers: { "retry-after": retryAfter } })),
+      mockFetch(() => jsonResponse({}, { status: 429, headers: { "retry-after": header } })),
     );
-    const controller = new AbortController();
-    let line: string | undefined;
-    const logger = {
-      ...silentLogger(),
-      debug: (msg: string) => {
-        line = msg;
-        controller.abort();
-      },
+    return async (retryAfter) => {
+      header = retryAfter;
+      const controller = new AbortController();
+      let line = "";
+      const logger = {
+        ...silentLogger(),
+        debug: (msg: string) => {
+          line = msg;
+          controller.abort();
+        },
+      };
+      const http = new HttpClient({ baseUrl: "https://example.test/api", logger, retries: 1 });
+      await assert.rejects(() => http.getJson("thing", { signal: controller.signal }));
+      return /after (\d+)ms/.exec(line)![1]!;
     };
-    const http = new HttpClient({ baseUrl: "https://example.test/api", logger, retries: 1 });
-    await assert.rejects(() => http.getJson("thing", { signal: controller.signal }));
-    return line && /after (\d+)ms/.exec(line)![1];
   }
 
-  test("a Retry-After of 0 or a past date never shortens our backoff", async (t) => {
-    assert.equal(await backoffFor(t, "0"), "500");
-    assert.equal(await backoffFor(t, new Date(Date.now() - 60_000).toUTCString()), "500");
-  });
-
-  test("a longer Retry-After, in seconds or as an HTTP-date, is waited out", async (t) => {
-    assert.equal(await backoffFor(t, "3"), "3000");
-    const ms = Number(await backoffFor(t, new Date(Date.now() + 5_000).toUTCString()));
+  test("Retry-After lengthens our backoff, never shortens it, up to the cap", async (t) => {
+    const backoff = backoffProbe(t);
+    assert.equal(await backoff("0"), "500");
+    assert.equal(await backoff(new Date(Date.now() - 60_000).toUTCString()), "500");
+    assert.equal(await backoff("3"), "3000");
+    const ms = Number(await backoff(new Date(Date.now() + 5_000).toUTCString()));
     assert.ok(ms > 3_000 && ms <= 5_000, String(ms));
+    assert.equal(await backoff("8"), "8000");
+    assert.equal(await backoff("3600"), "8000", "a long hint is retried at the cap");
   });
 
-  test("a Retry-After past our cap isn't retried at all", async (t) => {
-    assert.equal(await backoffFor(t, "3600"), undefined);
+  test("a hinted 429 is retried and the retry's answer returned", async (t) => {
+    let n = 0;
+    const mock = mockFetch(() => {
+      n += 1;
+      return n === 1
+        ? jsonResponse({}, { status: 429, headers: { "retry-after": "0" } })
+        : jsonResponse({ ok: true });
+    });
+    installFetch(t, mock);
+    const res = await client({ retries: 1 }).getJson<{ ok: boolean }>("limited");
+    assert.equal(res.ok, true);
+    assert.equal(mock.calls.length, 2);
   });
 
   test("falls back to the default backoff when Retry-After is neither a number nor a date", async (t) => {
