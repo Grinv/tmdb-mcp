@@ -107,10 +107,10 @@ export class TtlCache {
     } catch (err) {
       const stale = this.getStale<T>(key);
       if (stale !== undefined) {
-        const reason = err instanceof Error ? err.message : String(err);
+        // The logger formats the error (stack, cause chain, redaction).
         this.#logger?.warn(
           `serving stale cached value for "${key}" — upstream refresh failed`,
-          reason,
+          err,
         );
         onStale?.();
         return stale;

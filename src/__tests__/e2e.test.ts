@@ -385,3 +385,23 @@ describe("e2e: process lifecycle (SIGINT/SIGTERM)", () => {
     assert.match(stderr(), /shutting down/);
   });
 });
+
+describe("e2e: fatal startup error", () => {
+  // An invalid config throws before the configured logger exists; index.ts
+  // still reports it through a logger (stack, redaction), then exits 1.
+  test("an invalid config is logged as fatal and exits 1", async (t) => {
+    if (!existsSync(distPath)) {
+      t.skip("dist/index.js not built — run `npm run build` first (CI builds before tests)");
+      return;
+    }
+    const child = spawn(process.execPath, [distPath], {
+      stdio: ["ignore", "ignore", "pipe"],
+      env: { ...process.env, TMDB_REGION: "usa" },
+    });
+    let stderr = "";
+    child.stderr!.on("data", (d: Buffer) => (stderr += d.toString()));
+    const code = await new Promise<number | null>((resolve) => child.on("exit", resolve));
+    assert.equal(code, 1);
+    assert.match(stderr, /\[tmdb-mcp\] error: fatal: Error: Invalid configuration — TMDB_REGION/);
+  });
+});
