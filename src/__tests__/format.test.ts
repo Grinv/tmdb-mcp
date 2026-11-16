@@ -760,6 +760,20 @@ describe("summarizeVideos", () => {
 });
 
 describe("summarizeFind", () => {
+  test("drops an episode row that lacks a number get_tv_episode needs", () => {
+    const s = summarizeFind({
+      tv_episode_results: [
+        { show_id: 1396, season_number: 1, name: "No episode number" },
+        { season_number: 1, episode_number: 1, name: "No show" },
+        { show_id: 1396, season_number: 1, episode_number: 2, name: "Cat's in the Bag..." },
+      ],
+    });
+    assert.deepEqual(
+      s.tv_episode_results.map((e) => e.name),
+      ["Cat's in the Bag..."],
+    );
+  });
+
   // Live /find/tt0959621?external_source=imdb_id (Breaking Bad's pilot).
   test("maps an IMDb episode id to show_id + season/episode numbers", () => {
     const s = summarizeFind({

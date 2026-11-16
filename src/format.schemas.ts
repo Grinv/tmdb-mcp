@@ -440,7 +440,10 @@ export const videosSchema = z.strictObject({
 
 // An IMDb episode id resolves to its show plus season/episode numbers — the
 // three arguments get_tv_episode takes.
-const findEpisodeSchema = episodeBriefSchema.extend({ show_id: z.number() }).strict();
+// All three numbers are required: a row missing one couldn't be passed on.
+const findEpisodeSchema = episodeBriefSchema
+  .extend({ show_id: z.number(), season_number: z.number(), episode_number: z.number() })
+  .strict();
 
 export const findSchema = z.strictObject({
   movie_results: z.array(movieSummarySchema),

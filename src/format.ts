@@ -1136,8 +1136,11 @@ export function summarizeFind(r: FindResponse): z.infer<typeof findSchema> {
     tv_results: (r.tv_results ?? []).map(summarizeTv),
     // /find person rows carry the same fields as /search/person rows.
     person_results: (r.person_results ?? []).map((p) => summarizePerson(p)),
-    tv_episode_results: (r.tv_episode_results ?? []).flatMap((e) =>
-      e.show_id === undefined ? [] : [{ ...episodeBrief(e)!, show_id: e.show_id }],
+    tv_episode_results: (r.tv_episode_results ?? []).flatMap(
+      ({ show_id, season_number, episode_number, ...e }) =>
+        show_id === undefined || season_number === undefined || episode_number === undefined
+          ? []
+          : [{ ...episodeBrief(e)!, show_id, season_number, episode_number }],
     ),
   });
 }
