@@ -760,6 +760,31 @@ describe("summarizeVideos", () => {
 });
 
 describe("summarizeFind", () => {
+  // Live /find/tt0959621?external_source=imdb_id (Breaking Bad's pilot).
+  test("maps an IMDb episode id to show_id + season/episode numbers", () => {
+    const s = summarizeFind({
+      movie_results: [],
+      tv_results: [],
+      person_results: [],
+      tv_episode_results: [
+        {
+          air_date: "2008-01-20",
+          episode_number: 1,
+          id: 62085,
+          name: "Pilot",
+          season_number: 1,
+          show_id: 1396,
+          vote_average: 8.509,
+          media_type: "tv_episode",
+        } as never,
+      ],
+      tv_season_results: [],
+    });
+    assert.deepEqual(s.tv_episode_results, [
+      { show_id: 1396, season_number: 1, episode_number: 1, name: "Pilot", air_date: "2008-01-20" },
+    ]);
+  });
+
   test("maps person_results, not just movie/tv", () => {
     const s = summarizeFind({
       movie_results: [],

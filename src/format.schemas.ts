@@ -438,10 +438,15 @@ export const videosSchema = z.strictObject({
 
 // ---- summarizeFind -----------------------------------------------------------------
 
+// An IMDb episode id resolves to its show plus season/episode numbers — the
+// three arguments get_tv_episode takes.
+const findEpisodeSchema = episodeBriefSchema.extend({ show_id: z.number() }).strict();
+
 export const findSchema = z.strictObject({
   movie_results: z.array(movieSummarySchema),
   tv_results: z.array(tvSummarySchema),
   person_results: z.array(personSummarySchema),
+  tv_episode_results: z.array(findEpisodeSchema),
 });
 
 // ---- summarizeSeason / summarizeEpisode -----------------------------------------------

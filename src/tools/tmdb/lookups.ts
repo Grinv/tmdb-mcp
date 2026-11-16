@@ -69,12 +69,11 @@ export function registerLookupTools(
     {
       title: "Find by IMDb id",
       description:
-        "Resolve an IMDb id (e.g. 'tt0133093') to TMDB entities — returns matching movie, TV and " +
-        "person results. Use when you only have an IMDb id and need the TMDB id for the other " +
-        "tools. Only matches whole movies/shows/people: IMDb also assigns 'tt' ids to individual " +
-        "episodes (verified live, e.g. Breaking Bad's pilot 'tt0959621'), which this tool does " +
-        "not resolve — such an id comes back with every result list empty, indistinguishable " +
-        "from a genuinely unknown id.",
+        "Resolve an IMDb id (e.g. 'tt0133093') to TMDB entities — returns matching movie, TV, " +
+        "person and TV-episode results. Use when you only have an IMDb id and need the TMDB id for " +
+        "the other tools. IMDb also gives individual episodes 'tt' ids (e.g. Breaking Bad's pilot " +
+        "'tt0959621'): those land in tv_episode_results as show_id + season_number + " +
+        "episode_number, ready for get_tv_episode. An unknown id comes back with every list empty.",
       inputSchema: z.strictObject({
         imdb_id: z
           .string()

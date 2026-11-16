@@ -1125,7 +1125,8 @@ interface FindResponse {
   movie_results?: TmdbMovie[];
   tv_results?: TmdbTv[];
   person_results?: TmdbMultiItem[];
-  tv_episode_results?: unknown[];
+  tv_episode_results?: (TmdbEpisodeBrief & { show_id?: number })[];
+  // Always empty in practice (verified live), so not surfaced.
   tv_season_results?: unknown[];
 }
 
@@ -1135,6 +1136,9 @@ export function summarizeFind(r: FindResponse): z.infer<typeof findSchema> {
     tv_results: (r.tv_results ?? []).map(summarizeTv),
     // /find person rows carry the same fields as /search/person rows.
     person_results: (r.person_results ?? []).map((p) => summarizePerson(p)),
+    tv_episode_results: (r.tv_episode_results ?? []).flatMap((e) =>
+      e.show_id === undefined ? [] : [{ ...episodeBrief(e)!, show_id: e.show_id }],
+    ),
   });
 }
 
