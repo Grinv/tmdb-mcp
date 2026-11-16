@@ -12,6 +12,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Drop adult/softcore titles from lists TMDB doesn't filter itself: trending, recommendations, similar, credits, collections, `known_for` ([400a8f0](https://github.com/Grinv/tmdb-mcp/commit/400a8f0)).
 - Suggest 2-3 distinctive keywords via `with_keywords` for similar titles in `recommend_similar` and `get_movie`/`get_tv` ([726f841](https://github.com/Grinv/tmdb-mcp/commit/726f841)).
 - Publish each tool field's default in its input schema ([fef168b](https://github.com/Grinv/tmdb-mcp/commit/fef168b)).
+- Build with tsdown instead of the unmaintained tsup; the bundle shrinks from 876 kB to 514 kB ([7867d04](https://github.com/Grinv/tmdb-mcp/commit/7867d04)).
 - Update `@modelcontextprotocol/server` to 2.4.0 ([b9fd54c](https://github.com/Grinv/tmdb-mcp/commit/b9fd54c)).
 
 ### Added
