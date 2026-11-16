@@ -119,8 +119,9 @@ export class HttpClient {
       if (text.length === 0) {
         throw new ApiError({ code: "bad_response", message: "Upstream returned an empty body" });
       }
+      let body: unknown;
       try {
-        return JSON.parse(text, this.#opts.reviver) as T;
+        body = JSON.parse(text, this.#opts.reviver);
       } catch (err) {
         throw new ApiError({
           code: "bad_response",
@@ -128,6 +129,15 @@ export class HttpClient {
           cause: err,
         });
       }
+      // Both upstreams answer with a JSON object or array; a bare `null` (which
+      // the reviver turns into undefined) or a scalar is as unreadable.
+      if (body === null || typeof body !== "object") {
+        throw new ApiError({
+          code: "bad_response",
+          message: "Upstream returned a non-object JSON body",
+        });
+      }
+      return body as T;
     } catch (err) {
       if (err instanceof ApiError) throw err;
       if (options.signal?.aborted) {

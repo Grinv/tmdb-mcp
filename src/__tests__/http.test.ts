@@ -1,11 +1,13 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { HttpClient, nullAsAbsent } from "../lib/http.ts";
+import { HttpClient, nullAsAbsent, type HttpClientOptions } from "../lib/http.ts";
 import { ApiError } from "../lib/errors.ts";
 import { silentLogger, jsonResponse, mockFetch, installFetch, hangingFetch } from "./helpers.ts";
 import { USER_AGENT } from "../version.ts";
 
-function client(extra: { retries?: number; timeoutMs?: number } = {}): HttpClient {
+function client(
+  extra: Partial<Pick<HttpClientOptions, "retries" | "timeoutMs" | "reviver">> = {},
+): HttpClient {
   return new HttpClient({ baseUrl: "https://example.test/api", logger: silentLogger(), ...extra });
 }
 
@@ -258,6 +260,19 @@ describe("Retry-After handling", () => {
 });
 
 describe("empty body handling", () => {
+  for (const body of ["null", "5", '"text"']) {
+    test(`a non-object JSON body (${body}) is a bad_response`, async (t) => {
+      installFetch(
+        t,
+        mockFetch(() => new Response(body, { status: 200 })),
+      );
+      await assert.rejects(
+        () => client({ retries: 0, reviver: nullAsAbsent }).getJson("thing"),
+        (err: unknown) => err instanceof ApiError && err.code === "bad_response",
+      );
+    });
+  }
+
   test("a 204 is a bad_response: a JSON resource was expected", async (t) => {
     installFetch(
       t,
