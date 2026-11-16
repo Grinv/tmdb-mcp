@@ -6,6 +6,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Bump `zod` to 4.6.7 to fix a memory-exhaustion advisory when validating oversized inputs ([GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5)) ([b9fd54c](https://github.com/Grinv/tmdb-mcp/commit/b9fd54c)).
+
+### Changed
+
+- Update `@modelcontextprotocol/server` to 2.4.0 ([b9fd54c](https://github.com/Grinv/tmdb-mcp/commit/b9fd54c)).
+
 ## [0.14.0] - 2026-10-22
 
 ### Changed
