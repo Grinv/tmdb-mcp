@@ -31,6 +31,32 @@ function client(env: NodeJS.ProcessEnv = {}): TmdbClient {
 
 const EMPTY_PAGE = pageOf([]);
 
+// The raw types say "a value or absent" — never null — because TmdbClient's
+// reviver (nullAsAbsent) drops TMDB's nulls at the boundary.
+describe("TmdbClient: TMDB's nulls never reach the shapers", () => {
+  test("a null episode number from /find drops that row instead of failing", async (t) => {
+    installFetch(
+      t,
+      mockFetch(() =>
+        jsonResponse({
+          movie_results: [],
+          person_results: [],
+          tv_results: [],
+          tv_episode_results: [
+            { show_id: 1396, season_number: null, episode_number: 1, name: "Null season" },
+            { show_id: 1396, season_number: 1, episode_number: 1, name: "Pilot", air_date: null },
+          ],
+          tv_season_results: [],
+        }),
+      ),
+    );
+    const s = await client().findByExternalId("tt0959621", "imdb_id");
+    assert.deepEqual(s.tv_episode_results, [
+      { show_id: 1396, season_number: 1, episode_number: 1, name: "Pilot", air_date: null },
+    ]);
+  });
+});
+
 describe("TmdbClient: recommendations vs similar hit distinct endpoints", () => {
   test("getRecommendations uses the /recommendations segment", async (t) => {
     const mock = mockFetch(() => jsonResponse(EMPTY_PAGE));

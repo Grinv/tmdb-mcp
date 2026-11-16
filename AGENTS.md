@@ -80,6 +80,12 @@ npm run inspector      # run under the MCP Inspector
   for that exact endpoint, not just whatever fields make the current code
   pass — see
   [.agents/skills/fixture-accuracy-check/SKILL.md](.agents/skills/fixture-accuracy-check/SKILL.md).
+- Raw upstream types in `format.ts` never include `null`: each client's
+  `HttpClient` parses with the `nullAsAbsent` reviver (`lib/http.ts`), which
+  drops a null property, so `field?: T` is literally "a T or absent". Type a
+  new raw field `?: T` (not `?: T | null`) and test null handling at that
+  boundary, not by feeding `null` to a shaper. The reviver is opt-in per
+  upstream: don't use it where null carries meaning (e.g. GraphQL).
 - Keep clients fetch+cache only; all raw→agent-facing shaping lives in
   `src/format.ts`. Trim responses for token efficiency.
 - Every cached `TmdbClient`/`OmdbClient` method takes a trailing optional

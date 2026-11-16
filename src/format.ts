@@ -193,13 +193,13 @@ interface TmdbKeywords {
 
 export interface TmdbMovie {
   id: number;
-  imdb_id?: string | null;
+  imdb_id?: string;
   title?: string;
   original_title?: string;
   overview?: string;
   tagline?: string;
   release_date?: string;
-  runtime?: number | null;
+  runtime?: number;
   status?: string;
   genres?: NamedRef[];
   genre_ids?: number[];
@@ -211,12 +211,12 @@ export interface TmdbMovie {
   production_companies?: NamedRef[];
   budget?: number;
   revenue?: number;
-  homepage?: string | null;
-  poster_path?: string | null;
+  homepage?: string;
+  poster_path?: string;
   adult?: boolean;
   softcore?: boolean;
   origin_country?: string[];
-  belongs_to_collection?: { id?: number; name?: string; poster_path?: string | null } | null;
+  belongs_to_collection?: { id?: number; name?: string; poster_path?: string };
   // Appended via append_to_response=release_dates; carries certifications.
   release_dates?: {
     results?: {
@@ -251,13 +251,13 @@ export interface TmdbTv {
   original_language?: string;
   networks?: NamedRef[];
   created_by?: NamedRef[];
-  poster_path?: string | null;
-  homepage?: string | null;
+  poster_path?: string;
+  homepage?: string;
   type?: string;
-  next_episode_to_air?: TmdbEpisodeBrief | null;
-  last_episode_to_air?: TmdbEpisodeBrief | null;
+  next_episode_to_air?: TmdbEpisodeBrief;
+  last_episode_to_air?: TmdbEpisodeBrief;
   seasons?: TvSeasonBrief[];
-  external_ids?: { imdb_id?: string | null };
+  external_ids?: { imdb_id?: string };
   // Appended via append_to_response=content_ratings.
   content_ratings?: { results?: { iso_3166_1?: string; rating?: string }[] };
   // Appended via append_to_response=keywords.
@@ -265,7 +265,7 @@ export interface TmdbTv {
 }
 
 interface TmdbEpisodeBrief {
-  air_date?: string | null;
+  air_date?: string;
   episode_number?: number;
   season_number?: number;
   name?: string;
@@ -275,7 +275,7 @@ interface TvSeasonBrief {
   season_number?: number;
   name?: string;
   episode_count?: number;
-  air_date?: string | null;
+  air_date?: string;
 }
 
 export interface TmdbPerson {
@@ -283,15 +283,15 @@ export interface TmdbPerson {
   name?: string;
   also_known_as?: string[];
   biography?: string;
-  birthday?: string | null;
-  deathday?: string | null;
-  place_of_birth?: string | null;
+  birthday?: string;
+  deathday?: string;
+  place_of_birth?: string;
   known_for_department?: string;
   gender?: number;
   popularity?: number;
-  imdb_id?: string | null;
-  homepage?: string | null;
-  profile_path?: string | null;
+  imdb_id?: string;
+  homepage?: string;
+  profile_path?: string;
 }
 
 export interface TmdbCredits {
@@ -300,7 +300,7 @@ export interface TmdbCredits {
     name?: string;
     character?: string;
     order?: number;
-    profile_path?: string | null;
+    profile_path?: string;
   }[];
   crew?: { id?: number; name?: string; job?: string; department?: string }[];
 }
@@ -743,7 +743,7 @@ export function summarizeGenres(genres: NamedRef[]): z.infer<typeof genresSchema
 
 export interface TmdbReview {
   author?: string;
-  author_details?: { rating?: number | null; username?: string };
+  author_details?: { rating?: number; username?: string };
   content?: string;
   created_at?: string;
   url?: string;
@@ -765,7 +765,7 @@ interface TmdbCollection {
   id?: number;
   name?: string;
   overview?: string;
-  poster_path?: string | null;
+  poster_path?: string;
   parts?: TmdbMovie[];
 }
 
@@ -792,8 +792,8 @@ export interface TmdbCollectionMatch {
   name?: string;
   original_name?: string;
   overview?: string;
-  poster_path?: string | null;
-  backdrop_path?: string | null;
+  poster_path?: string;
+  backdrop_path?: string;
   adult?: boolean;
   original_language?: string;
 }
@@ -826,7 +826,7 @@ export interface TmdbCompany {
   id: number;
   name?: string;
   origin_country?: string;
-  logo_path?: string | null;
+  logo_path?: string;
 }
 
 // Company ids feed discover_*'s `with_companies` filter.
@@ -844,7 +844,7 @@ export function summarizeCompany(c: TmdbCompany): z.infer<typeof companySchema> 
 export interface ProviderEntry {
   provider_id?: number;
   provider_name?: string;
-  logo_path?: string | null;
+  logo_path?: string;
 }
 interface RegionProviders {
   link?: string;
@@ -1125,13 +1125,12 @@ interface FindResponse {
   movie_results?: TmdbMovie[];
   tv_results?: TmdbTv[];
   person_results?: TmdbMultiItem[];
-  // TMDB sends an unknown number as null as often as it omits it.
   tv_episode_results?: {
-    show_id?: number | null;
-    season_number?: number | null;
-    episode_number?: number | null;
+    show_id?: number;
+    season_number?: number;
+    episode_number?: number;
     name?: string;
-    air_date?: string | null;
+    air_date?: string;
   }[];
   // Always empty in practice (verified live), so not surfaced.
   tv_season_results?: unknown[];
@@ -1145,7 +1144,7 @@ export function summarizeFind(r: FindResponse): z.infer<typeof findSchema> {
     person_results: (r.person_results ?? []).map((p) => summarizePerson(p)),
     tv_episode_results: (r.tv_episode_results ?? []).flatMap(
       ({ show_id, season_number, episode_number, ...e }) =>
-        show_id == null || season_number == null || episode_number == null
+        show_id === undefined || season_number === undefined || episode_number === undefined
           ? []
           : [{ ...episodeBrief(e)!, show_id, season_number, episode_number }],
     ),
@@ -1158,25 +1157,25 @@ interface RawEpisode {
   episode_number?: number;
   name?: string;
   overview?: string;
-  air_date?: string | null;
-  runtime?: number | null;
+  air_date?: string;
+  runtime?: number;
   vote_average?: number;
-  still_path?: string | null;
+  still_path?: string;
   guest_stars?: { id?: number; name?: string; character?: string }[];
   crew?: { id?: number; name?: string; job?: string }[];
   // Only present on the single-episode endpoint, via
   // append_to_response=external_ids (see clients/tmdb.ts's getTvEpisode); the
   // season endpoint's episode rows never carry it, so summarizeSeason's
   // episodes stay id-less.
-  external_ids?: { imdb_id?: string | null };
+  external_ids?: { imdb_id?: string };
 }
 export interface TmdbSeason {
   id?: number;
   name?: string;
   season_number?: number;
-  air_date?: string | null;
+  air_date?: string;
   overview?: string;
-  poster_path?: string | null;
+  poster_path?: string;
   episodes?: RawEpisode[];
 }
 

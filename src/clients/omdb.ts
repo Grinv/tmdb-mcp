@@ -8,7 +8,7 @@
 // as data (summarizeRatings turns it into a soft { found: false }); any other
 // body error is the service refusing, so it throws like an HTTP failure would
 // and is never cached as "no ratings".
-import { HttpClient } from "../lib/http.ts";
+import { HttpClient, nullAsAbsent } from "../lib/http.ts";
 import { ApiError, redact } from "../lib/errors.ts";
 import { TtlCache, cacheKey } from "../lib/cache.ts";
 import { createUpstream } from "../lib/upstream.ts";
@@ -36,6 +36,7 @@ export class OmdbClient {
       retries: config.httpRetries,
       minIntervalMs: config.omdbMinIntervalMs,
       cacheTtlMs: config.cacheTtlMs,
+      reviver: nullAsAbsent,
     });
     this.#http = http;
     this.#cache = cache;

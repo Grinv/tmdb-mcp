@@ -764,7 +764,6 @@ describe("summarizeFind", () => {
     const s = summarizeFind({
       tv_episode_results: [
         { show_id: 1396, season_number: 1, name: "No episode number" },
-        { show_id: 1396, season_number: null, episode_number: 3, name: "Null season" },
         { season_number: 1, episode_number: 1, name: "No show" },
         { show_id: 1396, season_number: 1, episode_number: 2, name: "Cat's in the Bag..." },
       ],
@@ -961,8 +960,10 @@ describe("summarizeEpisode", () => {
     assert.equal(s.imdb_url, "https://www.imdb.com/title/tt2301451/");
   });
 
-  test("a missing or null imdb_id leaves both fields null, not a broken URL", () => {
-    for (const e of [{}, { external_ids: {} }, { external_ids: { imdb_id: null } }]) {
+  // A null imdb_id never reaches the shaper: the client's reviver drops it
+  // (see nullAsAbsent and its tmdb-client.test.ts case).
+  test("a missing imdb_id leaves both fields null, not a broken URL", () => {
+    for (const e of [{}, { external_ids: {} }]) {
       const s = summarizeEpisode(e);
       assert.equal(s.imdb_id, null);
       assert.equal(s.imdb_url, null);

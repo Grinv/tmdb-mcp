@@ -1,7 +1,7 @@
 // Wires the generic pieces every upstream API client needs (rate limiter,
 // HTTP client, TTL cache) from Config-shaped values, so each client only
 // declares its own endpoints and response shaping.
-import { HttpClient } from "./http.ts";
+import { HttpClient, type HttpClientOptions } from "./http.ts";
 import { RateLimiter } from "./rateLimit.ts";
 import { TtlCache } from "./cache.ts";
 import type { Logger } from "./logger.ts";
@@ -14,6 +14,7 @@ export interface UpstreamOptions {
   minIntervalMs: number;
   cacheTtlMs: number;
   defaultHeaders?: Record<string, string>;
+  reviver?: HttpClientOptions["reviver"];
 }
 
 export interface Upstream {
@@ -29,6 +30,7 @@ export function createUpstream(opts: UpstreamOptions): Upstream {
     timeoutMs: opts.timeoutMs,
     retries: opts.retries,
     defaultHeaders: opts.defaultHeaders,
+    reviver: opts.reviver,
     beforeRequest: () => limiter.acquire(),
   });
   const cache = new TtlCache(opts.cacheTtlMs, undefined, opts.logger);

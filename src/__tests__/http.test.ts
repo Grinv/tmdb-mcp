@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { HttpClient } from "../lib/http.ts";
+import { HttpClient, nullAsAbsent } from "../lib/http.ts";
 import { ApiError } from "../lib/errors.ts";
 import { silentLogger, jsonResponse, mockFetch, installFetch, hangingFetch } from "./helpers.ts";
 import { USER_AGENT } from "../version.ts";
@@ -252,6 +252,29 @@ describe("empty body handling", () => {
     installFetch(t, mock);
     const res = await client().getJson<{ ok: boolean } | undefined>("thing");
     assert.equal(res, undefined);
+  });
+});
+
+describe("nullAsAbsent", () => {
+  test("drops a null property, keeps nulls inside arrays (no holes)", () => {
+    const parsed = JSON.parse('{"a":null,"b":1,"c":{"d":null},"e":[null,2]}', nullAsAbsent);
+    assert.deepEqual(parsed, { b: 1, c: {}, e: [null, 2] });
+    assert.equal("a" in parsed, false);
+  });
+
+  test("HttpClient applies a reviver only when one is configured", async (t) => {
+    installFetch(
+      t,
+      mockFetch(() => jsonResponse({ poster_path: null })),
+    );
+    const plain = await client().getJson<Record<string, unknown>>("x");
+    assert.deepEqual(plain, { poster_path: null });
+    const revived = await new HttpClient({
+      baseUrl: "https://example.test/api",
+      logger: silentLogger(),
+      reviver: nullAsAbsent,
+    }).getJson<Record<string, unknown>>("x");
+    assert.deepEqual(revived, {});
   });
 });
 

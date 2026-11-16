@@ -20,6 +20,19 @@ export interface HttpClientOptions {
   retries?: number;
   /** Called before each request; lets callers throttle (rate limiting). */
   beforeRequest?: () => Promise<void> | void;
+  /** JSON.parse reviver for success bodies — the upstream's own normalization rule. */
+  reviver?: (this: unknown, key: string, value: unknown) => unknown;
+}
+
+/**
+ * A reviver for upstreams whose `null` only ever means "no value" (TMDB,
+ * OMDb): it drops the property, so a field typed `field?: T` really is either
+ * a T or absent and `=== undefined` / `??` / `if (!x)` all agree. Not for APIs
+ * where null carries meaning (e.g. GraphQL's `data.Media: null` = not found).
+ * Nulls inside arrays are kept, so no array gets holes.
+ */
+export function nullAsAbsent(this: unknown, _key: string, value: unknown): unknown {
+  return value === null && !Array.isArray(this) ? undefined : value;
 }
 
 const MAX_BACKOFF_MS = 8000;
@@ -92,7 +105,7 @@ export class HttpClient {
       const text = await res.text();
       if (text.length === 0) return undefined as T;
       try {
-        return JSON.parse(text) as T;
+        return JSON.parse(text, this.#opts.reviver) as T;
       } catch (err) {
         throw new ApiError({
           code: "unknown",

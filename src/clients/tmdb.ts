@@ -6,7 +6,7 @@
 //
 // Localization: a default `language` (e.g. "ru-RU") and `region` come from
 // config and are applied to every request; callers may override per call.
-import { HttpClient } from "../lib/http.ts";
+import { HttpClient, nullAsAbsent } from "../lib/http.ts";
 import { TtlCache, cacheKey } from "../lib/cache.ts";
 import { createUpstream } from "../lib/upstream.ts";
 import {
@@ -221,6 +221,8 @@ export class TmdbClient {
       minIntervalMs: config.tmdbMinIntervalMs,
       cacheTtlMs: config.cacheTtlMs,
       defaultHeaders: config.tmdbApiToken ? { Authorization: `Bearer ${config.tmdbApiToken}` } : {},
+      // TMDB's null only means "no value" (verified: no field reads it otherwise).
+      reviver: nullAsAbsent,
     });
     this.#http = http;
     this.#cache = cache;
