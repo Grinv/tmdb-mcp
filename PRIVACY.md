@@ -54,7 +54,7 @@ logging service, and no server run by its maintainer.
   TMDB/OMDb. An entry is served as fresh for a short configurable TTL
   (`CACHE_TTL_MS`, default 5 minutes); after that it stays in memory as a
   fallback for when TMDB/OMDb is unreachable, until it's refreshed, evicted
-  (at most 500 entries per upstream, oldest first) or the process exits. The
+  (at most 500 entries per upstream, least recently used first) or the process exits. The
   cache is cleared entirely when the process exits and is never shared across
   machines or users. Search, discover, similar/recommendations, reviews,
   trending and cinema-release lists are never cached; each call fetches them

@@ -182,6 +182,20 @@ describe("TtlCache", () => {
     assert.equal(cache.get("b"), 2);
   });
 
+  test("evicts the least recently used entry, not the first inserted", () => {
+    const cache = new TtlCache(60_000, 2);
+    cache.set("a", 1);
+    cache.set("b", 2);
+    cache.get("a"); // a read makes "a" recent, leaving "b" the eviction candidate
+    cache.set("c", 3);
+    assert.equal(cache.get("a"), 1);
+    assert.equal(cache.get("b"), undefined);
+    cache.set("a", 10); // a rewrite makes "a" recent too
+    cache.set("d", 4);
+    assert.equal(cache.get("c"), undefined);
+    assert.equal(cache.get("a"), 10);
+  });
+
   test("wrapStaleOnError: concurrent failures each independently fall back to the same stale value", async (t) => {
     t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
     const cache = new TtlCache(1); // 1ms TTL → expires almost immediately

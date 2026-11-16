@@ -56,23 +56,35 @@ export class TtlCache {
 
   /** Fresh (non-expired) value, or undefined. */
   get<T>(key: string): T | undefined {
-    const hit = this.#map.get(key);
+    const hit = this.#touch(key);
     if (!hit) return undefined;
     return hit.expires > Date.now() ? (hit.value as T) : undefined;
   }
 
   /** Any cached value regardless of freshness — used for stale fallback. */
   getStale<T>(key: string): T | undefined {
-    return this.#map.get(key)?.value as T | undefined;
+    return this.#touch(key)?.value as T | undefined;
   }
 
   set<T>(key: string, value: T): void {
     if (this.#ttlMs <= 0) return;
-    if (!this.#map.has(key) && this.#map.size >= this.#max) {
+    this.#map.delete(key);
+    if (this.#map.size >= this.#max) {
       const oldest = this.#map.keys().next().value;
       if (oldest !== undefined) this.#map.delete(oldest);
     }
     this.#map.set(key, { value, expires: Date.now() + this.#ttlMs });
+  }
+
+  // Map iterates in insertion order, so re-inserting a key on every hit keeps
+  // the first key the least recently used one — the one set() evicts.
+  #touch(key: string): Entry | undefined {
+    const hit = this.#map.get(key);
+    if (hit) {
+      this.#map.delete(key);
+      this.#map.set(key, hit);
+    }
+    return hit;
   }
 
   /**
