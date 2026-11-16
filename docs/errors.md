@@ -4,7 +4,7 @@ A failed tool call follows the MCP spec: an `isError: true` result whose text
 content explains the failure to the model, so it can correct itself. The same
 failure is also attached for the client application as an
 [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) problem details object in
-the result's `_meta["tmdb-mcp/problem"]` — never in `structuredContent`, which
+the result's `_meta["io.github.Grinv.tmdb-mcp/problem"]` — never in `structuredContent`, which
 MCP reserves for data matching the tool's `outputSchema`.
 
 ```json
@@ -78,6 +78,13 @@ Any other upstream status or refusal; `detail` carries the upstream's reason.
 
 A bug in tmdb-mcp. The full error (stack and cause chain) is in the server log
 on stderr; please report it.
+
+It is a tool result with `isError`, not a JSON-RPC error. The spec lists
+"server errors" among protocol errors, but also says errors that originate
+from the tool SHOULD be reported inside the result so the model sees the call
+failed; a bug while running a tool is the latter. The reference TypeScript SDK
+resolves it the same way: a tool handler produces only tool errors (every
+exception becomes `isError`).
 
 ## not_configured
 

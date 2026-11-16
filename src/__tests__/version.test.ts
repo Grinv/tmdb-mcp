@@ -2,7 +2,7 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { VERSION } from "../version.ts";
+import { META_PREFIX, MCP_NAME, VERSION } from "../version.ts";
 import { connectServer, DEFAULT_ENV } from "./helpers.ts";
 // Imports the real script directly — this relies on sync-version.ts's own module-guard
 // (`import.meta.url === pathToFileURL(process.argv[1]).href`) to keep main()
@@ -57,6 +57,21 @@ describe("release metadata stays in sync with package.json", () => {
 
   // The MCP Registry verifies npm ownership by matching package.json's mcpName to
   // the published server name, so these must stay identical.
+  test("version.ts MCP_NAME matches package.json mcpName", () => {
+    assert.equal(MCP_NAME, pkg.mcpName);
+  });
+
+  // MCP spec (basic, `_meta`): a prefix is dot-separated labels, each starting
+  // with a letter and ending with a letter or digit, then "/"; reverse DNS;
+  // and no "mcp"/"modelcontextprotocol" second label (reserved).
+  test("the _meta key prefix follows the spec's prefix grammar", () => {
+    assert.match(
+      META_PREFIX,
+      /^[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\/$/,
+    );
+    assert.doesNotMatch(META_PREFIX.split(".")[1] ?? "", /^(mcp|modelcontextprotocol)$/);
+  });
+
   test("package.json mcpName matches server.json name", () => {
     assert.equal(pkg.mcpName, server.name);
   });

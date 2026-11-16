@@ -84,7 +84,7 @@ npm run inspector      # run under the MCP Inspector
   only; anything that isn't an `ApiError` is an internal bug, logged in full
   and shown as a stable "internal error". **Output:** the model reads the
   problem's `detail` as the `isError` text; the problem itself goes in
-  `_meta["tmdb-mcp/problem"]` (never `structuredContent`). A new code needs a
+  `_meta["io.github.Grinv.tmdb-mcp/problem"]` (never `structuredContent`). A new code needs a
   `PROBLEMS` entry (the compiler enforces it) and a `docs/errors.md` section
   (a test enforces it). Never put `err.message` in front of the agent.
 - Mocked-`fetch` test fixtures must mirror the real upstream response shape
@@ -105,7 +105,7 @@ npm run inspector      # run under the MCP Inspector
   value is returned. A tool handler that calls a cached method creates one via
   `tools/shared.ts`'s `trackStale()` and passes `.onStale` into the client
   call plus `.meta` as `requireConfigured`'s `getMeta`, so a stale response
-  surfaces as `_meta: {"tmdb-mcp/stale": true}` on the tool result (never
+  surfaces as `_meta: {"io.github.Grinv.tmdb-mcp/stale": true}` on the tool result (never
   inside `structuredContent` — that stays pure domain shape, validated by
   `outputSchema`). A new cached method that skips wiring this through will
   silently serve stale data with no way for the caller to detect it.

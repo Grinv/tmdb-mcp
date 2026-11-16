@@ -11,6 +11,7 @@ import {
   DEFAULT_ENV as ENV,
 } from "./helpers.ts";
 import { MAX_TOOL_INPUT_ELEMENTS } from "../server.ts";
+import { STALE_META_KEY } from "../tools/shared.ts";
 
 const MOVIE_DETAIL = {
   id: 603,
@@ -986,7 +987,7 @@ describe("get_movie", () => {
     assert.match(text, /5xx|retry later/i);
   });
 
-  test("carries a tmdb-mcp/stale _meta flag when serving a stale cached value", async (t) => {
+  test("carries the stale _meta flag when serving a stale cached value", async (t) => {
     t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
     let movieCalls = 0;
     const mock = mockFetch((url) => {
@@ -1016,7 +1017,7 @@ describe("get_movie", () => {
     const s = second.structuredContent as { imdb_id: string };
     assert.equal(s.imdb_id, "tt0133093"); // still served, from the stale cache
     assert.deepEqual((second as { _meta?: Record<string, unknown> })._meta, {
-      "tmdb-mcp/stale": true,
+      [STALE_META_KEY]: true,
     });
   });
 
@@ -1041,14 +1042,14 @@ describe("get_movie", () => {
     const args = { name: "get_movie", arguments: { id: 603, include_ratings: false } };
     const first = await client.callTool(args);
     assert.notEqual(first.isError, true);
-    assert.equal(first._meta?.["tmdb-mcp/stale"], undefined);
+    assert.equal(first._meta?.[STALE_META_KEY], undefined);
 
     t.mock.timers.tick(5);
 
     const second = await client.callTool(args);
     assert.notEqual(second.isError, true);
     assert.equal((second.structuredContent as { imdb_id: string }).imdb_id, "tt0133093");
-    assert.equal(second._meta?.["tmdb-mcp/stale"], true);
+    assert.equal(second._meta?.[STALE_META_KEY], true);
     assert.ok(second._meta?.["io.modelcontextprotocol/serverInfo"]);
   });
 

@@ -1,7 +1,12 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { ApiError } from "../lib/errors.ts";
-import { READ_ONLY, requireConfigured, requireConfiguredCached } from "../tools/shared.ts";
+import {
+  READ_ONLY,
+  requireConfigured,
+  requireConfiguredCached,
+  STALE_META_KEY,
+} from "../tools/shared.ts";
 import { PROBLEM_META_KEY } from "../lib/result.ts";
 import { recordingLogger, silentLogger } from "./helpers.ts";
 
@@ -134,7 +139,7 @@ describe("requireConfiguredCached", () => {
       return { a: 1 };
     });
     assert.deepEqual(res.structuredContent, { a: 1 });
-    assert.deepEqual(res._meta, { "tmdb-mcp/stale": true });
+    assert.deepEqual(res._meta, { [STALE_META_KEY]: true });
   });
 
   test("omits _meta when onStale never fires", async () => {

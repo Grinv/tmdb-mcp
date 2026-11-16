@@ -8,6 +8,7 @@ import {
   toolText,
   DEFAULT_ENV as ENV,
 } from "./helpers.ts";
+import { STALE_META_KEY } from "../tools/shared.ts";
 
 const OMDB_OK = {
   Response: "True",
@@ -42,7 +43,7 @@ describe("get_ratings", () => {
     assert.equal(s.metascore, "73");
   });
 
-  test("carries a tmdb-mcp/stale _meta flag when serving a stale cached rating", async (t) => {
+  test("carries the stale _meta flag when serving a stale cached rating", async (t) => {
     t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
     let calls = 0;
     installFetch(
@@ -70,7 +71,7 @@ describe("get_ratings", () => {
     const s = second.structuredContent as { found: boolean };
     assert.equal(s.found, true); // still served, from the stale cache
     assert.deepEqual((second as { _meta?: Record<string, unknown> })._meta, {
-      "tmdb-mcp/stale": true,
+      [STALE_META_KEY]: true,
     });
   });
 

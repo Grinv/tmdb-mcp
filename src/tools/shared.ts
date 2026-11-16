@@ -9,14 +9,13 @@ import {
   type ToolResult,
 } from "../lib/result.ts";
 import type { Logger } from "../lib/logger.ts";
+import { META_PREFIX } from "../version.ts";
 
 export const READ_ONLY = { readOnlyHint: true, openWorldHint: true } as const;
 
-// Vendor-prefixed per this server's tmdb-mcp identity (see package.json's
-// mcpName) so the key can't collide with another server's `_meta` or a
-// future MCP-reserved one (reserved prefixes require a "modelcontextprotocol"
-// or "mcp" second label — see the MCP spec's `_meta` key-naming rules).
-const STALE_META_KEY = "tmdb-mcp/stale";
+// Under this server's reverse-DNS _meta prefix (version.ts), so it can't
+// collide with another server's or an MCP-reserved key.
+export const STALE_META_KEY = `${META_PREFIX}stale`;
 
 /** Tracks whether a stale-cache fallback fired anywhere during a tool call,
  *  so a handler can surface it as `_meta` without threading a flag through

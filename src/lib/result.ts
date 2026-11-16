@@ -3,6 +3,7 @@
 // receives an actionable message instead of a protocol error.
 import { ApiError, type ApiErrorCode } from "./errors.ts";
 import type { Logger } from "./logger.ts";
+import { META_PREFIX } from "../version.ts";
 
 export interface ToolResult {
   content: { type: "text"; text: string }[];
@@ -50,8 +51,8 @@ export interface Problem {
   upstream_status?: number;
 }
 
-/** `_meta` key for the Problem on an error result (vendor-prefixed, see shared.ts). */
-export const PROBLEM_META_KEY = "tmdb-mcp/problem";
+/** `_meta` key for the Problem on an error result, under this server's prefix. */
+export const PROBLEM_META_KEY = `${META_PREFIX}problem`;
 
 // Each problem type's URI points at its section in docs/errors.md.
 const TYPE_BASE = "https://github.com/Grinv/tmdb-mcp/blob/main/docs/errors.md#";
@@ -122,6 +123,9 @@ export function toProblem(err: unknown, logger: Logger): Problem {
       ...(err.status ? { upstream_status: err.status } : {}),
     };
   }
+  // Reported as a tool error, not a JSON-RPC one: it originates while the
+  // tool runs, so the model must see the call failed (MCP's isError rule) —
+  // the reference SDK's reading too. See docs/errors.md#internal.
   logger.error("internal error in a tool call:", err);
   return ownProblem("internal");
 }

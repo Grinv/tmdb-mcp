@@ -49,7 +49,7 @@ above.
 
 If TMDB/OMDb is briefly unreachable and a cached (possibly expired) response
 is served instead of failing the call, the tool result carries
-`_meta: {"tmdb-mcp/stale": true}` alongside the normal `structuredContent` —
+`_meta: {"io.github.Grinv.tmdb-mcp/stale": true}` alongside the normal `structuredContent` —
 the data itself is unchanged, only `_meta` flags it as possibly outdated. A
 client that cares can check for this key; one that doesn't just sees the same
 result it always would.

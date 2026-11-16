@@ -47,7 +47,7 @@ schema for a rare edge case, and would conflate a caching concern with the
 "shape of a movie". Instead, the signal travels out-of-band: an `onStale`
 callback threaded from `wrapStaleOnError` up through the client method up to
 the tool handler (see the AGENTS.md convention), which attaches
-`_meta: {"tmdb-mcp/stale": true}` — a sibling of `structuredContent`, per the
+`_meta: {"io.github.Grinv.tmdb-mcp/stale": true}` — a sibling of `structuredContent`, per the
 MCP spec's `_meta` mechanism, not a field inside it. Every other `search_*`/
 `discover_*`/`get_similar`/`get_*_recommendations`/`get_reviews`/`get_trending`/
 `get_movie_releases` is never cached
