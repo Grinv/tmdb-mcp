@@ -60,8 +60,8 @@ npm run inspector      # run under the MCP Inspector
 - **Docs and in-code text are English** (README, docs, comments, tool
   descriptions, error messages).
 - Runtime floor is **Node ≥ 22.18** (`engines`, `manifest.json`'s
-  `compatibility.runtimes.node` and the CI floor job must agree); tsdown targets
-  `node22`, `tsconfig` targets ES2024. 22.18 is where Node's built-in TS type
+  `compatibility.runtimes.node` and the CI floor job must agree); tsdown derives
+  its target from `engines` (node22.18.0), `tsconfig` targets ES2024. 22.18 is where Node's built-in TS type
   stripping is on by default, which the tests rely on: they run as `.ts`
   directly, with no transpile step. So relative imports name the real `.ts`
   file (`./x.ts`, never `./x.js`) and only erasable TS syntax is allowed — no
