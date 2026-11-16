@@ -8,7 +8,7 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import type { TmdbClient } from "../../clients/tmdb.ts";
 import type { OmdbClient } from "../../clients/omdb.ts";
 import type { Config } from "../../config.ts";
-import { requireConfigured, requireConfiguredCached } from "../shared.ts";
+import { requireConfigured } from "../shared.ts";
 import { regionSchema, type TmdbToolDeps } from "./fields.ts";
 import { registerSearchTools } from "./search.ts";
 import { registerDetailsTools } from "./details.ts";
@@ -22,19 +22,13 @@ export function registerTmdbTools(
   config: Pick<Config, "tmdbRegion">,
 ): void {
   // Every TMDB tool needs the token; short-circuit with one clear message
-  // instead of letting each call round-trip to a 401.
-  const requireTmdb: TmdbToolDeps["requireTmdb"] = (fn, signal, getMeta) =>
-    requireConfigured(tmdb, fn, undefined, getMeta, signal);
-  // For a cached client method: wires up staleness tracking automatically
-  // instead of the caller hand-assembling trackStale()/onStale/meta — see
-  // requireConfiguredCached's own doc comment for why. `signal`, when a
-  // handler forwards its `ctx.mcpReq.signal`, lets a cancelled call stop
-  // waiting promptly without aborting the underlying cache-shared fetch.
-  const requireTmdbCached: TmdbToolDeps["requireTmdbCached"] = (fn, signal) =>
-    requireConfiguredCached(tmdb, fn, undefined, signal);
+  // instead of letting each call round-trip to a 401. Staleness needs no
+  // wiring: requireConfigured reads it from the call's own context.
+  const requireTmdb: TmdbToolDeps["requireTmdb"] = (fn, signal) =>
+    requireConfigured(tmdb, fn, undefined, signal);
   const region = regionSchema(config.tmdbRegion);
 
-  const deps: TmdbToolDeps = { tmdb, omdb, requireTmdb, requireTmdbCached, region };
+  const deps: TmdbToolDeps = { tmdb, omdb, requireTmdb, region };
   registerSearchTools(server, deps);
   registerDetailsTools(server, deps);
   registerDiscoverTools(server, deps);

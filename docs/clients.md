@@ -49,7 +49,7 @@ above.
 
 If TMDB/OMDb is briefly unreachable and a cached (possibly expired) response
 is served instead of failing the call, the tool result carries
-`_meta: {"io.github.Grinv.tmdb-mcp/stale": true}` alongside the normal `structuredContent` —
+`_meta: {"io.github.Grinv.tmdb-mcp/stale": {"age_seconds": N}}` (how old the data is) alongside the normal `structuredContent` —
 the data itself is unchanged, only `_meta` flags it as possibly outdated. A
 client that cares can check for this key; one that doesn't just sees the same
 result it always would.
@@ -65,6 +65,7 @@ result it always would.
 | `TMDB_MIN_INTERVAL_MS` | `60`                           | Min spacing between TMDB calls (0 disables)                                 |
 | `OMDB_MIN_INTERVAL_MS` | `0`                            | Min spacing between OMDb calls                                              |
 | `CACHE_TTL_MS`         | `300000`                       | TTL for cached detail/reference responses                                   |
+| `CACHE_MAX_STALE_MS`   | `86400000`                     | Max age past the TTL at which a cached response is served during an outage  |
 | `HTTP_TIMEOUT_MS`      | `15000`                        | Per-request timeout                                                         |
 | `HTTP_RETRIES`         | `2`                            | Retries for transient failures                                              |
 | `LOG_LEVEL`            | `info`                         | `debug` \| `info` \| `warn` \| `error` \| `silent`                          |

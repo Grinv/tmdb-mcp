@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { TtlCache, cacheKey } from "../lib/cache.ts";
+import { TtlCache, cacheKey, staleness, type Staleness } from "../lib/cache.ts";
 
 const tick = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -72,24 +72,56 @@ describe("TtlCache", () => {
     assert.match(warnings[0]!, /"k"/);
   });
 
-  test("wrapStaleOnError fires onStale only when actually falling back to stale data", async () => {
+  test("records a stale fallback's age in the call's staleness record, and only then", async () => {
     let now = 0;
     const cache = new TtlCache({ ttlMs: 1, now: () => now });
-    let onStaleCalls = 0;
-    const onStale = () => (onStaleCalls += 1);
-
-    await cache.wrapStaleOnError("k", async () => 1, onStale);
-    assert.equal(onStaleCalls, 0, "a successful fresh compute is not stale");
+    const fresh: Staleness = {};
+    await staleness.run(fresh, () => cache.wrapStaleOnError("k", async () => 1));
+    assert.equal(fresh.ageMs, undefined, "a successful fresh compute is not stale");
 
     now += 5;
-    await cache.wrapStaleOnError(
-      "k",
-      async () => {
+    const stale: Staleness = {};
+    const v = await staleness.run(stale, () =>
+      cache.wrapStaleOnError("k", async () => {
         throw new Error("upstream down");
-      },
-      onStale,
+      }),
     );
-    assert.equal(onStaleCalls, 1);
+    assert.equal(v, 1);
+    assert.equal(stale.ageMs, 5); // ms since the value was fetched
+  });
+
+  // Two calls share one deduplicated fetch, but each keeps its own record:
+  // the context, not a shared flag, decides who is told the data is stale.
+  test("each concurrent caller's own staleness record is the one written", async () => {
+    let now = 0;
+    const cache = new TtlCache({ ttlMs: 1, now: () => now });
+    await cache.wrapStaleOnError("k", async () => 1);
+    now += 5;
+    let fail!: (err: Error) => void;
+    const compute = () => new Promise<number>((_, reject) => (fail = reject));
+    const a: Staleness = {};
+    const b: Staleness = {};
+    const pa = staleness.run(a, () => cache.wrapStaleOnError("k", compute));
+    const pb = staleness.run(b, () => cache.wrapStaleOnError("k", compute));
+    const pc = cache.wrapStaleOnError("k", compute); // outside any tool call
+    fail(new Error("upstream down"));
+    assert.deepEqual(await Promise.all([pa, pb, pc]), [1, 1, 1]);
+    assert.equal(a.ageMs, 5);
+    assert.equal(b.ageMs, 5);
+  });
+
+  // RFC 5861's stale-if-error is a window: past it, the failure surfaces.
+  test("serves stale only within maxStaleMs past expiry", async () => {
+    let now = 0;
+    const cache = new TtlCache({ ttlMs: 10, maxStaleMs: 100, now: () => now });
+    await cache.wrapStaleOnError("k", async () => 1);
+    const fail = async () => {
+      throw new Error("upstream down");
+    };
+    now = 110; // expired 100ms ago: still inside the window
+    assert.equal(await cache.wrapStaleOnError("k", fail), 1);
+    now = 111;
+    await assert.rejects(() => cache.wrapStaleOnError("k", fail), /upstream down/);
   });
 
   test("wrapStaleOnError rethrows when nothing was ever cached", async () => {

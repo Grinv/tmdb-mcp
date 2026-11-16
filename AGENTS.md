@@ -102,16 +102,16 @@ npm run inspector      # run under the MCP Inspector
   upstream: don't use it where null carries meaning (e.g. GraphQL).
 - Keep clients fetch+cache only; all raw→agent-facing shaping lives in
   `src/format.ts`. Trim responses for token efficiency.
-- Every cached `TmdbClient`/`OmdbClient` method takes a trailing optional
-  `onStale?: () => void`, forwarded down to `TtlCache.wrapStaleOnError`
-  (`lib/cache.ts`) — it fires right before a stale (upstream-down) fallback
-  value is returned. A tool handler that calls a cached method creates one via
-  `tools/shared.ts`'s `trackStale()` and passes `.onStale` into the client
-  call plus `.meta` as `requireConfigured`'s `getMeta`, so a stale response
-  surfaces as `_meta: {"io.github.Grinv.tmdb-mcp/stale": true}` on the tool result (never
-  inside `structuredContent` — that stays pure domain shape, validated by
-  `outputSchema`). A new cached method that skips wiring this through will
-  silently serve stale data with no way for the caller to detect it.
+- A stale-cache fallback reports itself through Node's `AsyncLocalStorage`,
+  not through parameters: `requireConfigured` (`tools/shared.ts`) runs each
+  tool call inside a fresh `staleness` record (`lib/cache.ts`), and
+  `TtlCache.wrapStaleOnError` writes the served value's age into whatever
+  record is current. The tool result then carries
+  `_meta: {"io.github.Grinv.tmdb-mcp/stale": {"age_seconds": N}}` (never
+  inside `structuredContent`, which stays pure domain shape). Nothing in a
+  client method or handler has to pass a callback, so a new cached method
+  can't forget to. Stale values are served for at most `CACHE_MAX_STALE_MS`
+  past expiry (RFC 5861's stale-if-error window).
 - Every shaper in `format.ts` returns `z.infer<typeof <name>Schema>` (the
   matching schema from `format.schemas.ts`), built via that schema's
   `.parse()` — not `Record<string, unknown>`. Client methods in `clients/*.ts`

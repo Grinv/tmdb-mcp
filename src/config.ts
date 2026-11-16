@@ -51,6 +51,9 @@ const EnvSchema = z.object({
   TMDB_MIN_INTERVAL_MS: z.coerce.number().int().nonnegative().default(60),
   OMDB_MIN_INTERVAL_MS: z.coerce.number().int().nonnegative().default(0),
   CACHE_TTL_MS: z.coerce.number().int().nonnegative().default(300_000),
+  // How long past expiry an entry may still stand in for an unreachable
+  // upstream (RFC 5861's stale-if-error window). A day by default.
+  CACHE_MAX_STALE_MS: z.coerce.number().int().nonnegative().default(86_400_000),
 
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error", "silent"]).default("info"),
 });
@@ -67,6 +70,7 @@ export interface Config {
   tmdbMinIntervalMs: number;
   omdbMinIntervalMs: number;
   cacheTtlMs: number;
+  cacheMaxStaleMs: number;
   logLevel: LogLevel;
 }
 
@@ -105,6 +109,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     tmdbMinIntervalMs: parsed.TMDB_MIN_INTERVAL_MS,
     omdbMinIntervalMs: parsed.OMDB_MIN_INTERVAL_MS,
     cacheTtlMs: parsed.CACHE_TTL_MS,
+    cacheMaxStaleMs: parsed.CACHE_MAX_STALE_MS,
     logLevel: parsed.LOG_LEVEL,
   };
 }

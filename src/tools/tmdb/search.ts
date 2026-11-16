@@ -32,10 +32,7 @@ const includeAdultPeople = includeAdult.describe(
   "Include adult (NSFW) results, and keep such titles in each person's known_for.",
 );
 
-export function registerSearchTools(
-  server: McpServer,
-  { tmdb, requireTmdb, requireTmdbCached }: TmdbToolDeps,
-): void {
+export function registerSearchTools(server: McpServer, { tmdb, requireTmdb }: TmdbToolDeps): void {
   server.registerTool(
     "search_movies",
     {
@@ -246,8 +243,8 @@ export function registerSearchTools(
       annotations: READ_ONLY,
     },
     ({ query, media_type, watch_region, page: pg }, ctx) => {
-      return requireTmdbCached(
-        (onStale) => tmdb.searchWatchProviders(media_type, query, watch_region, pg, onStale),
+      return requireTmdb(
+        () => tmdb.searchWatchProviders(media_type, query, watch_region, pg),
         ctx.mcpReq.signal,
       );
     },

@@ -51,7 +51,7 @@ import {
 
 export function registerDetailsTools(
   server: McpServer,
-  { tmdb, omdb, requireTmdb, requireTmdbCached, region }: TmdbToolDeps,
+  { tmdb, omdb, requireTmdb, region }: TmdbToolDeps,
 ): void {
   server.registerTool(
     "get_movie",
@@ -84,9 +84,8 @@ export function registerDetailsTools(
       annotations: READ_ONLY,
     },
     ({ id, region: r, language: lang, include_ratings }, ctx) => {
-      return requireTmdbCached(
-        (onStale) =>
-          getEnrichedDetail("movie", id, r, lang, include_ratings, tmdb, omdb, false, onStale),
+      return requireTmdb(
+        () => getEnrichedDetail("movie", id, r, lang, include_ratings, tmdb, omdb, false),
         ctx.mcpReq.signal,
       );
     },
@@ -128,19 +127,8 @@ export function registerDetailsTools(
       annotations: READ_ONLY,
     },
     ({ id, region: r, language: lang, include_ratings, expand_episodes }, ctx) => {
-      return requireTmdbCached(
-        (onStale) =>
-          getEnrichedDetail(
-            "tv",
-            id,
-            r,
-            lang,
-            include_ratings,
-            tmdb,
-            omdb,
-            expand_episodes,
-            onStale,
-          ),
+      return requireTmdb(
+        () => getEnrichedDetail("tv", id, r, lang, include_ratings, tmdb, omdb, expand_episodes),
         ctx.mcpReq.signal,
       );
     },
@@ -168,22 +156,12 @@ export function registerDetailsTools(
       annotations: READ_ONLY,
     },
     ({ ids, language: lang, include_ratings }, ctx) => {
-      return requireTmdbCached(
-        (onStale) =>
+      return requireTmdb(
+        () =>
           getCards(
             ids,
             (id) =>
-              getEnrichedDetail(
-                "movie",
-                id,
-                undefined,
-                lang,
-                include_ratings,
-                tmdb,
-                omdb,
-                false,
-                onStale,
-              ),
+              getEnrichedDetail("movie", id, undefined, lang, include_ratings, tmdb, omdb, false),
             movieCard,
             tmdb.logger,
           ),
@@ -215,22 +193,12 @@ export function registerDetailsTools(
       annotations: READ_ONLY,
     },
     ({ ids, language: lang, include_ratings }, ctx) => {
-      return requireTmdbCached(
-        (onStale) =>
+      return requireTmdb(
+        () =>
           getCards(
             ids,
             (id) =>
-              getEnrichedDetail(
-                "tv",
-                id,
-                undefined,
-                lang,
-                include_ratings,
-                tmdb,
-                omdb,
-                false,
-                onStale,
-              ),
+              getEnrichedDetail("tv", id, undefined, lang, include_ratings, tmdb, omdb, false),
             tvCard,
             tmdb.logger,
           ),
@@ -252,7 +220,7 @@ export function registerDetailsTools(
       annotations: READ_ONLY,
     },
     ({ id, language: lang }, ctx) => {
-      return requireTmdbCached((onStale) => tmdb.getPerson(id, lang, onStale), ctx.mcpReq.signal);
+      return requireTmdb(() => tmdb.getPerson(id, lang), ctx.mcpReq.signal);
     },
   );
 
@@ -268,10 +236,7 @@ export function registerDetailsTools(
       annotations: READ_ONLY,
     },
     ({ id }, ctx) => {
-      return requireTmdbCached(
-        (onStale) => tmdb.getMovieCredits(id, undefined, onStale),
-        ctx.mcpReq.signal,
-      );
+      return requireTmdb(() => tmdb.getMovieCredits(id, undefined), ctx.mcpReq.signal);
     },
   );
 
@@ -292,10 +257,7 @@ export function registerDetailsTools(
       annotations: READ_ONLY,
     },
     ({ id }, ctx) => {
-      return requireTmdbCached(
-        (onStale) => tmdb.getTvCredits(id, undefined, onStale),
-        ctx.mcpReq.signal,
-      );
+      return requireTmdb(() => tmdb.getTvCredits(id, undefined), ctx.mcpReq.signal);
     },
   );
 
@@ -400,10 +362,7 @@ export function registerDetailsTools(
       annotations: READ_ONLY,
     },
     ({ id, language: lang }, ctx) => {
-      return requireTmdbCached(
-        (onStale) => tmdb.getCollection(id, lang, onStale),
-        ctx.mcpReq.signal,
-      );
+      return requireTmdb(() => tmdb.getCollection(id, lang), ctx.mcpReq.signal);
     },
   );
 
@@ -441,8 +400,8 @@ export function registerDetailsTools(
       annotations: READ_ONLY,
     },
     ({ id, department, limit }, ctx) => {
-      return requireTmdbCached(
-        (onStale) => tmdb.getPersonCredits(id, department, limit, undefined, onStale),
+      return requireTmdb(
+        () => tmdb.getPersonCredits(id, department, limit, undefined),
         ctx.mcpReq.signal,
       );
     },
@@ -464,7 +423,6 @@ async function getEnrichedDetail(
   tmdb: TmdbClient,
   omdb: OmdbClient,
   expandEpisodes?: boolean,
-  onStale?: () => void,
 ): Promise<z.infer<typeof movieDetailEnrichedSchema>>;
 async function getEnrichedDetail(
   mediaType: "tv",
@@ -475,7 +433,6 @@ async function getEnrichedDetail(
   tmdb: TmdbClient,
   omdb: OmdbClient,
   expandEpisodes?: boolean,
-  onStale?: () => void,
 ): Promise<z.infer<typeof tvDetailEnrichedSchema>>;
 async function getEnrichedDetail(
   mediaType: "movie" | "tv",
@@ -486,7 +443,6 @@ async function getEnrichedDetail(
   tmdb: TmdbClient,
   omdb: OmdbClient,
   expandEpisodes = false,
-  onStale?: () => void,
 ): Promise<
   Awaited<ReturnType<TmdbClient["getMovie"] | TmdbClient["getTv"]>> & {
     ratings?: ReturnType<typeof summarizeRatings>;
@@ -494,9 +450,9 @@ async function getEnrichedDetail(
 > {
   const shaped =
     mediaType === "tv"
-      ? await tmdb.getTv(id, region, language, expandEpisodes, onStale)
-      : await tmdb.getMovie(id, region, language, onStale);
-  return maybeEnrich(shaped, shaped.imdb_id, wantRatings, omdb, onStale);
+      ? await tmdb.getTv(id, region, language, expandEpisodes)
+      : await tmdb.getMovie(id, region, language);
+  return maybeEnrich(shaped, shaped.imdb_id, wantRatings, omdb);
 }
 
 /** get_movies/get_tv_shows' shared body: one compact card per id, in `ids` order;
@@ -525,7 +481,6 @@ export async function maybeEnrich<T extends Record<string, unknown>>(
   imdbId: string | null,
   wantRatings: boolean,
   omdb: OmdbClient,
-  onStale?: () => void,
 ): Promise<T & { ratings?: ReturnType<typeof summarizeRatings> }> {
   if (!wantRatings) return shaped;
   if (!omdb.configured) {
@@ -536,7 +491,7 @@ export async function maybeEnrich<T extends Record<string, unknown>>(
   }
   // OMDb failures must not sink the TMDB result; degrade to found:false.
   try {
-    const ratings = await omdb.ratingsByImdbId(imdbId, onStale);
+    const ratings = await omdb.ratingsByImdbId(imdbId);
     // TMDB's imdb_id is occasionally stale/wrong; an id lookup then silently
     // returns an unrelated title's ratings. Guard against attaching those:
     // if the OMDb release year is far from TMDB's, treat it as no match rather

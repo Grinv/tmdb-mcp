@@ -1,6 +1,7 @@
 // Tiny in-memory TTL cache for read endpoints. Caching cuts latency and eases
 // pressure on rate-limited upstreams. Expired entries are retained (bounded by
-// max size) so they can be served as a stale fallback when the upstream is down.
+// max size) so they can be served as a stale fallback when the upstream is down
+// — for at most `maxStaleMs` past expiry, like RFC 5861's stale-if-error.
 //
 // One instance is shared across a client's many endpoints, each storing its
 // own shape under its own key (a movie detail, a credits list, a genre map,
@@ -20,6 +21,7 @@
  * region) was silently left out of a key and one request's response leaked
  * into another's cache slot.
  */
+import { AsyncLocalStorage } from "node:async_hooks";
 import type { Logger } from "./logger.ts";
 
 export function cacheKey(
@@ -34,8 +36,24 @@ export function cacheKey(
 
 interface Entry {
   value: unknown;
-  expires: number;
+  storedAt: number;
 }
+
+/** What one tool call's cache reads reported: the age (ms since it was
+ *  fetched) of the oldest stale value served, if any. */
+export interface Staleness {
+  ageMs?: number;
+}
+
+/**
+ * Carries a Staleness record through one tool call's async work (tools/
+ * shared.ts runs each call inside it), so a stale fallback anywhere below is
+ * reported without every client method threading a callback — a method can't
+ * forget to. The record is read in each caller's own catch, so with
+ * deduplicated in-flight fetches only the callers actually served stale data
+ * are flagged.
+ */
+export const staleness = new AsyncLocalStorage<Staleness>();
 
 export class TtlCache {
   readonly #ttlMs: number;
@@ -49,10 +67,14 @@ export class TtlCache {
   readonly #pending = new Map<string, Promise<unknown>>();
 
   readonly #now: () => number;
+  readonly #maxStaleMs: number;
 
   constructor(opts: {
     ttlMs: number;
     max?: number;
+    /** How long past expiry a value may still be served when the upstream
+     *  fails (RFC 5861's stale-if-error window); unbounded by default. */
+    maxStaleMs?: number;
     logger?: Logger;
     /** Monotonic clock (ms). Wall-clock time (Date.now) jumps with NTP or a
      *  resume from sleep, which would expire everything at once or nothing
@@ -63,18 +85,14 @@ export class TtlCache {
     this.#max = opts.max ?? 500;
     this.#logger = opts.logger;
     this.#now = opts.now ?? (() => performance.now());
+    this.#maxStaleMs = opts.maxStaleMs ?? Infinity;
   }
 
   /** Fresh (non-expired) value, or undefined. */
   get<T>(key: string): T | undefined {
     const hit = this.#touch(key);
     if (!hit) return undefined;
-    return hit.expires > this.#now() ? (hit.value as T) : undefined;
-  }
-
-  /** Any cached value regardless of freshness — used for stale fallback. */
-  getStale<T>(key: string): T | undefined {
-    return this.#touch(key)?.value as T | undefined;
+    return this.#now() < hit.storedAt + this.#ttlMs ? (hit.value as T) : undefined;
   }
 
   set<T>(key: string, value: T): void {
@@ -84,7 +102,7 @@ export class TtlCache {
       const oldest = this.#map.keys().next().value;
       if (oldest !== undefined) this.#map.delete(oldest);
     }
-    this.#map.set(key, { value, expires: this.#now() + this.#ttlMs });
+    this.#map.set(key, { value, storedAt: this.#now() });
   }
 
   // Map iterates in insertion order, so re-inserting a key on every hit keeps
@@ -99,32 +117,28 @@ export class TtlCache {
   }
 
   /**
-   * Get-or-compute, caching the resolved value. If `compute` throws and a previously-cached (possibly stale)
-   * value exists, serve that instead of failing. Lets reads degrade gracefully
-   * when the upstream is temporarily down. `onStale`, if given, fires
-   * synchronously right before a stale value is returned — callers use it to
-   * surface staleness to the caller (e.g. a `_meta` flag on the tool result)
-   * without this generic cache layer knowing anything about that shape.
+   * Get-or-compute, caching the resolved value. If `compute` throws and a
+   * cached value no older than the stale window exists, serve that instead of
+   * failing, so reads degrade gracefully while the upstream is down — and
+   * record its age in the current `staleness` record for the tool result.
    */
-  async wrapStaleOnError<T>(
-    key: string,
-    compute: () => Promise<T>,
-    onStale?: () => void,
-  ): Promise<T> {
+  async wrapStaleOnError<T>(key: string, compute: () => Promise<T>): Promise<T> {
     const fresh = this.get<T>(key);
     if (fresh !== undefined) return fresh;
     try {
       return await this.#dedupe(key, compute);
     } catch (err) {
-      const stale = this.getStale<T>(key);
-      if (stale !== undefined) {
+      const hit = this.#touch(key);
+      const ageMs = hit && this.#now() - hit.storedAt;
+      if (hit && ageMs !== undefined && ageMs <= this.#ttlMs + this.#maxStaleMs) {
         // The logger formats the error (stack, cause chain, redaction).
         this.#logger?.warn(
           `serving stale cached value for "${key}" — upstream refresh failed`,
           err,
         );
-        onStale?.();
-        return stale;
+        const record = staleness.getStore();
+        if (record) record.ageMs = Math.max(record.ageMs ?? 0, ageMs);
+        return hit.value as T;
       }
       throw err;
     }

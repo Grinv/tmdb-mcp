@@ -53,7 +53,8 @@ logging service, and no server run by its maintainer.
   process's own memory only (never written to disk) to cut latency and avoid hammering
   TMDB/OMDb. An entry is served as fresh for a short configurable TTL
   (`CACHE_TTL_MS`, default 5 minutes); after that it stays in memory as a
-  fallback for when TMDB/OMDb is unreachable, until it's refreshed, evicted
+  fallback for when TMDB/OMDb is unreachable (for at most `CACHE_MAX_STALE_MS`,
+  default a day, past that), until it's refreshed, evicted
   (at most 500 entries per upstream, least recently used first) or the process exits. The
   cache is cleared entirely when the process exits and is never shared across
   machines or users. Search, discover, similar/recommendations, reviews,

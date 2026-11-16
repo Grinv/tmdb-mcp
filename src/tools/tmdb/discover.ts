@@ -576,7 +576,7 @@ const discoverTvInputSchema = z
 
 export function registerDiscoverTools(
   server: McpServer,
-  { tmdb, requireTmdb, requireTmdbCached, region }: TmdbToolDeps,
+  { tmdb, requireTmdb, region }: TmdbToolDeps,
 ): void {
   server.registerTool(
     "get_trending",
@@ -655,10 +655,7 @@ export function registerDiscoverTools(
       annotations: READ_ONLY,
     },
     (_args, ctx) => {
-      return requireTmdbCached(
-        (onStale) => tmdb.getGenres("movie", undefined, onStale),
-        ctx.mcpReq.signal,
-      );
+      return requireTmdb(() => tmdb.getGenres("movie", undefined), ctx.mcpReq.signal);
     },
   );
 
@@ -674,10 +671,7 @@ export function registerDiscoverTools(
       annotations: READ_ONLY,
     },
     (_args, ctx) => {
-      return requireTmdbCached(
-        (onStale) => tmdb.getGenres("tv", undefined, onStale),
-        ctx.mcpReq.signal,
-      );
+      return requireTmdb(() => tmdb.getGenres("tv", undefined), ctx.mcpReq.signal);
     },
   );
 

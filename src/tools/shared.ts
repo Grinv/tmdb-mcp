@@ -11,29 +11,13 @@ import {
 } from "../lib/result.ts";
 import type { Logger } from "../lib/logger.ts";
 import { META_PREFIX } from "../version.ts";
+import { staleness, type Staleness } from "../lib/cache.ts";
 
 export const READ_ONLY = { readOnlyHint: true, openWorldHint: true } as const;
 
 // Under this server's reverse-DNS _meta prefix (version.ts), so it can't
 // collide with another server's or an MCP-reserved key.
 export const STALE_META_KEY = `${META_PREFIX}stale`;
-
-/** Tracks whether a stale-cache fallback fired anywhere during a tool call,
- *  so a handler can surface it as `_meta` without threading a flag through
- *  every client method's return value. Pass `.onStale` into any client
- *  method that accepts one; pass `.meta` as requireConfigured's `getMeta`. */
-export function trackStale(): {
-  onStale: () => void;
-  meta: () => Record<string, unknown> | undefined;
-} {
-  let stale = false;
-  return {
-    onStale: () => {
-      stale = true;
-    },
-    meta: () => (stale ? { [STALE_META_KEY]: true } : undefined),
-  };
-}
 
 /** A client that can report whether it has credentials, and what to tell the
  *  caller when it doesn't — the pairing lives on the client so a tool file
@@ -53,16 +37,13 @@ export interface ConfigurableClient {
  *  itself just to get the ordering right); otherwise runs `fn`, wraps its
  *  result via jsonResult, and converts any thrown error into a tool result
  *  instead of letting it propagate — the common shape of every tool handler
- *  here. `getMeta`, if given, is called after `fn` resolves successfully and
- *  its return value (if any) becomes the result's `_meta` — used to surface
- *  side signals (e.g. "this data is from a stale cache") that a handler
- *  collected while `fn` ran, without threading them through `fn`'s own return
- *  value. */
+ *  here. `fn` runs inside a fresh `staleness` record (lib/cache.ts): if any
+ *  cache read below it served a stale fallback, the result's `_meta` reports
+ *  the oldest one's age, with nothing for the handler or client to wire. */
 export async function requireConfigured(
   client: ConfigurableClient,
   fn: () => Promise<Record<string, unknown>>,
   validate?: () => string | undefined,
-  getMeta?: () => Record<string, unknown> | undefined,
   signal?: AbortSignal,
 ): Promise<ToolResult> {
   if (!client.configured) {
@@ -70,30 +51,18 @@ export async function requireConfigured(
   }
   const validationError = validate?.();
   if (validationError) return problemResult(ownProblem("invalid_arguments", validationError));
+  const record: Staleness = {};
   try {
-    const data = await raceAbort(fn(), signal);
-    return jsonResult(data, getMeta?.());
+    const data = await staleness.run(record, () => raceAbort(fn(), signal));
+    return jsonResult(
+      data,
+      record.ageMs === undefined
+        ? undefined
+        : { [STALE_META_KEY]: { age_seconds: Math.round(record.ageMs / 1000) } },
+    );
   } catch (err) {
     return problemResult(toProblem(err, client.logger));
   }
-}
-
-/** requireConfigured, wired up for a cached client method: creates the
- *  staleness tracker, passes its `onStale` into `fn`, and its `meta` as
- *  `getMeta` — the three-step tracker/onStale/meta ritual every cached-tool
- *  handler otherwise repeats by hand (17+ call sites across tools/tmdb/*.ts alone),
- *  with the exact failure mode `trackStale`'s own doc comment warns about:
- *  forgetting to wire it through silently serves stale data with no way for
- *  the caller to detect it. Use this instead of manually calling
- *  `trackStale()` for any handler that doesn't also need `validate`. */
-export function requireConfiguredCached<T extends Record<string, unknown>>(
-  client: ConfigurableClient,
-  fn: (onStale: () => void) => Promise<T>,
-  validate?: () => string | undefined,
-  signal?: AbortSignal,
-): Promise<ToolResult> {
-  const stale = trackStale();
-  return requireConfigured(client, () => fn(stale.onStale), validate, stale.meta, signal);
 }
 
 /** Resolves/rejects as soon as either `promise` settles or `signal` aborts, so

@@ -224,6 +224,7 @@ export class TmdbClient {
       retries: config.httpRetries,
       minIntervalMs: config.tmdbMinIntervalMs,
       cacheTtlMs: config.cacheTtlMs,
+      cacheMaxStaleMs: config.cacheMaxStaleMs,
       defaultHeaders: config.tmdbApiToken ? { Authorization: `Bearer ${config.tmdbApiToken}` } : {},
       // TMDB's null only means "no value" (verified: no field reads it otherwise).
       reviver: nullAsAbsent,
@@ -376,16 +377,15 @@ export class TmdbClient {
     id: number,
     region = this.#region,
     language?: string,
-    onStale?: () => void,
   ): Promise<ReturnType<typeof detailMovie>> {
-    return detailMovie(await this.#movieRaw(id, language, onStale), region);
+    return detailMovie(await this.#movieRaw(id, language), region);
   }
 
   // The raw detail is cached, not the shaped one: `region` only picks which
   // country's certification detailMovie/detailTv headline — release_dates /
   // content_ratings carry every country — so a region-keyed cache would
   // refetch the same response once per region.
-  #movieRaw(id: number, language?: string, onStale?: () => void): Promise<TmdbMovie> {
+  #movieRaw(id: number, language?: string): Promise<TmdbMovie> {
     return this.#cached(
       cacheKey(`movie:${id}`, { language: this.#lang(language) }),
       `movie/${id}`,
@@ -394,11 +394,10 @@ export class TmdbClient {
       // keywords so the agent can feed their ids straight into discover_*.
       { append_to_response: "release_dates,keywords" },
       language,
-      onStale,
     );
   }
 
-  #tvRaw(id: number, language?: string, onStale?: () => void): Promise<TmdbTv> {
+  #tvRaw(id: number, language?: string): Promise<TmdbTv> {
     return this.#cached(
       cacheKey(`tv:${id}`, { language: this.#lang(language) }),
       `tv/${id}`,
@@ -408,7 +407,6 @@ export class TmdbClient {
       // content_ratings appended for age/content certifications; keywords as for movies.
       { append_to_response: "external_ids,content_ratings,keywords" },
       language,
-      onStale,
     );
   }
 
@@ -417,9 +415,8 @@ export class TmdbClient {
     region = this.#region,
     language?: string,
     expandEpisodes = false,
-    onStale?: () => void,
   ): Promise<TvDetail> {
-    const shaped = detailTv(await this.#tvRaw(id, language, onStale), region);
+    const shaped = detailTv(await this.#tvRaw(id, language), region);
     if (!expandEpisodes) return shaped;
     const seasons = shaped.seasons.filter(
       (s): s is typeof s & { season_number: number } => s.season_number !== null,
@@ -427,7 +424,7 @@ export class TmdbClient {
     if (seasons.length === 0) return shaped;
     return {
       ...shaped,
-      seasons_detail: await this.#getTvSeasonsBulk(id, seasons, language, onStale),
+      seasons_detail: await this.#getTvSeasonsBulk(id, seasons, language),
     };
   }
 
@@ -447,7 +444,6 @@ export class TmdbClient {
       air_date: string | null;
     }[],
     language?: string,
-    onStale?: () => void,
   ): Promise<ReturnType<typeof summarizeSeason>[]> {
     const key = cacheKey(`tv-seasons-bulk:${id}`, {
       seasons: seasons.map((s) => s.season_number).join(","),
@@ -459,94 +455,88 @@ export class TmdbClient {
     // has one (flagging it stale) and otherwise rethrows it to the catch below.
     let bulk: { seasons: ReturnType<typeof summarizeSeason>[] };
     try {
-      bulk = await this.#cache.wrapStaleOnError(
-        key,
-        async () => {
-          // A season whose true episode_count (already known from getTv's own
-          // season list — no extra request needed) is guaranteed to fall
-          // entirely beyond the aggregate budget doesn't need fetching at all:
-          // pulling its full episode list over the wire just to discard it in
-          // capTotalEpisodes is wasted work. Only fetch up through the season
-          // that actually crosses the budget boundary (to get its partial
-          // truncation). An unknown count (null) is fetched while budget
-          // remains (charged 0, since there's nothing to charge) and skipped
-          // once it's spent, like any other season.
-          let remaining = MAX_EXPANDED_EPISODES;
-          const toFetch: number[] = []; // indices into `seasons`
-          seasons.forEach((s, i) => {
-            if (remaining <= 0) return;
-            toFetch.push(i);
-            // Charge what this season can actually contribute, not its raw
-            // episode_count — summarizeSeason below trims it to
-            // MAX_SEASON_EPISODES, so charging more evicts later seasons that
-            // would have fit (season 0's 80+ specials being the usual culprit).
-            remaining -= Math.min(s.episode_count ?? 0, MAX_SEASON_EPISODES);
-          });
+      bulk = await this.#cache.wrapStaleOnError(key, async () => {
+        // A season whose true episode_count (already known from getTv's own
+        // season list — no extra request needed) is guaranteed to fall
+        // entirely beyond the aggregate budget doesn't need fetching at all:
+        // pulling its full episode list over the wire just to discard it in
+        // capTotalEpisodes is wasted work. Only fetch up through the season
+        // that actually crosses the budget boundary (to get its partial
+        // truncation). An unknown count (null) is fetched while budget
+        // remains (charged 0, since there's nothing to charge) and skipped
+        // once it's spent, like any other season.
+        let remaining = MAX_EXPANDED_EPISODES;
+        const toFetch: number[] = []; // indices into `seasons`
+        seasons.forEach((s, i) => {
+          if (remaining <= 0) return;
+          toFetch.push(i);
+          // Charge what this season can actually contribute, not its raw
+          // episode_count — summarizeSeason below trims it to
+          // MAX_SEASON_EPISODES, so charging more evicts later seasons that
+          // would have fit (season 0's 80+ specials being the usual culprit).
+          remaining -= Math.min(s.episode_count ?? 0, MAX_SEASON_EPISODES);
+        });
 
-          // A season that wasn't fetched (beyond the budget, in a failed chunk,
-          // or missing from its chunk's response) is reported from the show's
-          // own season metadata, with no episodes.
-          const skippedEntry = (
-            s: (typeof seasons)[number],
-          ): ReturnType<typeof summarizeSeason> => ({
-            season_number: s.season_number,
-            name: s.name,
-            air_date: s.air_date,
-            overview: null,
-            poster_url: null,
-            episode_count: s.episode_count ?? 0,
-            episodes: [],
-          });
+        // A season that wasn't fetched (beyond the budget, in a failed chunk,
+        // or missing from its chunk's response) is reported from the show's
+        // own season metadata, with no episodes.
+        const skippedEntry = (s: (typeof seasons)[number]): ReturnType<typeof summarizeSeason> => ({
+          season_number: s.season_number,
+          name: s.name,
+          air_date: s.air_date,
+          overview: null,
+          poster_url: null,
+          episode_count: s.episode_count ?? 0,
+          episodes: [],
+        });
 
-          // allSettled, not all: a long-running show needs 2+ chunked requests
-          // (e.g. General Hospital, Top Gear), and one failed chunk shouldn't
-          // sink the seasons the other chunks did return. Only when every chunk
-          // fails is it a real upstream failure — rethrow so wrapStaleOnError
-          // can still fall back to a stale cached value.
-          const chunks = chunk(toFetch, MAX_APPEND_TO_RESPONSE);
-          const settled = await Promise.allSettled(
-            chunks.map((indices) =>
-              this.#get<Record<string, TmdbSeason | undefined>>(
-                `tv/${id}`,
-                {
-                  append_to_response: indices
-                    .map((i) => `season/${seasons[i]!.season_number}`)
-                    .join(","),
-                },
-                language,
-              ),
+        // allSettled, not all: a long-running show needs 2+ chunked requests
+        // (e.g. General Hospital, Top Gear), and one failed chunk shouldn't
+        // sink the seasons the other chunks did return. Only when every chunk
+        // fails is it a real upstream failure — rethrow so wrapStaleOnError
+        // can still fall back to a stale cached value.
+        const chunks = chunk(toFetch, MAX_APPEND_TO_RESPONSE);
+        const settled = await Promise.allSettled(
+          chunks.map((indices) =>
+            this.#get<Record<string, TmdbSeason | undefined>>(
+              `tv/${id}`,
+              {
+                append_to_response: indices
+                  .map((i) => `season/${seasons[i]!.season_number}`)
+                  .join(","),
+              },
+              language,
             ),
-          );
-          const firstFailure = settled.find((r) => r.status === "rejected");
-          if (firstFailure && settled.every((r) => r.status === "rejected")) {
-            throw firstFailure.reason;
+          ),
+        );
+        const firstFailure = settled.find((r) => r.status === "rejected");
+        if (firstFailure && settled.every((r) => r.status === "rejected")) {
+          throw firstFailure.reason;
+        }
+
+        const out = seasons.map(skippedEntry);
+        settled.forEach((result, c) => {
+          if (result.status !== "fulfilled") return;
+          for (const i of chunks[c]!) {
+            const raw = result.value[`season/${seasons[i]!.season_number}`];
+            if (raw) out[i] = summarizeSeason(raw, MAX_SEASON_EPISODES, false);
           }
-
-          const out = seasons.map(skippedEntry);
-          settled.forEach((result, c) => {
-            if (result.status !== "fulfilled") return;
-            for (const i of chunks[c]!) {
-              const raw = result.value[`season/${seasons[i]!.season_number}`];
-              if (raw) out[i] = summarizeSeason(raw, MAX_SEASON_EPISODES, false);
-            }
-          });
-          // parseSeasons re-validates the fetched/capped/skipped merge through
-          // seasonSchema, so this aggregate path gets the same drift/degrade
-          // guarantee the direct shapers have (the skipped entries above are
-          // hand-built and would otherwise skip validation entirely).
-          const result = {
-            seasons: parseSeasons(
-              capTotalEpisodesBySize(
-                capTotalEpisodes(out, MAX_EXPANDED_EPISODES),
-                MAX_EXPANDED_EPISODES_CHARS,
-              ),
+        });
+        // parseSeasons re-validates the fetched/capped/skipped merge through
+        // seasonSchema, so this aggregate path gets the same drift/degrade
+        // guarantee the direct shapers have (the skipped entries above are
+        // hand-built and would otherwise skip validation entirely).
+        const result = {
+          seasons: parseSeasons(
+            capTotalEpisodesBySize(
+              capTotalEpisodes(out, MAX_EXPANDED_EPISODES),
+              MAX_EXPANDED_EPISODES_CHARS,
             ),
-          };
-          if (firstFailure) throw new PartialSeasons(result);
-          return result;
-        },
-        onStale,
-      );
+          ),
+        };
+        if (firstFailure) throw new PartialSeasons(result);
+        return result;
+      });
     } catch (err) {
       if (err instanceof PartialSeasons) return err.result.seasons;
       throw err;
@@ -554,25 +544,19 @@ export class TmdbClient {
     return bulk.seasons;
   }
 
-  async getPerson(
-    id: number,
-    language?: string,
-    onStale?: () => void,
-  ): Promise<ReturnType<typeof detailPerson>> {
+  async getPerson(id: number, language?: string): Promise<ReturnType<typeof detailPerson>> {
     return this.#cached(
       cacheKey(`person:${id}`, { language: this.#lang(language) }),
       `person/${id}`,
       detailPerson,
       {},
       language,
-      onStale,
     );
   }
 
   async getMovieCredits(
     id: number,
     language?: string,
-    onStale?: () => void,
   ): Promise<ReturnType<typeof summarizeCredits>> {
     return this.#cached(
       cacheKey(`movie-credits:${id}`, { language: this.#lang(language) }),
@@ -580,14 +564,12 @@ export class TmdbClient {
       (c: TmdbCredits) => summarizeCredits(c),
       {},
       language,
-      onStale,
     );
   }
 
   async getTvCredits(
     id: number,
     language?: string,
-    onStale?: () => void,
   ): Promise<ReturnType<typeof summarizeTvCredits>> {
     return this.#cached(
       cacheKey(`tv-aggregate-credits:${id}`, { language: this.#lang(language) }),
@@ -595,7 +577,6 @@ export class TmdbClient {
       (c: TmdbAggregateCredits) => summarizeTvCredits(c),
       {},
       language,
-      onStale,
     );
   }
 
@@ -674,7 +655,6 @@ export class TmdbClient {
   async getCollection(
     id: number,
     language?: string,
-    onStale?: () => void,
   ): Promise<ReturnType<typeof summarizeCollection>> {
     return this.#cached(
       cacheKey(`collection:${id}`, { language: this.#lang(language) }),
@@ -682,7 +662,6 @@ export class TmdbClient {
       summarizeCollection,
       {},
       language,
-      onStale,
     );
   }
 
@@ -725,7 +704,6 @@ export class TmdbClient {
   async getGenres(
     mediaType: "movie" | "tv",
     language?: string,
-    onStale?: () => void,
   ): Promise<ReturnType<typeof summarizeGenres>> {
     return this.#cached(
       cacheKey(`genres:${mediaType}`, { language: this.#lang(language) }),
@@ -733,7 +711,6 @@ export class TmdbClient {
       (res: { genres: { id?: number; name?: string }[] }) => summarizeGenres(res.genres ?? []),
       {},
       language,
-      onStale,
     );
   }
 
@@ -768,14 +745,11 @@ export class TmdbClient {
     mediaType: "movie" | "tv",
     id: number,
     region = this.#region,
-    onStale?: () => void,
   ): Promise<ReturnType<typeof summarizeWatchProviders>> {
     // Cached raw: the response carries every region, and `region` only picks
     // which one summarizeWatchProviders headlines.
-    const res = await this.#cache.wrapStaleOnError(
-      cacheKey(`watch:${mediaType}:${id}`),
-      () => this.#http.getJson<WatchProvidersResponse>(`${mediaType}/${id}/watch/providers`),
-      onStale,
+    const res = await this.#cache.wrapStaleOnError(cacheKey(`watch:${mediaType}:${id}`), () =>
+      this.#http.getJson<WatchProvidersResponse>(`${mediaType}/${id}/watch/providers`),
     );
     return summarizeWatchProviders(res, region);
   }
@@ -792,7 +766,6 @@ export class TmdbClient {
     query: string,
     watchRegion?: string,
     page?: number,
-    onStale?: () => void,
   ): Promise<ReturnType<typeof summarizeWatchProviderMatches>> {
     const providers = await this.#cached(
       cacheKey(`watch-providers:${mediaType}`, { watchRegion }),
@@ -804,7 +777,6 @@ export class TmdbClient {
         })),
       watchRegion ? { watch_region: watchRegion } : {},
       undefined,
-      onStale,
     );
     return summarizeWatchProviderMatches(providers, query, page);
   }
@@ -816,7 +788,6 @@ export class TmdbClient {
     department?: string,
     limit?: number,
     language?: string,
-    onStale?: () => void,
   ): Promise<ReturnType<typeof summarizePersonCredits>> {
     // Cache the raw response, not the shaped one: department/limit only
     // change the shaping, never the upstream request, so keying the cache on
@@ -827,7 +798,6 @@ export class TmdbClient {
       trimCombinedCredits,
       {},
       language,
-      onStale,
     );
     return summarizePersonCredits(raw, department, limit);
   }
@@ -838,7 +808,6 @@ export class TmdbClient {
     mediaType: "movie" | "tv",
     id: number,
     language?: string,
-    onStale?: () => void,
   ): Promise<ReturnType<typeof summarizeVideos>> {
     return this.#cache.wrapStaleOnError(
       cacheKey(`${mediaType}-videos:${id}`, { language: this.#lang(language) }),
@@ -860,7 +829,6 @@ export class TmdbClient {
         );
         return summarizeVideos(res);
       },
-      onStale,
     );
   }
 
@@ -869,7 +837,6 @@ export class TmdbClient {
   async findByExternalId(
     externalId: string,
     source: ExternalSource,
-    onStale?: () => void,
   ): Promise<ReturnType<typeof summarizeFind>> {
     return this.#cached(
       cacheKey(`find:${source}:${externalId}`),
@@ -877,7 +844,6 @@ export class TmdbClient {
       summarizeFind,
       { external_source: source },
       undefined,
-      onStale,
     );
   }
 
@@ -887,7 +853,6 @@ export class TmdbClient {
     id: number,
     season: number,
     language?: string,
-    onStale?: () => void,
   ): Promise<ReturnType<typeof summarizeSeason>> {
     return this.#cached(
       cacheKey(`tv-season:${id}:${season}`, { language: this.#lang(language) }),
@@ -895,7 +860,6 @@ export class TmdbClient {
       summarizeSeason,
       {},
       language,
-      onStale,
     );
   }
 
@@ -904,7 +868,6 @@ export class TmdbClient {
     season: number,
     episode: number,
     language?: string,
-    onStale?: () => void,
   ): Promise<ReturnType<typeof summarizeEpisode>> {
     return this.#cached(
       cacheKey(`tv-episode:${id}:${season}:${episode}`, { language: this.#lang(language) }),
@@ -922,7 +885,6 @@ export class TmdbClient {
       // episode — up to 250 for expand_episodes.
       { append_to_response: "external_ids" },
       language,
-      onStale,
     );
   }
 
@@ -935,16 +897,11 @@ export class TmdbClient {
     shape: (data: T) => R,
     query: Query = {},
     language?: string,
-    onStale?: () => void,
   ): Promise<R> {
-    return this.#cache.wrapStaleOnError(
-      key,
-      async () => {
-        const res = await this.#get<T>(path, query, language);
-        return shape(res);
-      },
-      onStale,
-    );
+    return this.#cache.wrapStaleOnError(key, async () => {
+      const res = await this.#get<T>(path, query, language);
+      return shape(res);
+    });
   }
 }
 

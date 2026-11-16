@@ -1,12 +1,8 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { ApiError } from "../lib/errors.ts";
-import {
-  READ_ONLY,
-  requireConfigured,
-  requireConfiguredCached,
-  STALE_META_KEY,
-} from "../tools/shared.ts";
+import { READ_ONLY, requireConfigured, STALE_META_KEY } from "../tools/shared.ts";
+import { TtlCache } from "../lib/cache.ts";
 import { PROBLEM_META_KEY } from "../lib/result.ts";
 import { recordingLogger, silentLogger } from "./helpers.ts";
 
@@ -91,7 +87,6 @@ describe("requireConfigured", () => {
       client,
       () => delayedResolve(10),
       undefined,
-      undefined,
       controller.signal,
     );
     assert.equal(res.isError, true);
@@ -102,13 +97,7 @@ describe("requireConfigured", () => {
   test("resolves promptly with an error result when the signal fires mid-flight, without waiting for fn", async () => {
     const client = { configured: true, notConfiguredMessage: "unused", logger: silentLogger() };
     const controller = new AbortController();
-    const call = requireConfigured(
-      client,
-      () => delayedResolve(20),
-      undefined,
-      undefined,
-      controller.signal,
-    );
+    const call = requireConfigured(client, () => delayedResolve(20), undefined, controller.signal);
     controller.abort();
     const result = await call;
     assert.equal(result.isError, true);
@@ -123,7 +112,6 @@ describe("requireConfigured", () => {
       client,
       async () => ({ a: 1 }),
       undefined,
-      undefined,
       controller.signal,
     );
     assert.equal(res.isError, undefined);
@@ -131,52 +119,27 @@ describe("requireConfigured", () => {
   });
 });
 
-describe("requireConfiguredCached", () => {
-  test("threads onStale into fn and surfaces it as _meta", async () => {
+// Staleness travels in the call's async context (lib/cache.ts's staleness),
+// so nothing between fn and the cache has to wire a callback through.
+describe("requireConfigured: stale-cache signal", () => {
+  test("a stale fallback anywhere inside fn surfaces as _meta with its age", async () => {
+    let now = 0;
+    const cache = new TtlCache({ ttlMs: 1, now: () => now });
+    await cache.wrapStaleOnError("k", async () => ({ a: 1 }));
+    now += 2500;
     const client = { configured: true, notConfiguredMessage: "unused", logger: silentLogger() };
-    const res = await requireConfiguredCached(client, async (onStale) => {
-      onStale();
-      return { a: 1 };
-    });
+    const res = await requireConfigured(client, () =>
+      cache.wrapStaleOnError("k", async () => {
+        throw new Error("upstream down");
+      }),
+    );
     assert.deepEqual(res.structuredContent, { a: 1 });
-    assert.deepEqual(res._meta, { [STALE_META_KEY]: true });
+    assert.deepEqual(res._meta, { [STALE_META_KEY]: { age_seconds: 3 } });
   });
 
-  test("omits _meta when onStale never fires", async () => {
+  test("omits _meta when nothing stale was served", async () => {
     const client = { configured: true, notConfiguredMessage: "unused", logger: silentLogger() };
-    const res = await requireConfiguredCached(client, async () => ({ a: 1 }));
+    const res = await requireConfigured(client, async () => ({ a: 1 }));
     assert.equal(res._meta, undefined);
-  });
-
-  test("still runs validate before fn, same ordering as requireConfigured", async () => {
-    const client = { configured: true, notConfiguredMessage: "unused", logger: silentLogger() };
-    let called = false;
-    const res = await requireConfiguredCached(
-      client,
-      async () => {
-        called = true;
-        return {};
-      },
-      () => "bad input",
-    );
-    assert.equal(called, false);
-    assert.equal(res.isError, true);
-    assert.equal(res.content[0]!.text, "bad input");
-  });
-
-  test("cancels promptly via signal without needing the client call to resolve", async () => {
-    const client = { configured: true, notConfiguredMessage: "unused", logger: silentLogger() };
-    const controller = new AbortController();
-    const res = requireConfiguredCached(
-      client,
-      () => new Promise<Record<string, unknown>>((resolve) => setTimeout(() => resolve({}), 20)),
-      undefined,
-      controller.signal,
-    );
-    controller.abort();
-    const result = await res;
-    assert.equal(result.isError, true);
-    assert.equal(result.content[0]!.text, "The request was cancelled.");
-    await new Promise((resolve) => setTimeout(resolve, 25)); // let fn()'s timer settle
   });
 });

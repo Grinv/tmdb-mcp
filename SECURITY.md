@@ -23,7 +23,8 @@
   otherwise leak under `LOG_LEVEL=debug`.
 - **No data kept between requests beyond a small in-memory cache** of
   upstream responses: fresh for `CACHE_TTL_MS` (default 5 minutes), then kept
-  only as an outage fallback, capped at 500 entries per upstream. Nothing is
+  only as an outage fallback for up to `CACHE_MAX_STALE_MS` more (default a
+  day), capped at 500 entries per upstream. Nothing is
   written to disk, and the cache is gone when the process exits.
 - **Typed, validated inputs.** Every tool's parameters are a `.strict()` Zod
   schema; malformed or unrecognized input is rejected before any request is

@@ -11,6 +11,7 @@ function upstream(extra: Partial<Parameters<typeof createUpstream>[0]> = {}) {
     retries: 0,
     minIntervalMs: 0,
     cacheTtlMs: 60_000,
+    cacheMaxStaleMs: 60_000,
     ...extra,
   });
 }

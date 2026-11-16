@@ -44,11 +44,13 @@ failing the call. That's the right default, but a caller has no way to tell
 the two look identical in `structuredContent`. Putting a `stale` field inside
 the domain shape (`format.ts`) would mean touching every cached endpoint's
 schema for a rare edge case, and would conflate a caching concern with the
-"shape of a movie". Instead, the signal travels out-of-band: an `onStale`
-callback threaded from `wrapStaleOnError` up through the client method up to
-the tool handler (see the AGENTS.md convention), which attaches
-`_meta: {"io.github.Grinv.tmdb-mcp/stale": true}` — a sibling of `structuredContent`, per the
-MCP spec's `_meta` mechanism, not a field inside it. Every other `search_*`/
+"shape of a movie". Instead, the signal travels out-of-band through the
+call's async context: `requireConfigured` runs each tool call inside a
+Node `AsyncLocalStorage` record that `wrapStaleOnError` writes the served
+value's age into (see the AGENTS.md convention), and the result carries
+`_meta: {"io.github.Grinv.tmdb-mcp/stale": {"age_seconds": N}}` — a sibling of
+`structuredContent`, per the MCP spec's `_meta` mechanism, not a field inside
+it. A stale value is only served for `CACHE_MAX_STALE_MS` past expiry. Every other `search_*`/
 `discover_*`/`get_similar`/`get_*_recommendations`/`get_reviews`/`get_trending`/
 `get_movie_releases` is never cached
 in the first place (see `clients/tmdb.ts`), so it can never go stale;

@@ -71,7 +71,7 @@ describe("get_ratings", () => {
     const s = second.structuredContent as { found: boolean };
     assert.equal(s.found, true); // still served, from the stale cache
     assert.deepEqual((second as { _meta?: Record<string, unknown> })._meta, {
-      [STALE_META_KEY]: true,
+      [STALE_META_KEY]: { age_seconds: 0 },
     });
   });
 

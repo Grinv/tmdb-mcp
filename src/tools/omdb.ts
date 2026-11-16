@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/server";
 import type { OmdbClient } from "../clients/omdb.ts";
 import { ratingsSchema } from "../format.schemas.ts";
-import { READ_ONLY, requireConfiguredCached } from "./shared.ts";
+import { READ_ONLY, requireConfigured } from "./shared.ts";
 
 export function registerOmdbTools(server: McpServer, omdb: OmdbClient): void {
   server.registerTool(
@@ -58,14 +58,11 @@ export function registerOmdbTools(server: McpServer, omdb: OmdbClient): void {
       annotations: READ_ONLY,
     },
     ({ imdb_id, title, year, type }, ctx) => {
-      return requireConfiguredCached(
+      return requireConfigured(
         omdb,
         // title! is safe: the validate() callback below runs before this fn and
         // rejects the both-absent case, so a falsy imdb_id here means title is set.
-        (onStale) =>
-          imdb_id
-            ? omdb.ratingsByImdbId(imdb_id, onStale)
-            : omdb.ratingsByTitle(title!, year, type, onStale),
+        () => (imdb_id ? omdb.ratingsByImdbId(imdb_id) : omdb.ratingsByTitle(title!, year, type)),
         () => (!imdb_id && !title ? "Provide either imdb_id or title." : undefined),
         ctx.mcpReq.signal,
       );

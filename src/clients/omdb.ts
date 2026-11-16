@@ -40,6 +40,7 @@ export class OmdbClient {
       retries: config.httpRetries,
       minIntervalMs: config.omdbMinIntervalMs,
       cacheTtlMs: config.cacheTtlMs,
+      cacheMaxStaleMs: config.cacheMaxStaleMs,
       reviver: nullAsAbsent,
       // OMDb names an exhausted quota in the body whatever the status (an auth
       // or 429 one): classify it here, before HttpClient decides to retry.
@@ -51,17 +52,10 @@ export class OmdbClient {
   }
 
   /** Ratings for an IMDb title id (e.g. "tt0133093"). */
-  async ratingsByImdbId(
-    imdbId: string,
-    onStale?: () => void,
-  ): Promise<ReturnType<typeof summarizeRatings>> {
-    return this.#cache.wrapStaleOnError(
-      cacheKey(`omdb:i:${imdbId}`),
-      async () => {
-        return summarizeRatings(await this.#get({ i: imdbId }));
-      },
-      onStale,
-    );
+  async ratingsByImdbId(imdbId: string): Promise<ReturnType<typeof summarizeRatings>> {
+    return this.#cache.wrapStaleOnError(cacheKey(`omdb:i:${imdbId}`), async () => {
+      return summarizeRatings(await this.#get({ i: imdbId }));
+    });
   }
 
   /** Ratings looked up by title (+ optional year/type to disambiguate). */
@@ -69,15 +63,10 @@ export class OmdbClient {
     title: string,
     year?: number,
     type?: "movie" | "series" | "episode",
-    onStale?: () => void,
   ): Promise<ReturnType<typeof summarizeRatings>> {
-    return this.#cache.wrapStaleOnError(
-      cacheKey(`omdb:t:${title}`, { year, type }),
-      async () => {
-        return summarizeRatings(await this.#get({ t: title, y: year, type }));
-      },
-      onStale,
-    );
+    return this.#cache.wrapStaleOnError(cacheKey(`omdb:t:${title}`, { year, type }), async () => {
+      return summarizeRatings(await this.#get({ t: title, y: year, type }));
+    });
   }
 
   async #get(query: Record<string, string | number | undefined>): Promise<OmdbResponse> {

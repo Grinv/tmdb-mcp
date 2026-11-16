@@ -1017,7 +1017,7 @@ describe("get_movie", () => {
     const s = second.structuredContent as { imdb_id: string };
     assert.equal(s.imdb_id, "tt0133093"); // still served, from the stale cache
     assert.deepEqual((second as { _meta?: Record<string, unknown> })._meta, {
-      [STALE_META_KEY]: true,
+      [STALE_META_KEY]: { age_seconds: 0 },
     });
   });
 
@@ -1048,7 +1048,7 @@ describe("get_movie", () => {
     const second = await client.callTool(args);
     assert.notEqual(second.isError, true);
     assert.equal((second.structuredContent as { imdb_id: string }).imdb_id, "tt0133093");
-    assert.equal(second._meta?.[STALE_META_KEY], true);
+    assert.deepEqual(second._meta?.[STALE_META_KEY], { age_seconds: 0 });
     assert.ok(second._meta?.["io.modelcontextprotocol/serverInfo"]);
   });
 
@@ -2130,14 +2130,14 @@ describe("MCP client cancellation reaches cached client calls too", () => {
     );
     await fetchStarted;
     controller.abort();
-    // The caller stops waiting promptly (requireConfiguredCached's raceAbort)
+    // The caller stops waiting promptly (requireConfigured's raceAbort)
     // instead of hanging until the 40ms upstream fetch resolves.
     await assert.rejects(() => call);
     // The underlying fetch always carries an internal AbortSignal of its own
     // (HttpClient's per-request timeout, see lib/http.ts), but the caller's
     // own signal is deliberately never wired into it for a cached call, since
     // TtlCache dedupes concurrent callers onto one shared in-flight request
-    // (see tools/shared.ts's requireConfiguredCached doc comment) — relaying
+    // (see tools/shared.ts's raceAbort doc comment) — relaying
     // the caller's cancellation into it could abort it out from under a
     // different, still-waiting caller sharing that same request. Confirm the
     // fetch's own signal was NOT tripped by the caller's abort above.

@@ -8,6 +8,7 @@ import {
   MAX_SEASON_EPISODES,
 } from "../clients/tmdb.ts";
 import { ApiError } from "../lib/errors.ts";
+import { staleness, type Staleness } from "../lib/cache.ts";
 import { loadConfig } from "../config.ts";
 import {
   silentLogger,
@@ -580,9 +581,13 @@ describe("TmdbClient: getTv(expand_episodes) degrades per chunk, keeps season or
     await c.getTv(1, "US", undefined, true);
     await delay(5);
     failSeasons = true;
-    let stale = false;
-    const s = await c.getTv(1, "US", undefined, true, () => (stale = true));
-    assert.equal(stale, true, "all-chunks-failed must surface as an error, not cached skips");
+    const record: Staleness = {};
+    const s = await staleness.run(record, () => c.getTv(1, "US", undefined, true));
+    assert.notEqual(
+      record.ageMs,
+      undefined,
+      "all-chunks-failed must surface as an error, not cached skips",
+    );
     assert.equal(s.seasons_detail![0]!.episodes.length, 3);
   });
 

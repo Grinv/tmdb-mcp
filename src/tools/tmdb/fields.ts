@@ -1,4 +1,4 @@
-// Shared Zod field/schema builders, plus the requireTmdb/requireTmdbCached
+// Shared Zod field/schema builders, plus the requireTmdb
 // function shapes and the TmdbToolDeps bag every sibling file in this
 // directory (search.ts, details.ts, discover.ts, lookups.ts) registers its
 // tools from — kept in one place so the same concept (a TMDB id, a
@@ -11,23 +11,14 @@ import { LANGUAGE_REGEX } from "../../config.ts";
 import { TMDB_MAX_PAGE } from "../../format.ts";
 import type { ToolResult } from "../../lib/result.ts";
 
-// index.ts constructs the real closures (over the actual tmdb client and, for
-// requireTmdbCached, a fresh staleness tracker per call) and passes them into
-// each register*Tools function below — these are just the shapes. `signal`,
-// when given, is a per-call AbortSignal (from the calling tool handler's own
-// `ctx.mcpReq.signal`). requireTmdb's callers also forward it straight into
-// the underlying (uncached, unshared) client call, which is what actually
-// aborts the fetch — but requireConfigured needs its own copy too, purely so
-// its catch block can recognize the resulting rejection as a cancellation
-// (`signal?.aborted`) and return the "cancelled" problem instead of reading
-// the abort as some other failure.
+// index.ts constructs the real closure over the actual tmdb client and passes
+// it into each register*Tools function below — this is just its shape.
+// `signal`, when given, is the calling tool handler's own `ctx.mcpReq.signal`:
+// handlers also forward it into an uncached, unshared client call, which is
+// what actually aborts that fetch, while requireConfigured races it so a
+// cancelled call stops waiting on a cache-shared fetch.
 export type RequireTmdb = <T extends Record<string, unknown>>(
   fn: () => Promise<T>,
-  signal?: AbortSignal,
-  getMeta?: () => Record<string, unknown> | undefined,
-) => Promise<ToolResult>;
-export type RequireTmdbCached = <T extends Record<string, unknown>>(
-  fn: (onStale: () => void) => Promise<T>,
   signal?: AbortSignal,
 ) => Promise<ToolResult>;
 
@@ -40,7 +31,6 @@ export interface TmdbToolDeps {
   tmdb: TmdbClient;
   omdb: OmdbClient;
   requireTmdb: RequireTmdb;
-  requireTmdbCached: RequireTmdbCached;
   region: ReturnType<typeof regionSchema>;
 }
 

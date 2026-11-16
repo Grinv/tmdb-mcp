@@ -165,20 +165,21 @@ Put these in your MCP client config's `env` block (see
 Sensible defaults; only set these if you know you need to. Env var only, not
 exposed in Claude Desktop's install form, so CLI/Docker users set them directly.
 
-| Variable               | Default                        | Purpose                                            |
-| ---------------------- | ------------------------------ | -------------------------------------------------- |
-| `TMDB_BASE_URL`        | `https://api.themoviedb.org/3` | Override TMDB's API base (e.g. a proxy)            |
-| `OMDB_BASE_URL`        | `https://www.omdbapi.com`      | Override OMDb's API base                           |
-| `HTTP_TIMEOUT_MS`      | `15000`                        | Per-request timeout before aborting                |
-| `HTTP_RETRIES`         | `2`                            | Retries on a transient upstream failure            |
-| `TMDB_MIN_INTERVAL_MS` | `60`                           | Minimum spacing between TMDB requests              |
-| `OMDB_MIN_INTERVAL_MS` | `0`                            | Minimum spacing between OMDb requests              |
-| `CACHE_TTL_MS`         | `300000`                       | How long cached responses stay fresh               |
-| `LOG_LEVEL`            | `info`                         | `debug` \| `info` \| `warn` \| `error` \| `silent` |
+| Variable               | Default                        | Purpose                                                                       |
+| ---------------------- | ------------------------------ | ----------------------------------------------------------------------------- |
+| `TMDB_BASE_URL`        | `https://api.themoviedb.org/3` | Override TMDB's API base (e.g. a proxy)                                       |
+| `OMDB_BASE_URL`        | `https://www.omdbapi.com`      | Override OMDb's API base                                                      |
+| `HTTP_TIMEOUT_MS`      | `15000`                        | Per-request timeout before aborting                                           |
+| `HTTP_RETRIES`         | `2`                            | Retries on a transient upstream failure                                       |
+| `TMDB_MIN_INTERVAL_MS` | `60`                           | Minimum spacing between TMDB requests                                         |
+| `OMDB_MIN_INTERVAL_MS` | `0`                            | Minimum spacing between OMDb requests                                         |
+| `CACHE_TTL_MS`         | `300000`                       | How long cached responses stay fresh                                          |
+| `CACHE_MAX_STALE_MS`   | `86400000`                     | How long past that a cached response may stand in for an unreachable upstream |
+| `LOG_LEVEL`            | `info`                         | `debug` \| `info` \| `warn` \| `error` \| `silent`                            |
 
 If TMDB/OMDb is briefly down and a tool falls back to a cached-but-expired
 response rather than failing, the result carries
-`_meta: {"io.github.Grinv.tmdb-mcp/stale": true}` alongside the normal data, so a client can
+`_meta: {"io.github.Grinv.tmdb-mcp/stale": {"age_seconds": N}}` (how old the data is) alongside the normal data, so a client can
 tell a degraded answer from a fresh one.
 
 ## Develop

@@ -15,7 +15,7 @@ import { mediaKind, seasonNumber, tmdbId, type TmdbToolDeps } from "./fields.ts"
 
 export function registerLookupTools(
   server: McpServer,
-  { tmdb, requireTmdbCached, region }: TmdbToolDeps,
+  { tmdb, requireTmdb, region }: TmdbToolDeps,
 ): void {
   server.registerTool(
     "get_watch_providers",
@@ -35,10 +35,7 @@ export function registerLookupTools(
       annotations: READ_ONLY,
     },
     ({ media_type, id, region: r }, ctx) => {
-      return requireTmdbCached(
-        (onStale) => tmdb.getWatchProviders(media_type, id, r, onStale),
-        ctx.mcpReq.signal,
-      );
+      return requireTmdb(() => tmdb.getWatchProviders(media_type, id, r), ctx.mcpReq.signal);
     },
   );
 
@@ -57,10 +54,7 @@ export function registerLookupTools(
       annotations: READ_ONLY,
     },
     ({ media_type, id }, ctx) => {
-      return requireTmdbCached(
-        (onStale) => tmdb.getVideos(media_type, id, undefined, onStale),
-        ctx.mcpReq.signal,
-      );
+      return requireTmdb(() => tmdb.getVideos(media_type, id, undefined), ctx.mcpReq.signal);
     },
   );
 
@@ -84,10 +78,7 @@ export function registerLookupTools(
       annotations: READ_ONLY,
     },
     ({ imdb_id }, ctx) => {
-      return requireTmdbCached(
-        (onStale) => tmdb.findByExternalId(imdb_id, "imdb_id", onStale),
-        ctx.mcpReq.signal,
-      );
+      return requireTmdb(() => tmdb.findByExternalId(imdb_id, "imdb_id"), ctx.mcpReq.signal);
     },
   );
 
@@ -114,10 +105,7 @@ export function registerLookupTools(
       annotations: READ_ONLY,
     },
     ({ id, season_number }, ctx) => {
-      return requireTmdbCached(
-        (onStale) => tmdb.getTvSeason(id, season_number, undefined, onStale),
-        ctx.mcpReq.signal,
-      );
+      return requireTmdb(() => tmdb.getTvSeason(id, season_number, undefined), ctx.mcpReq.signal);
     },
   );
 
@@ -142,8 +130,8 @@ export function registerLookupTools(
       annotations: READ_ONLY,
     },
     ({ id, season_number, episode_number }, ctx) => {
-      return requireTmdbCached(
-        (onStale) => tmdb.getTvEpisode(id, season_number, episode_number, undefined, onStale),
+      return requireTmdb(
+        () => tmdb.getTvEpisode(id, season_number, episode_number, undefined),
         ctx.mcpReq.signal,
       );
     },
