@@ -28,8 +28,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- Retry at once on `Retry-After: 0` instead of waiting out the default backoff ([ebe6c32](https://github.com/Grinv/tmdb-mcp/commit/ebe6c32)).
-- Report an OMDb refusal sent in a 200 without a misleading "(200)" status, and an unrecognized OMDb error status as itself, not as a refusal ([c50d75e](https://github.com/Grinv/tmdb-mcp/commit/c50d75e)).
+- Stop retrying when `Retry-After` asks to wait longer than the backoff cap, and never retry sooner than the backoff ([e0d374f](https://github.com/Grinv/tmdb-mcp/commit/e0d374f)).
 - Stop hiding a bug, a 404 or a rejected key behind stale cached data ([f301a01](https://github.com/Grinv/tmdb-mcp/commit/f301a01), [f549dfe](https://github.com/Grinv/tmdb-mcp/commit/f549dfe)).
 - Measure cache age in real elapsed time, counting sleep and not shortened by the system clock stepping back while awake ([f301a01](https://github.com/Grinv/tmdb-mcp/commit/f301a01), [2af5931](https://github.com/Grinv/tmdb-mcp/commit/2af5931)).
 - Treat an HTTP 408 from a proxy as a timeout: retried, and a cached copy may stand in ([5281d94](https://github.com/Grinv/tmdb-mcp/commit/5281d94)).
@@ -42,7 +41,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Call a cancelled request "cancelled" and an unreadable or empty upstream body "unreadable", not a network or unknown error ([28a2d3b](https://github.com/Grinv/tmdb-mcp/commit/28a2d3b)).
 - Time out a response that stalls after its headers instead of hanging the call for minutes ([7098f20](https://github.com/Grinv/tmdb-mcp/commit/7098f20)).
 - Include the upstream's own reason in tool errors, e.g. OMDb's "Invalid API key!", never a raw response body ([e723377](https://github.com/Grinv/tmdb-mcp/commit/e723377), [a6dbbea](https://github.com/Grinv/tmdb-mcp/commit/a6dbbea), [62750f3](https://github.com/Grinv/tmdb-mcp/commit/62750f3), [efbc604](https://github.com/Grinv/tmdb-mcp/commit/efbc604)).
-- Report an OMDb refusal as an error, not a cached "no ratings", and an exhausted quota as a rate limit, not a bad key ([e723377](https://github.com/Grinv/tmdb-mcp/commit/e723377), [44b17a2](https://github.com/Grinv/tmdb-mcp/commit/44b17a2)).
+- Report an OMDb refusal as an error, not a cached "no ratings", and an exhausted quota as a rate limit, not a bad key ([e723377](https://github.com/Grinv/tmdb-mcp/commit/e723377), [44b17a2](https://github.com/Grinv/tmdb-mcp/commit/44b17a2), [c50d75e](https://github.com/Grinv/tmdb-mcp/commit/c50d75e)).
 - Make the `.mcpb` prompt templates match the server, using mcpb's `${arguments.KEY}` placeholders and only the arguments they use ([da5e2f6](https://github.com/Grinv/tmdb-mcp/commit/da5e2f6), [3ec359a](https://github.com/Grinv/tmdb-mcp/commit/3ec359a)).
 - Never tell the model to fetch more than 20 ids in one `get_tv_shows` call in `top_by_entity` ([3873d5d](https://github.com/Grinv/tmdb-mcp/commit/3873d5d)).
 - Evict the least recently used cache entry, so hot entries keep their outage fallback ([6eab9b7](https://github.com/Grinv/tmdb-mcp/commit/6eab9b7)).
