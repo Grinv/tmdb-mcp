@@ -38,8 +38,10 @@ to a soft `{ found: false }` instead of throwing.
 ## Stale-cache visibility
 
 `TtlCache.wrapStaleOnError` degrades gracefully when an upstream is briefly
-down: it serves a previously-cached (possibly expired) value instead of
-failing the call. That's the right default, but a caller has no way to tell
+down: during an outage (`isOutage()` in `lib/errors.ts`: a rate limit, 5xx,
+network failure, timeout or a proxy's page instead of the API) it serves a
+previously-cached (possibly expired) value instead of failing the call. A
+404, a rejected key or a bug still fails it. That's the right default, but a caller has no way to tell
 "fresh" from "the upstream was down 20 minutes ago and this is what we had" —
 the two look identical in `structuredContent`. Putting a `stale` field inside
 the domain shape (`format.ts`) would mean touching every cached endpoint's
@@ -50,7 +52,11 @@ Node `AsyncLocalStorage` record that `wrapStaleOnError` writes the served
 value's age into (see the AGENTS.md convention), and the result carries
 `_meta: {"io.github.Grinv.tmdb-mcp/stale": {"age_seconds": N}}` — a sibling of
 `structuredContent`, per the MCP spec's `_meta` mechanism, not a field inside
-it. A stale value is only served for `CACHE_MAX_STALE_MS` past expiry. Every other `search_*`/
+it. A stale value is only served for `CACHE_MAX_STALE_MS` past expiry. A
+result missing an optional part lost to an outage (a chunk of
+`expand_episodes`, the detail behind native-language trailers) is flagged
+the same way, as `"io.github.Grinv.tmdb-mcp/partial": true`, unless a
+complete stale copy is served instead. Every other `search_*`/
 `discover_*`/`get_similar`/`get_*_recommendations`/`get_reviews`/`get_trending`/
 `get_movie_releases` is never cached
 in the first place (see `clients/tmdb.ts`), so it can never go stale;

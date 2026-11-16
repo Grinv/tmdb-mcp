@@ -97,12 +97,15 @@ npm run inspector      # run under the MCP Inspector
     outside `lib/errors.ts` and `config.ts`.
   - Clients fetch and cache only; they never catch — ESLint bans `try` and
     `.catch()` in `src/clients/`. Optional data uses `unlessUpstreamFails()`
-    (tolerates an `ApiError`, lets a bug through); a usable-but-partial
+    (tolerates an outage, lets anything else through); a usable-but-partial
     result is returned as `degraded(value)`, which the cache never stores.
   - Only the logger writes to stdio and turns an error into log text (stack,
     cause chain, redaction): pass it the error object, never `err.message` —
     ESLint bans `console` and `process.stdout`/`stderr` outside
     `lib/logger.ts`.
+  - Every place that tolerates a failure (stale fallback, optional data)
+    asks `isOutage()`; none keeps its own policy of which failures to
+    swallow.
   - Tolerating a failure is never silent: an upstream outage degrades with a
     signal the caller sees (`found: false` + reason, the stale `_meta`, a
     degraded value), and a bug is logged by `toProblem()` — review-enforced.
@@ -130,7 +133,9 @@ npm run inspector      # run under the MCP Inspector
   callback, so a new cached method can't forget to. A shared (deduplicated)
   compute runs in its own record, so every caller it serves gets its notes,
   and a result built from stale or partial input is not cached. Stale data
-  only stands in for a transient upstream failure, for at most
+  only stands in for an outage — `isOutage()` (`lib/errors.ts`), a per-code
+  table separate from `TRANSIENT`, since "retrying now helps" and "the
+  upstream is down" differ (OMDb's daily quota) — for at most
   `CACHE_MAX_STALE_MS` past expiry (RFC 5861's stale-if-error window); entry
   ages use the wall clock, since a monotonic one stops while the machine
   sleeps.

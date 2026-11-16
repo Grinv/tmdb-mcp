@@ -19,13 +19,17 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- Serve stale cached data during an outage for at most `CACHE_MAX_STALE_MS` (default a day) past expiry ([d27aec1](https://github.com/Grinv/tmdb-mcp/commit/d27aec1)).
+- Serve stale cached data only during an outage (including OMDb's daily quota), for at most `CACHE_MAX_STALE_MS` past expiry ([d27aec1](https://github.com/Grinv/tmdb-mcp/commit/d27aec1), [f549dfe](https://github.com/Grinv/tmdb-mcp/commit/f549dfe)).
+- Flag a result missing a part that failed to load (episodes, native-language trailers) with `_meta["io.github.Grinv.tmdb-mcp/partial"]: true` ([f301a01](https://github.com/Grinv/tmdb-mcp/commit/f301a01)).
 - Attach an RFC 9457 problem (`type`, `retryable`, upstream status) in `_meta` to errors raised while a tool runs; see `docs/errors.md` ([28a2d3b](https://github.com/Grinv/tmdb-mcp/commit/28a2d3b), [442c6ad](https://github.com/Grinv/tmdb-mcp/commit/442c6ad)).
 - Return keywords with their ids from `get_movie` and `get_tv`, ready for `discover_*`'s `with_keywords` ([8e8da62](https://github.com/Grinv/tmdb-mcp/commit/8e8da62)).
 - Resolve IMDb episode ids in `find_by_imdb_id` to show id plus season and episode numbers ([7fb25db](https://github.com/Grinv/tmdb-mcp/commit/7fb25db), [dbcee71](https://github.com/Grinv/tmdb-mcp/commit/dbcee71), [0a8b790](https://github.com/Grinv/tmdb-mcp/commit/0a8b790)).
 
 ### Fixed
 
+- Stop hiding a bug, a 404 or a rejected key behind stale cached data ([f301a01](https://github.com/Grinv/tmdb-mcp/commit/f301a01), [f549dfe](https://github.com/Grinv/tmdb-mcp/commit/f549dfe)).
+- Keep cached data fresh only for real elapsed time, including while the machine slept or after the clock stepped back ([f301a01](https://github.com/Grinv/tmdb-mcp/commit/f301a01), [f549dfe](https://github.com/Grinv/tmdb-mcp/commit/f549dfe)).
+- Report an empty or non-object upstream body as unreadable, not an internal error ([6e3d792](https://github.com/Grinv/tmdb-mcp/commit/6e3d792), [3534281](https://github.com/Grinv/tmdb-mcp/commit/3534281)).
 - Stop caching a video list built while the title's details failed to load, which hid native-language trailers for the cache's lifetime ([0ae100f](https://github.com/Grinv/tmdb-mcp/commit/0ae100f)).
 - Space rate-limited requests on a monotonic clock, so a system clock change no longer stalls or skips the spacing ([0aae2b8](https://github.com/Grinv/tmdb-mcp/commit/0aae2b8)).
 - Stop waiting out a retry backoff after the caller cancels ([ee68772](https://github.com/Grinv/tmdb-mcp/commit/ee68772)).
