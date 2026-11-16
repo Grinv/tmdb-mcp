@@ -11,6 +11,17 @@ export function silentLogger(): Logger {
   return createLogger("silent");
 }
 
+/** A logger that records error-level calls (message + args), for asserting
+ *  that an internal failure was logged rather than shown to the agent. */
+export function recordingLogger(): { logger: Logger; errors: unknown[][] } {
+  const errors: unknown[][] = [];
+  const noop = () => {};
+  return {
+    logger: { debug: noop, info: noop, warn: noop, error: (...a) => errors.push(a) },
+    errors,
+  };
+}
+
 // Credentials + zeroed throttling so full-stack tests run offline and fast;
 // shared so both TMDB and OMDb test files don't each redefine the same object.
 export const DEFAULT_ENV: NodeJS.ProcessEnv = {

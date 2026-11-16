@@ -31,8 +31,8 @@ import {
   tvDetailEnrichedSchema,
   tvSummarySchema,
 } from "../../format.schemas.ts";
-import { ApiError } from "../../lib/errors.ts";
-import { apiErrorMessage } from "../../lib/result.ts";
+import { toProblem } from "../../lib/result.ts";
+import type { Logger } from "../../lib/logger.ts";
 import { READ_ONLY } from "../shared.ts";
 import {
   includeRatings,
@@ -185,6 +185,7 @@ export function registerDetailsTools(
                 onStale,
               ),
             movieCard,
+            tmdb.logger,
           ),
         ctx.mcpReq.signal,
       );
@@ -231,6 +232,7 @@ export function registerDetailsTools(
                 onStale,
               ),
             tvCard,
+            tmdb.logger,
           ),
         ctx.mcpReq.signal,
       );
@@ -447,18 +449,6 @@ export function registerDetailsTools(
   );
 }
 
-/** get_movies/get_tv_shows: a rejected per-id fetch becomes that entry's `reason`.
- *
- * An ApiError goes through the same messageFor() mapping every other error
- * surface uses (lib/result.ts), so a bad id reads "No matching resource was
- * found (404)." here exactly as it does from get_movie — not the raw
- * `HTTP 404 : {"success":false,"status_code":34,...}` wire payload that
- * ApiError.message carries. */
-function errorReason(reason: unknown): string {
-  if (reason instanceof ApiError) return apiErrorMessage(reason);
-  return reason instanceof Error ? reason.message : String(reason);
-}
-
 /** get_movie/get_tv's shared shape: fetch the TMDB detail, then fold in OMDb ratings. */
 // Overloads narrow the return type by the mediaType literal — movieCard/tvCard
 // (get_movies/get_tv_shows) each call this with a fixed "movie"/"tv" and need
@@ -515,13 +505,16 @@ async function getCards<D, C>(
   ids: number[],
   fetchOne: (id: number) => Promise<D>,
   toCard: (detail: D) => C,
+  logger: Logger,
 ): Promise<{ results: (C | ReturnType<typeof notFoundCard>)[] }> {
   const settled = await Promise.allSettled(ids.map(fetchOne));
   return {
     results: settled.map((result, i) =>
       result.status === "fulfilled"
         ? toCard(result.value)
-        : notFoundCard(ids[i]!, errorReason(result.reason)),
+        : // The same tool-facing text as any other failure (lib/result.ts's
+          // toProblem), never the error's raw message.
+          notFoundCard(ids[i]!, toProblem(result.reason, logger).detail),
     ),
   };
 }
@@ -565,13 +558,12 @@ export async function maybeEnrich<T extends Record<string, unknown>>(
     }
     return { ...shaped, ratings };
   } catch (err) {
-    // Name the cause when it's a classified upstream failure (e.g. a rejected
-    // OMDB_API_KEY → 401 "unauthorized"), so the caller can tell a fixable
-    // config problem from a transient outage.
-    const reason =
-      err instanceof ApiError
-        ? `OMDb lookup failed: ${apiErrorMessage(err)}`
-        : "OMDb lookup failed";
-    return { ...shaped, ratings: ratingsNotFound(reason) };
+    // Name the cause (e.g. a rejected OMDB_API_KEY → "unauthorized"), so the
+    // caller can tell a fixable config problem from a transient outage; an
+    // internal error is logged rather than swallowed.
+    return {
+      ...shaped,
+      ratings: ratingsNotFound(`OMDb lookup failed: ${toProblem(err, omdb.logger).detail}`),
+    };
   }
 }

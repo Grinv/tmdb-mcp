@@ -1,8 +1,14 @@
 // Small pieces shared by every tool-registration module: the read-only
 // annotation, and the "does this client have credentials" short-circuit that
 // every TMDB/OMDb tool needs before it can call its client.
-import { ApiError } from "../lib/errors.ts";
-import { apiErrorToResult, errorResult, jsonResult, type ToolResult } from "../lib/result.ts";
+import {
+  jsonResult,
+  ownProblem,
+  problemResult,
+  toProblem,
+  type ToolResult,
+} from "../lib/result.ts";
+import type { Logger } from "../lib/logger.ts";
 
 export const READ_ONLY = { readOnlyHint: true, openWorldHint: true } as const;
 
@@ -36,6 +42,8 @@ export function trackStale(): {
 export interface ConfigurableClient {
   configured: boolean;
   notConfiguredMessage: string;
+  /** Where an internal error during this client's tool calls is logged. */
+  logger: Logger;
 }
 
 /** Short-circuits with `client.notConfiguredMessage` when `client.configured`
@@ -57,16 +65,17 @@ export async function requireConfigured(
   getMeta?: () => Record<string, unknown> | undefined,
   signal?: AbortSignal,
 ): Promise<ToolResult> {
-  if (!client.configured) return errorResult(client.notConfiguredMessage);
+  if (!client.configured) {
+    return problemResult(ownProblem("not_configured", client.notConfiguredMessage));
+  }
   const validationError = validate?.();
-  if (validationError) return errorResult(validationError);
+  if (validationError) return problemResult(ownProblem("invalid_arguments", validationError));
   try {
     const data = await raceAbort(fn(), signal);
     return jsonResult(data, getMeta?.());
   } catch (err) {
-    if (signal?.aborted) return errorResult("Request cancelled.");
-    if (err instanceof ApiError) return apiErrorToResult(err);
-    return errorResult(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`);
+    if (signal?.aborted) return problemResult(ownProblem("cancelled"));
+    return problemResult(toProblem(err, client.logger));
   }
 }
 

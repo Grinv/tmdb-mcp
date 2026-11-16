@@ -39,7 +39,14 @@ export function createLogger(level: LogLevel): Logger {
 
 function safeString(value: unknown): string {
   if (typeof value === "string") return value;
-  if (value instanceof Error) return value.message;
+  // An error's stack (it opens with "Name: message") and its cause chain are
+  // the diagnostics: internal errors are logged rather than shown to the agent
+  // (lib/result.ts's toProblem), so the log is the only place they surface.
+  // The joined text is still redacted by emit().
+  if (value instanceof Error) {
+    const cause = value.cause === undefined ? "" : `\ncaused by: ${safeString(value.cause)}`;
+    return `${value.stack ?? `${value.name}: ${value.message}`}${cause}`;
+  }
   try {
     return JSON.stringify(value);
   } catch {

@@ -108,7 +108,7 @@ export class HttpClient {
         return JSON.parse(text, this.#opts.reviver) as T;
       } catch (err) {
         throw new ApiError({
-          code: "unknown",
+          code: "bad_response",
           message: "Upstream returned invalid JSON",
           cause: err,
         });
@@ -117,8 +117,8 @@ export class HttpClient {
       if (err instanceof ApiError) throw err;
       if (options.signal?.aborted) {
         // Caller cancelled (e.g. the MCP client sent notifications/cancelled)
-        // — propagate as a non-retryable abort, distinct from our own timeout.
-        throw new ApiError({ code: "network", message: "Request aborted by caller", cause: err });
+        // — non-retryable, and distinct from our own timeout.
+        throw new ApiError({ code: "cancelled", message: "Request aborted by caller", cause: err });
       }
       if (timeoutController.signal.aborted) {
         throw new ApiError({
@@ -168,7 +168,7 @@ async function toHttpError(res: Response): Promise<ApiError> {
     message: `HTTP ${res.status} ${res.statusText}${detail ? `: ${detail}` : ""}`,
     // Only a structured reason reaches the tool-facing text; a raw body is wire noise.
     ...(reason ? { detail } : {}),
-    ...(retryAfter === undefined ? {} : { cause: { retryAfterMs: retryAfter } }),
+    retryAfterMs: retryAfter,
   });
 }
 
@@ -202,7 +202,7 @@ function toNetworkError(err: unknown): ApiError {
 }
 
 function backoffMs(attempt: number, err: ApiError): number {
-  const hinted = (err.cause as { retryAfterMs?: number } | undefined)?.retryAfterMs;
+  const hinted = err.retryAfterMs;
   if (typeof hinted === "number" && hinted > 0) return Math.min(hinted, MAX_BACKOFF_MS);
   return Math.min(MAX_BACKOFF_MS, 500 * 2 ** attempt);
 }

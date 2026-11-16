@@ -223,7 +223,7 @@ describe("TmdbClient: non-cached methods honor a caller AbortSignal", () => {
     controller.abort();
     await assert.rejects(
       () => call,
-      (err: unknown) => err instanceof ApiError && err.code === "network",
+      (err: unknown) => err instanceof ApiError && err.code === "cancelled",
     );
     assert.equal(sawAbort, true);
   });

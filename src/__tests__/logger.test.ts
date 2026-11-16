@@ -70,10 +70,22 @@ describe("createLogger", () => {
       log.error("circular payload", circular);
     });
     assert.equal(lines.length, 3);
-    assert.match(lines[0]!, /unhandled rejection boom/); // Error → .message
+    // Error → its stack ("Error: boom" then frames): the diagnostics an
+    // internal error only ever shows in the log.
+    assert.match(lines[0]!, /unhandled rejection Error: boom\n\s+at /);
     assert.match(lines[1]!, /"code":"E_FAIL"/); // plain object → JSON.stringify
     // JSON.stringify throws on a circular structure; must fall back to String(value)
     // instead of throwing and breaking the caller (server.ts's own error handler).
     assert.match(lines[2]!, /circular payload \[object Object\]/);
+  });
+
+  test("an Error's cause chain is logged and redacted", () => {
+    const { lines } = captureStderr(() => {
+      const log = createLogger("info");
+      const root = new Error("socket hang up https://x.test/?apikey=supersecret");
+      log.error("failed", new Error("Network error", { cause: root }));
+    });
+    assert.match(lines[0]!, /Error: Network error[\s\S]*caused by: Error: socket hang up/);
+    assert.doesNotMatch(lines[0]!, /supersecret/);
   });
 });

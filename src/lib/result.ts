@@ -1,7 +1,8 @@
 // Helpers that build MCP tool results. Tool handlers return these objects;
 // failures become { isError: true } results (never thrown) so the agent
 // receives an actionable message instead of a protocol error.
-import type { ApiError, ApiErrorCode } from "./errors.ts";
+import { ApiError, type ApiErrorCode } from "./errors.ts";
+import type { Logger } from "./logger.ts";
 
 export interface ToolResult {
   content: { type: "text"; text: string }[];
@@ -32,65 +33,119 @@ export function jsonResult(
   };
 }
 
-export function errorResult(message: string): ToolResult {
-  return { content: [{ type: "text", text: message }], isError: true };
+/**
+ * A tool failure as an RFC 9457 problem details object. MCP has no HTTP
+ * response, so RFC 9457's `status` (the status of *this* HTTP response) is
+ * not used; the upstream's status is the `upstream_status` extension, and
+ * `retryable` tells the caller whether trying again can help. The model reads
+ * `detail` as the result text; the whole object rides in `_meta`, never in
+ * `structuredContent`, which MCP reserves for data matching the tool's
+ * outputSchema.
+ */
+export interface Problem {
+  type: string;
+  title: string;
+  detail: string;
+  retryable: boolean;
+  upstream_status?: number;
 }
 
-/** Translate an upstream ApiError into a friendly, actionable tool error. */
-export function apiErrorToResult(err: ApiError): ToolResult {
-  return errorResult(messageFor(err));
-}
+/** `_meta` key for the Problem on an error result (vendor-prefixed, see shared.ts). */
+export const PROBLEM_META_KEY = "tmdb-mcp/problem";
 
-/** The same friendly text as apiErrorToResult, for a caller that needs the
- * string rather than a whole ToolResult — e.g. get_movies/get_tv_shows, where
- * a single failed id becomes that entry's `reason` inside an otherwise
- * successful batch result rather than failing the call. Without this, such a
- * caller falls back to the raw `Error.message` (`HTTP 404 : {"success":false,
- * ...}`), which is the upstream's wire payload, not an actionable message. */
-export function apiErrorMessage(err: ApiError): string {
-  return messageFor(err);
-}
+// Each problem type's URI points at its section in docs/errors.md.
+const TYPE_BASE = "https://github.com/Grinv/tmdb-mcp/blob/main/docs/errors.md#";
 
-// One entry per code — a Record, so the compiler rejects a code without one —
-// and one composition rule in messageFor, so the status, the upstream's
-// reason and the advice can't be forgotten or repeated branch by branch.
-const MESSAGES: Record<ApiErrorCode, { what: string; advice?: string; ownMessage?: true }> = {
+type ProblemCode = ApiErrorCode | "internal" | "not_configured" | "invalid_arguments";
+
+// One entry per problem type — a Record, so the compiler rejects a code
+// without one. `title` is fixed per type (as RFC 9457 requires); toProblem
+// alone composes each occurrence's `detail` from typed fields, never from an
+// error's free-text message.
+const PROBLEMS: Record<ProblemCode, { title: string; advice?: string }> = {
   unauthorized: {
-    what: "The upstream service rejected the credentials",
+    title: "The upstream service rejected the credentials",
     advice: "They may be missing, invalid or expired — check the configured API key / token.",
   },
   forbidden: {
-    what: "The upstream service denied access",
+    title: "The upstream service denied access",
     advice: "The credentials may lack permission.",
   },
-  not_found: { what: "No matching resource was found" },
+  not_found: { title: "No matching resource was found" },
   rate_limited: {
-    what: "The upstream service is rate-limiting requests",
+    title: "The upstream service is rate-limiting requests",
     advice: "Please retry later.",
   },
-  server_error: { what: "The upstream service returned an error", advice: "Please retry later." },
+  server_error: { title: "The upstream service returned an error", advice: "Please retry later." },
   network: {
-    what: "Could not reach the upstream service (network error)",
+    title: "Could not reach the upstream service (network error)",
     advice: "Check connectivity and retry.",
   },
-  timeout: { what: "The upstream request timed out", advice: "Please retry." },
-  // No fixed text explains these, so our own message does when it is ours —
-  // see messageFor.
-  bad_request: { what: "The request was rejected as invalid", ownMessage: true },
-  unknown: { what: "Unexpected error talking to the upstream service", ownMessage: true },
+  timeout: { title: "The upstream request timed out", advice: "Please retry." },
+  cancelled: { title: "The request was cancelled" },
+  bad_request: { title: "The request was rejected as invalid" },
+  bad_response: {
+    title: "The upstream service returned an unreadable response",
+    advice: "Please retry later.",
+  },
+  unknown: { title: "Unexpected error talking to the upstream service" },
+  internal: {
+    title: "Internal error in tmdb-mcp",
+    advice: "Details are in the server log (stderr); please report it.",
+  },
+  not_configured: { title: "The upstream service is not configured" },
+  invalid_arguments: { title: "Invalid arguments" },
 };
 
-function messageFor(err: ApiError): string {
-  const { what, advice, ownMessage } = MESSAGES[err.code];
-  // The status is shown only when there was one: OMDb also reports failures
-  // in a 200 body (see clients/omdb.ts), so the code alone can't name it.
-  const status = err.status ? ` (${err.status})` : "";
-  // Only a status-less error's message is our own wording ("Upstream returned
-  // invalid JSON"); an HTTP error's message carries the raw response body,
-  // which is wire noise (toHttpError keeps it out of detail for that reason).
-  const own = ownMessage && err.status === undefined && !err.detail ? `: ${err.message}` : "";
-  // Never drop the upstream's own reason: one status can mean several things
-  // (OMDb reports both a bad key and an exhausted quota as refusals).
-  const reason = err.detail ? `The upstream said: "${err.detail}"` : undefined;
-  return [`${what}${status}${own}.`, advice, reason].filter(Boolean).join(" ");
+/** Every problem type; each `type` URI's section must exist in docs/errors.md. */
+export const PROBLEM_CODES = Object.keys(PROBLEMS) as ProblemCode[];
+
+/**
+ * The one place a failure becomes tool-facing text. An ApiError is described
+ * by its code, status and the upstream's own reason (`detail`) — never by its
+ * `message`, which is diagnostics and may hold a raw response body. Anything
+ * else is a bug in this server: it is logged in full (stack and cause chain)
+ * and the caller gets a stable "internal error" instead of its internals.
+ */
+export function toProblem(err: unknown, logger: Logger): Problem {
+  if (err instanceof ApiError) {
+    const { title, advice } = PROBLEMS[err.code];
+    const status = err.status ? ` (${err.status})` : "";
+    // One status can mean several things (OMDb reports both a bad key and an
+    // exhausted quota as refusals), so the upstream's own reason always shows.
+    const reason = err.detail ? `The upstream said: "${err.detail}"` : undefined;
+    return {
+      type: TYPE_BASE + err.code,
+      title,
+      detail: [`${title}${status}.`, advice, reason].filter(Boolean).join(" "),
+      retryable: err.retryable,
+      ...(err.status ? { upstream_status: err.status } : {}),
+    };
+  }
+  logger.error("internal error in a tool call:", err);
+  return ownProblem("internal");
+}
+
+/** A problem this server raises itself (no thrown error): its own `detail`,
+ *  or the type's title and advice. */
+export function ownProblem(
+  code: "internal" | "not_configured" | "invalid_arguments" | "cancelled",
+  detail?: string,
+): Problem {
+  const { title, advice } = PROBLEMS[code];
+  return {
+    type: TYPE_BASE + code,
+    title,
+    detail: detail ?? [`${title}.`, advice].filter(Boolean).join(" "),
+    retryable: false,
+  };
+}
+
+/** An isError tool result: the model reads `detail`; the Problem is `_meta`. */
+export function problemResult(problem: Problem): ToolResult {
+  return {
+    content: [{ type: "text", text: problem.detail }],
+    isError: true,
+    _meta: { [PROBLEM_META_KEY]: problem },
+  };
 }

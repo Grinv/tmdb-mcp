@@ -76,6 +76,17 @@ npm run inspector      # run under the MCP Inspector
   checked after the configured-check but before `fn` — use it (instead of a
   manual duplicate configured-check) when a tool needs both checks in that
   specific order, e.g. `get_ratings` in `tools/omdb.ts`.
+- Errors have three layers, each with one job. **Classify:** every known
+  failure gets its own `ApiErrorCode` (`lib/errors.ts`); `ApiError.message`
+  is diagnostics for logs and may hold a raw body. **Translate:**
+  `toProblem()` (`lib/result.ts`) is the only place a failure becomes
+  tool-facing text — an RFC 9457 problem built from `code`/`status`/`detail`
+  only; anything that isn't an `ApiError` is an internal bug, logged in full
+  and shown as a stable "internal error". **Output:** the model reads the
+  problem's `detail` as the `isError` text; the problem itself goes in
+  `_meta["tmdb-mcp/problem"]` (never `structuredContent`). A new code needs a
+  `PROBLEMS` entry (the compiler enforces it) and a `docs/errors.md` section
+  (a test enforces it). Never put `err.message` in front of the agent.
 - Mocked-`fetch` test fixtures must mirror the real upstream response shape
   for that exact endpoint, not just whatever fields make the current code
   pass — see

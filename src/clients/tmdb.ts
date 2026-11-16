@@ -209,7 +209,11 @@ export class TmdbClient {
     "TMDB is not configured. Set TMDB_API_TOKEN to a TMDB v4 'Read Access Token' " +
     "(https://www.themoviedb.org/settings/api).";
 
+  /** For callers that report this client's failures (see tools/shared.ts). */
+  readonly logger: Logger;
+
   constructor(config: Config, logger: Logger) {
+    this.logger = logger;
     this.configured = Boolean(config.tmdbApiToken);
     this.#language = config.tmdbLanguage;
     this.#region = config.tmdbRegion;

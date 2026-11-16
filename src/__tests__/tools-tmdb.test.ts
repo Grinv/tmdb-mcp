@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { maybeEnrich } from "../tools/tmdb/details.ts";
 import type { OmdbClient } from "../clients/omdb.ts";
 import { ApiError } from "../lib/errors.ts";
+import { recordingLogger, silentLogger } from "./helpers.ts";
 
 // get_movie/get_tv's degrade-gracefully policy, tested directly against the
 // policy function instead of round-tripping the full MCP server twice (once
@@ -52,16 +53,22 @@ describe("maybeEnrich", () => {
     assert.deepEqual(res.ratings, { found: true, imdb_id: "tt0133093", imdb_rating: "8.7" });
   });
 
-  test("degrades to found:false when OMDb throws, without sinking the TMDB result", async () => {
+  // A non-ApiError is a bug: it used to vanish into a bare "OMDb lookup
+  // failed" with nothing logged; now it's logged and named as internal.
+  test("degrades to found:false when OMDb throws, and logs an internal error", async () => {
+    const { logger, errors } = recordingLogger();
     const omdb = {
       configured: true,
+      logger,
       ratingsByImdbId: async () => {
         throw new Error("boom");
       },
     } as unknown as OmdbClient;
     const res = await maybeEnrich({ title: "x" }, "tt0133093", true, omdb);
     assert.equal(res.title, "x");
-    assert.deepEqual(res.ratings, { found: false, reason: "OMDb lookup failed" });
+    assert.equal(res.ratings?.found, false);
+    assert.match((res.ratings as { reason: string }).reason, /^OMDb lookup failed: Internal error/);
+    assert.equal((errors[0]![1] as Error).message, "boom");
   });
 
   test("names the cause when OMDb fails with an ApiError (e.g. a rejected key)", async () => {
@@ -72,6 +79,7 @@ describe("maybeEnrich", () => {
       ratingsByImdbId: async () => {
         throw new ApiError({ code: "unauthorized", status: 401, message: "HTTP 401" });
       },
+      logger: silentLogger(),
     } as unknown as OmdbClient;
     const res = await maybeEnrich({ title: "x" }, "tt0133093", true, omdb);
     assert.equal(res.ratings?.found, false);

@@ -42,7 +42,7 @@ describe("error mapping by status/body", () => {
     await assert.rejects(
       () => client().getJson("thing"),
       (err: unknown) =>
-        err instanceof ApiError && err.code === "unknown" && /invalid JSON/i.test(err.message),
+        err instanceof ApiError && err.code === "bad_response" && /invalid JSON/i.test(err.message),
     );
   });
 
@@ -325,7 +325,7 @@ describe("abort/timeout", () => {
     await assert.rejects(
       () => call,
       (err: unknown) =>
-        err instanceof ApiError && err.code === "network" && err.retryable === false,
+        err instanceof ApiError && err.code === "cancelled" && err.retryable === false,
     );
     assert.equal(mock.calls.length, 1); // no retry after a caller cancellation
   });
@@ -337,7 +337,7 @@ describe("abort/timeout", () => {
     controller.abort(); // aborted before getJson is ever called
     await assert.rejects(
       () => client().getJson("thing", { signal: controller.signal }),
-      (err: unknown) => err instanceof ApiError && err.code === "network",
+      (err: unknown) => err instanceof ApiError && err.code === "cancelled",
     );
   });
 });

@@ -26,7 +26,11 @@ export class OmdbClient {
   readonly notConfiguredMessage =
     "OMDb is not configured. Set OMDB_API_KEY to a free key from https://www.omdbapi.com/apikey.aspx.";
 
+  /** For callers that report this client's failures (see tools/shared.ts). */
+  readonly logger: Logger;
+
   constructor(config: Config, logger: Logger) {
+    this.logger = logger;
     this.#apiKey = config.omdbApiKey;
     this.configured = Boolean(config.omdbApiKey);
     const { http, cache } = createUpstream({
@@ -86,7 +90,8 @@ export class OmdbClient {
       }
       throw err;
     }
-    if (!res) throw new ApiError({ code: "unknown", message: "OMDb returned an empty response" });
+    if (!res)
+      throw new ApiError({ code: "bad_response", message: "OMDb returned an empty response" });
     if (res.Response === "False" && res.Error && !OMDB_MISS.test(res.Error)) {
       throw refusal(res.Error);
     }

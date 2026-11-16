@@ -1,0 +1,90 @@
+# Tool errors
+
+A failed tool call follows the MCP spec: an `isError: true` result whose text
+content explains the failure to the model, so it can correct itself. The same
+failure is also attached for the client application as an
+[RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) problem details object in
+the result's `_meta["tmdb-mcp/problem"]` — never in `structuredContent`, which
+MCP reserves for data matching the tool's `outputSchema`.
+
+```json
+{
+  "type": "https://github.com/Grinv/tmdb-mcp/blob/main/docs/errors.md#unauthorized",
+  "title": "The upstream service rejected the credentials",
+  "detail": "The upstream service rejected the credentials (401). They may be missing, invalid or expired — check the configured API key / token. The upstream said: \"Invalid API key!\"",
+  "retryable": false,
+  "upstream_status": 401
+}
+```
+
+- `type` — stable URI of the problem type: one of the sections below.
+- `title` — fixed summary of the type.
+- `detail` — this occurrence, as the model reads it (the result's text).
+- `retryable` — whether trying the same call again can help.
+- `upstream_status` — the TMDB/OMDb HTTP status, when there was one. RFC
+  9457's own `status` member (the status of _this_ HTTP response) is not used:
+  MCP results have none.
+
+The text never includes an error's raw upstream body or internal message.
+
+## unauthorized
+
+TMDB or OMDb rejected the configured token/key: missing, invalid or expired.
+Fix `TMDB_API_TOKEN` / `OMDB_API_KEY`.
+
+## forbidden
+
+The credentials are valid but lack access to this resource.
+
+## not_found
+
+No such movie, show, person, season, episode or collection — check the id.
+
+## rate_limited
+
+The upstream is throttling requests, or OMDb's daily quota is used up
+(`retryable` is then false: it resets on OMDb's schedule, not in seconds).
+
+## server_error
+
+The upstream failed (HTTP 5xx). Retry later.
+
+## network
+
+The upstream could not be reached. Check connectivity.
+
+## timeout
+
+The upstream did not answer within `HTTP_TIMEOUT_MS` (headers and body).
+
+## cancelled
+
+The client cancelled the call.
+
+## bad_request
+
+The upstream rejected the request as invalid (HTTP 400/405/422).
+
+## bad_response
+
+The upstream answered with a success status but an unreadable body (invalid
+JSON, or empty).
+
+## unknown
+
+Any other upstream status or refusal; `detail` carries the upstream's reason.
+
+## internal
+
+A bug in tmdb-mcp. The full error (stack and cause chain) is in the server log
+on stderr; please report it.
+
+## not_configured
+
+The tool's upstream has no credentials configured; `detail` names the
+environment variable to set.
+
+## invalid_arguments
+
+The arguments passed this tool's schema but not its own cross-field check
+(e.g. `get_ratings` with neither `imdb_id` nor `title`).

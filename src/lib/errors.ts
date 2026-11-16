@@ -1,6 +1,8 @@
 // Typed errors for upstream API failures. Clients throw `ApiError`; tool
 // handlers convert it into an MCP tool result (see lib/result.ts) so the
-// agent gets an actionable, non-protocol error.
+// agent gets an actionable, non-protocol error. Every known situation has its
+// own code: the tool-facing text is built from code/status/detail only, and
+// `message` is diagnostics for logs (it may hold a raw response body).
 
 export type ApiErrorCode =
   | "unauthorized" // 401 — token missing/expired/invalid
@@ -10,8 +12,10 @@ export type ApiErrorCode =
   | "server_error" // 5xx — upstream broke
   | "network" // connection failed
   | "timeout" // request aborted by our timeout
+  | "cancelled" // request aborted by the caller (e.g. MCP notifications/cancelled)
   | "bad_request" // 400/405/422 — malformed or unsupported request
-  | "unknown";
+  | "bad_response" // a success status with a body we can't read (invalid JSON, empty)
+  | "unknown"; // any other upstream status or refusal
 
 export interface ApiErrorOptions {
   code: ApiErrorCode;
@@ -20,6 +24,9 @@ export interface ApiErrorOptions {
   detail?: string;
   status?: number;
   retryable?: boolean;
+  /** Retry-After hint, in ms, for the retry backoff. */
+  retryAfterMs?: number;
+  /** The underlying error this one wraps (a fetch or JSON.parse failure). */
   cause?: unknown;
 }
 
@@ -28,6 +35,7 @@ export class ApiError extends Error {
   readonly status: number | undefined;
   readonly retryable: boolean;
   readonly detail: string | undefined;
+  readonly retryAfterMs: number | undefined;
 
   constructor(opts: ApiErrorOptions) {
     super(opts.message, opts.cause === undefined ? undefined : { cause: opts.cause });
@@ -36,6 +44,7 @@ export class ApiError extends Error {
     this.detail = opts.detail;
     this.status = opts.status;
     this.retryable = opts.retryable ?? false;
+    this.retryAfterMs = opts.retryAfterMs;
   }
 }
 
