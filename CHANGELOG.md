@@ -19,13 +19,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - Return keywords with their ids from `get_movie` and `get_tv`, ready for `discover_*`'s `with_keywords` ([8e8da62](https://github.com/Grinv/tmdb-mcp/commit/8e8da62)).
-- Resolve IMDb episode ids in `find_by_imdb_id` to show id plus season and episode numbers ([7fb25db](https://github.com/Grinv/tmdb-mcp/commit/7fb25db)).
+- Resolve IMDb episode ids in `find_by_imdb_id` to show id plus season and episode numbers ([7fb25db](https://github.com/Grinv/tmdb-mcp/commit/7fb25db), [dbcee71](https://github.com/Grinv/tmdb-mcp/commit/dbcee71)).
 
 ### Fixed
 
 - Time out a response that stalls after its headers instead of hanging the call for minutes ([7098f20](https://github.com/Grinv/tmdb-mcp/commit/7098f20)).
-- Include the upstream's own reason in tool errors, e.g. OMDb's "Invalid API key!" ([e723377](https://github.com/Grinv/tmdb-mcp/commit/e723377)).
-- Report an OMDb refusal sent with HTTP 200 as an error, not a cached "no ratings" ([e723377](https://github.com/Grinv/tmdb-mcp/commit/e723377)).
+- Include the upstream's own reason in tool errors, e.g. OMDb's "Invalid API key!" ([e723377](https://github.com/Grinv/tmdb-mcp/commit/e723377), [a6dbbea](https://github.com/Grinv/tmdb-mcp/commit/a6dbbea)).
+- Report an OMDb refusal as an error, not a cached "no ratings", and an exhausted quota as a rate limit, not a bad key ([e723377](https://github.com/Grinv/tmdb-mcp/commit/e723377), [44b17a2](https://github.com/Grinv/tmdb-mcp/commit/44b17a2)).
+- Make the `.mcpb` prompt templates match the server and use mcpb's `${arguments.KEY}` placeholders, not `{{arg}}` ([da5e2f6](https://github.com/Grinv/tmdb-mcp/commit/da5e2f6)).
 - Never tell the model to fetch more than 20 ids in one `get_tv_shows` call in `top_by_entity` ([3873d5d](https://github.com/Grinv/tmdb-mcp/commit/3873d5d)).
 - Evict the least recently used cache entry, so hot entries keep their outage fallback ([6eab9b7](https://github.com/Grinv/tmdb-mcp/commit/6eab9b7)).
 - Bump `zod` to 4.6.7 to fix a memory-exhaustion advisory when validating oversized inputs ([GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5)) ([b9fd54c](https://github.com/Grinv/tmdb-mcp/commit/b9fd54c)).
