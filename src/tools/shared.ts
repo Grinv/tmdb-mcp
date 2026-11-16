@@ -67,7 +67,7 @@ export async function requireConfigured(
 /** Settles as soon as `promise` settles or `signal` aborts, so a cancelled tool
  *  call stops waiting instead of hanging on a shared upstream fetch. It does
  *  not abort that fetch: TtlCache dedupes concurrent callers for a key onto one
- *  in-flight request (lib/cache.ts's #dedupe), so aborting it would cancel it
+ *  in-flight request (lib/cache.ts's #refresh), so aborting it would cancel it
  *  for every other caller waiting on the same key. */
 function raceAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
   if (!signal) return promise;

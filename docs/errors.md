@@ -94,7 +94,7 @@ reply cut off mid-body is a [network](#network) error.
 
 ## unknown
 
-Any other upstream status or refusal; `detail` carries the upstream's reason.
+Any other upstream status or refusal; `detail` carries the upstream's reason when it sent one.
 
 ## internal
 

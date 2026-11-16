@@ -33,6 +33,7 @@ import {
   summarizePersonCredits,
   summarizeReview,
   summarizeSeason,
+  MAX_SEASON_EPISODES,
   trimCombinedCredits,
   summarizeTv,
   summarizeVideos,
@@ -82,11 +83,11 @@ const MAX_APPEND_TO_RESPONSE = 20;
 // true total after truncation.
 export const MAX_EXPANDED_EPISODES = 250;
 
-// Per-season cap applied by summarizeSeason. getTvSeasonsBulk's budget must
-// charge a season what it will return (min(episode_count, this)), not its true
-// episode_count: season 0 "Specials" often reports 80+ episodes but contributes
-// at most 50, and charging 80+ would evict later seasons that fit.
-export const MAX_SEASON_EPISODES = 50;
+// getTvSeasonsBulk's budget must charge a season what summarizeSeason will
+// return (min(episode_count, MAX_SEASON_EPISODES)), not its true episode_count:
+// season 0 "Specials" often reports 80+ episodes but contributes at most 50,
+// and charging 80+ would evict later seasons that fit.
+export { MAX_SEASON_EPISODES };
 
 // The real constraint is serialized response size, which an episode count only
 // approximates: 500 episodes of The Simpsons (802 in total) still came to

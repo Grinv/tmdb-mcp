@@ -1167,6 +1167,9 @@ export interface TmdbSeason {
   episodes?: RawEpisode[];
 }
 
+// Per-season episode cap, for get_tv_season and get_tv's expand_episodes alike.
+export const MAX_SEASON_EPISODES = 50;
+
 // `episodeLimit` caps "Specials" seasons that accumulate hundreds of
 // bonus/promo clips over a long-running show's lifetime (300+ for some) and
 // would otherwise blow past a reasonable response size. `episode_count` still
@@ -1177,7 +1180,7 @@ export interface TmdbSeason {
 // get_tv_season for one season's full detail.
 export function summarizeSeason(
   s: TmdbSeason,
-  episodeLimit = 50,
+  episodeLimit = MAX_SEASON_EPISODES,
   includeEpisodeOverview = true,
 ): z.infer<typeof seasonSchema> {
   const episodes = s.episodes ?? [];
