@@ -4,7 +4,7 @@ import { ApiError } from "../lib/errors.ts";
 import { READ_ONLY, requireConfigured, STALE_META_KEY } from "../tools/shared.ts";
 import { TtlCache } from "../lib/cache.ts";
 import { PROBLEM_META_KEY } from "../lib/result.ts";
-import { recordingLogger, silentLogger } from "./helpers.ts";
+import { fakeClock, recordingLogger, silentLogger } from "./helpers.ts";
 
 describe("READ_ONLY", () => {
   test("marks tools as read-only and open-world", () => {
@@ -123,10 +123,10 @@ describe("requireConfigured", () => {
 // so nothing between fn and the cache has to wire a callback through.
 describe("requireConfigured: stale-cache signal", () => {
   test("a stale fallback anywhere inside fn surfaces as _meta with its age", async () => {
-    let now = 0;
-    const cache = new TtlCache({ ttlMs: 1, now: () => now });
+    const clock = fakeClock();
+    const cache = new TtlCache({ ttlMs: 1, clock });
     await cache.wrapStaleOnError("k", async () => ({ a: 1 }));
-    now += 2500;
+    clock.advance(2500);
     const client = { configured: true, notConfiguredMessage: "unused", logger: silentLogger() };
     const res = await requireConfigured(client, () =>
       cache.wrapStaleOnError("k", async () => {

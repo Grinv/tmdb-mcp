@@ -1,7 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { ApiError } from "../lib/errors.ts";
-import { silentLogger } from "./helpers.ts";
+import { fakeClock, silentLogger } from "./helpers.ts";
 import { TtlCache, cacheKey, degraded, callNotes, type CallNotes } from "../lib/cache.ts";
 
 const tick = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -44,10 +44,10 @@ describe("TtlCache", () => {
   });
 
   test("wrapStaleOnError serves the stale value when compute fails", async () => {
-    let now = 0;
-    const cache = new TtlCache({ ttlMs: 1, now: () => now }); // 1ms TTL; `now` is the cache's clock
+    const clock = fakeClock();
+    const cache = new TtlCache({ ttlMs: 1, clock }); // 1ms TTL
     await cache.wrapStaleOnError("k", async () => 1);
-    now += 5;
+    clock.advance(5);
     const v = await cache.wrapStaleOnError("k", async () => {
       throw new ApiError({ code: "server_error", message: "upstream down" });
     });
@@ -55,7 +55,7 @@ describe("TtlCache", () => {
   });
 
   test("wrapStaleOnError logs a warning when serving stale data", async () => {
-    let now = 0;
+    const clock = fakeClock();
     const warnings: string[] = [];
     const logger = {
       debug: () => {},
@@ -63,9 +63,9 @@ describe("TtlCache", () => {
       warn: (msg: string) => warnings.push(msg),
       error: () => {},
     };
-    const cache = new TtlCache({ ttlMs: 1, logger, now: () => now });
+    const cache = new TtlCache({ ttlMs: 1, logger, clock });
     await cache.wrapStaleOnError("k", async () => 1);
-    now += 5;
+    clock.advance(5);
     await cache.wrapStaleOnError("k", async () => {
       throw new ApiError({ code: "server_error", message: "upstream down" });
     });
@@ -75,13 +75,13 @@ describe("TtlCache", () => {
   });
 
   test("records a stale fallback's age in the call's notes, and only then", async () => {
-    let now = 0;
-    const cache = new TtlCache({ ttlMs: 1, now: () => now });
+    const clock = fakeClock();
+    const cache = new TtlCache({ ttlMs: 1, clock });
     const fresh: CallNotes = {};
     await callNotes.run(fresh, () => cache.wrapStaleOnError("k", async () => 1));
     assert.equal(fresh.staleAgeMs, undefined, "a successful fresh compute is not stale");
 
-    now += 5;
+    clock.advance(5);
     const stale: CallNotes = {};
     const v = await callNotes.run(stale, () =>
       cache.wrapStaleOnError("k", async () => {
@@ -95,10 +95,10 @@ describe("TtlCache", () => {
   // Two calls share one deduplicated fetch, but each keeps its own record:
   // the context, not a shared flag, decides who is told the data is stale.
   test("each concurrent caller's own notes are the ones written", async () => {
-    let now = 0;
-    const cache = new TtlCache({ ttlMs: 1, now: () => now });
+    const clock = fakeClock();
+    const cache = new TtlCache({ ttlMs: 1, clock });
     await cache.wrapStaleOnError("k", async () => 1);
-    now += 5;
+    clock.advance(5);
     let fail!: (err: Error) => void;
     const compute = () => new Promise<number>((_, reject) => (fail = reject));
     const a: CallNotes = {};
@@ -115,11 +115,11 @@ describe("TtlCache", () => {
   // A degraded (partial) result is used but never cached; a complete stale
   // copy within the window wins over it.
   test("a degraded result is not cached, and a complete stale copy beats it", async () => {
-    let now = 0;
-    const cache = new TtlCache({ ttlMs: 1, now: () => now });
+    const clock = fakeClock();
+    const cache = new TtlCache({ ttlMs: 1, clock });
     assert.equal(await cache.wrapStaleOnError("k", async () => degraded("partial")), "partial");
     assert.equal(await cache.wrapStaleOnError("k", async () => "full"), "full", "not cached");
-    now += 5;
+    clock.advance(5);
     const record: CallNotes = {};
     const v = await callNotes.run(record, () =>
       cache.wrapStaleOnError("k", async () => degraded("partial")),
@@ -130,15 +130,15 @@ describe("TtlCache", () => {
 
   // RFC 5861's stale-if-error is a window: past it, the failure surfaces.
   test("serves stale only within maxStaleMs past expiry", async () => {
-    let now = 0;
-    const cache = new TtlCache({ ttlMs: 10, maxStaleMs: 100, now: () => now });
+    const clock = fakeClock();
+    const cache = new TtlCache({ ttlMs: 10, maxStaleMs: 100, clock });
     await cache.wrapStaleOnError("k", async () => 1);
     const fail = async () => {
       throw new ApiError({ code: "server_error", message: "upstream down" });
     };
-    now = 110; // expired 100ms ago: still inside the window
+    clock.advance(110); // expired 100ms ago: still inside the window
     assert.equal(await cache.wrapStaleOnError("k", fail), 1);
-    now = 111;
+    clock.advance(1);
     await assert.rejects(() => cache.wrapStaleOnError("k", fail), /upstream down/);
   });
 
@@ -216,10 +216,10 @@ describe("TtlCache", () => {
   // Stale data may only stand in for an outage: a bug, a 404 or a rejected
   // key must surface, not be hidden behind yesterday's copy.
   test("serves stale only during an upstream outage", async () => {
-    let now = 0;
-    const cache = new TtlCache({ ttlMs: 1, now: () => now });
+    const clock = fakeClock();
+    const cache = new TtlCache({ ttlMs: 1, clock });
     await cache.wrapStaleOnError("k", async () => 1);
-    now += 5;
+    clock.advance(5);
     for (const err of [
       new TypeError("bug"),
       new ApiError({ code: "not_found", message: "gone" }),
@@ -252,52 +252,60 @@ describe("TtlCache", () => {
   });
 
   // Age is the larger of the wall-clock and monotonic deltas: it counts
-  // sleep (wall moves, monotonic doesn't), ignores a step back (wall moves
-  // back, monotonic doesn't), and a step forward only expires early.
+  // sleep (the wall clock moves, the monotonic one doesn't) and ignores a
+  // step back (the wall clock moves back).
   test("an entry's age counts sleep and ignores the clock stepping back", async () => {
-    let wall = 10_000_000;
-    let mono = 0;
-    const cache = new TtlCache({
-      ttlMs: 1_000,
-      maxStaleMs: 1_000,
-      now: () => wall,
-      monoNow: () => mono,
-    });
+    const clock = fakeClock(10_000_000);
+    const cache = new TtlCache({ ttlMs: 1_000, maxStaleMs: 1_000, clock });
     const down = async (): Promise<number> => {
       throw new ApiError({ code: "network", message: "down" });
     };
 
     cache.set("k", 1);
-    wall -= 3_600_000; // clock stepped back an hour; no real time passed
+    clock.jumpWall(-3_600_000); // stepped back an hour; no real time passed
     assert.equal(cache.get("k"), 1, "still fresh: its real age is ~0");
-    mono += 1_500; // 1.5 s of real time later
-    wall += 1_500;
+    clock.advance(1_500);
     assert.equal(cache.get("k"), undefined, "expired by real time, not by the stepped clock");
     const notes: CallNotes = {};
     assert.equal(await callNotes.run(notes, () => cache.wrapStaleOnError("k", down)), 1);
     assert.equal(notes.staleAgeMs, 1_500);
 
     cache.set("s", 2);
-    wall += 3_000; // the machine slept 3 s: the wall clock moved, mono didn't
-    await assert.rejects(() => cache.wrapStaleOnError("s", down), "past ttl + maxStale");
+    clock.jumpWall(3_000); // slept 3 s: past ttl + maxStale
+    await assert.rejects(() => cache.wrapStaleOnError("s", down));
+  });
+
+  test("one outage shared by concurrent callers is logged once", async () => {
+    const clock = fakeClock();
+    const warnings: string[] = [];
+    const logger = { ...silentLogger(), warn: (msg: string) => warnings.push(msg) };
+    const cache = new TtlCache({ ttlMs: 1, logger, clock });
+    await cache.wrapStaleOnError("k", async () => 1);
+    clock.advance(5);
+    let fail!: (err: unknown) => void;
+    const compute = () => new Promise<number>((_, reject) => (fail = reject));
+    const calls = [1, 2, 3].map(() => cache.wrapStaleOnError("k", compute));
+    fail(new ApiError({ code: "server_error", message: "down" }));
+    assert.deepEqual(await Promise.all(calls), [1, 1, 1]);
+    assert.equal(warnings.length, 1);
   });
 
   test("serving a stale copy over a partial result is logged too", async () => {
-    let now = 0;
+    const clock = fakeClock();
     const warnings: string[] = [];
     const logger = { ...silentLogger(), warn: (msg: string) => warnings.push(msg) };
-    const cache = new TtlCache({ ttlMs: 1, logger, now: () => now });
+    const cache = new TtlCache({ ttlMs: 1, logger, clock });
     await cache.wrapStaleOnError("k", async () => "full");
-    now += 5;
+    clock.advance(5);
     assert.equal(await cache.wrapStaleOnError("k", async () => degraded("part")), "full");
     assert.equal(warnings.length, 1);
   });
 
   test("a degraded compute's notes are dropped when a complete stale copy wins", async () => {
-    let now = 0;
-    const cache = new TtlCache({ ttlMs: 1, now: () => now });
+    const clock = fakeClock();
+    const cache = new TtlCache({ ttlMs: 1, clock });
     await cache.wrapStaleOnError("k", async () => "full");
-    now += 5;
+    clock.advance(5);
     const notes: CallNotes = {};
     const v = await callNotes.run(notes, () =>
       cache.wrapStaleOnError("k", async () => {
@@ -313,11 +321,11 @@ describe("TtlCache", () => {
   // A shared compute that itself used stale data: every caller it serves is
   // told, and the result built from it is not cached as fresh.
   test("a compute built from stale input notes every caller and isn't cached", async () => {
-    let now = 0;
-    const inner = new TtlCache({ ttlMs: 1, now: () => now });
-    const outer = new TtlCache({ ttlMs: 60_000, now: () => now });
+    const clock = fakeClock();
+    const inner = new TtlCache({ ttlMs: 1, clock });
+    const outer = new TtlCache({ ttlMs: 60_000, clock });
     await inner.wrapStaleOnError("detail", async () => "d");
-    now += 5;
+    clock.advance(5);
     const down = async (): Promise<string> => {
       throw new ApiError({ code: "server_error", message: "down" });
     };
@@ -351,10 +359,10 @@ describe("TtlCache", () => {
   });
 
   test("an entry past the stale window is dropped, not kept alive", async () => {
-    let now = 0;
-    const cache = new TtlCache({ ttlMs: 10, max: 2, maxStaleMs: 100, now: () => now });
+    const clock = fakeClock();
+    const cache = new TtlCache({ ttlMs: 10, max: 2, maxStaleMs: 100, clock });
     await cache.wrapStaleOnError("old", async () => "o");
-    now = 200; // far past ttl + maxStale
+    clock.advance(200); // far past ttl + maxStale
     const down = async (): Promise<string> => {
       throw new ApiError({ code: "server_error", message: "down" });
     };
@@ -399,10 +407,10 @@ describe("TtlCache", () => {
   });
 
   test("wrapStaleOnError: concurrent failures each independently fall back to the same stale value", async () => {
-    let now = 0;
-    const cache = new TtlCache({ ttlMs: 1, now: () => now }); // 1ms TTL; `now` is the cache's clock
+    const clock = fakeClock();
+    const cache = new TtlCache({ ttlMs: 1, clock }); // 1ms TTL
     await cache.wrapStaleOnError("k", async () => 5);
-    now += 5;
+    clock.advance(5);
     let calls = 0;
     const failing = async () => {
       calls += 1;

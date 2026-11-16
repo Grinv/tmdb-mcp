@@ -7,6 +7,25 @@ import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import { buildServer } from "../server.ts";
 import { loadConfig } from "../config.ts";
 
+/** A cache clock for tests. `advance` moves both clocks (real time passing);
+ *  `jumpWall` moves only the wall clock, which is what both sleep (forward)
+ *  and a clock step (either way) look like to the cache. */
+export function fakeClock(start = 0) {
+  let wall = start;
+  let mono = start;
+  return {
+    wall: () => wall,
+    mono: () => mono,
+    advance(ms: number) {
+      wall += ms;
+      mono += ms;
+    },
+    jumpWall(ms: number) {
+      wall += ms;
+    },
+  };
+}
+
 export function silentLogger(): Logger {
   return createLogger("silent");
 }

@@ -8,7 +8,7 @@
 // their own `compute()`/`value` has.
 
 import { AsyncLocalStorage } from "node:async_hooks";
-import { isOutage } from "./errors.ts";
+import { ApiError, isOutage } from "./errors.ts";
 import type { Logger } from "./logger.ts";
 
 /**
@@ -29,6 +29,15 @@ export function cacheKey(
 }
 
 // Stored on both clocks; see TtlCache's #ageMs.
+export interface Clock {
+  /** Wall clock (ms): counts sleep, but can be stepped. */
+  wall(): number;
+  /** Monotonic clock (ms): never stepped, but stops while the machine sleeps. */
+  mono(): number;
+}
+
+const SYSTEM_CLOCK: Clock = { wall: () => Date.now(), mono: () => performance.now() };
+
 interface Entry {
   value: unknown;
   wallAt: number;
@@ -78,8 +87,10 @@ export class TtlCache {
   readonly #max: number;
   readonly #maxStaleMs: number;
   readonly #logger?: Logger;
-  readonly #wall: () => number;
-  readonly #mono: () => number;
+  readonly #clock: Clock;
+  // Outage errors already logged: waiters on one shared compute get the same
+  // error object, so a failure is logged once, not once per caller.
+  readonly #logged = new WeakSet<ApiError>();
   readonly #map = new Map<string, Entry>();
   // In-flight computes, keyed like #map, so concurrent callers of a cold key
   // share one upstream fetch.
@@ -92,26 +103,23 @@ export class TtlCache {
      *  (RFC 5861's stale-if-error window); unbounded by default. */
     maxStaleMs?: number;
     logger?: Logger;
-    /** Clocks (ms), injectable for tests: `now` is the wall clock, `monoNow`
-     *  a monotonic one (defaults to `now` when only that is given). */
-    now?: () => number;
-    monoNow?: () => number;
+    /** Injectable for tests. */
+    clock?: Clock;
   }) {
     this.#ttlMs = opts.ttlMs;
     this.#max = opts.max ?? 500;
     this.#maxStaleMs = opts.maxStaleMs ?? Infinity;
     this.#logger = opts.logger;
-    this.#wall = opts.now ?? (() => Date.now());
-    this.#mono = opts.monoNow ?? opts.now ?? (() => performance.now());
+    this.#clock = opts.clock ?? SYSTEM_CLOCK;
   }
 
-  // An entry's real age is never less than the monotonic clock's delta (that
-  // clock only stops while the machine sleeps) and, between clock steps,
-  // equals the wall clock's (which counts sleep). The larger of the two is
-  // never negative, counts sleep and isn't shortened by the clock stepping
-  // back; a step forward only expires the entry early.
+  // An entry's real age is never less than the monotonic delta and, between
+  // clock steps, equals the wall delta; the larger of the two is never
+  // negative and counts sleep. Limits no clock can see past: a step forward
+  // looks exactly like sleep, so it ages entries (and may drop them), and a
+  // step back during sleep understates the age by the smaller of the two.
   #ageMs(hit: Entry): number {
-    return Math.max(this.#wall() - hit.wallAt, this.#mono() - hit.monoAt);
+    return Math.max(this.#clock.wall() - hit.wallAt, this.#clock.mono() - hit.monoAt);
   }
 
   /** Fresh (non-expired) value, or undefined. */
@@ -129,7 +137,7 @@ export class TtlCache {
       const oldest = this.#map.keys().next().value;
       if (oldest !== undefined) this.#map.delete(oldest);
     }
-    this.#map.set(key, { value, wallAt: this.#wall(), monoAt: this.#mono() });
+    this.#map.set(key, { value, wallAt: this.#clock.wall(), monoAt: this.#clock.mono() });
   }
 
   // Map iterates in insertion order, so re-inserting on every hit keeps the
@@ -151,7 +159,7 @@ export class TtlCache {
     if (fresh !== undefined) return fresh;
 
     let partial: Computed<Degraded<T>> | undefined;
-    let outage: unknown;
+    let outage: ApiError | undefined;
     try {
       const computed = await this.#dedupe(key, compute);
       // The shared compute's notes reach every caller it serves, but only
@@ -162,16 +170,19 @@ export class TtlCache {
       }
       partial = { value: computed.value, notes: computed.notes };
     } catch (err) {
-      if (!isOutage(err)) throw err;
+      if (!(err instanceof ApiError && isOutage(err))) throw err;
       outage = err;
     }
 
     const stale = this.#stale(key);
     if (stale) {
-      this.#logger?.warn(
-        `serving stale cached value for "${key}"`,
-        outage ?? "(the fresh result was partial)",
-      );
+      if (!outage || !this.#logged.has(outage)) {
+        if (outage) this.#logged.add(outage);
+        this.#logger?.warn(
+          `serving stale cached value for "${key}"`,
+          outage ?? "(the fresh result was partial)",
+        );
+      }
       note({ staleAgeMs: stale.ageMs });
       return stale.value as T;
     }
