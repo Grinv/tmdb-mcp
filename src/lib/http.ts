@@ -251,23 +251,25 @@ function loggable(url: string): string {
   return `${origin}${pathname}`;
 }
 
-// The retry policy: our exponential backoff, which the upstream's
-// Retry-After can lengthen but never shorten (a "0", or a date already past
-// through clock skew, would retry back to back into an overloaded server),
-// all capped at MAX_BACKOFF_MS so one call never stalls longer than
-// retries × the cap (a long hint, or a future date skewed by our clock, is
-// retried at the cap instead of not at all).
+// The retry delay, as undici's RetryHandler (the engine behind Node's fetch)
+// computes it: a Retry-After of 0 retries at once, a positive one is waited
+// out up to MAX_BACKOFF_MS, and otherwise (none, unparseable, or a date
+// already past) the exponential backoff applies, up to the same cap.
 function backoffMs(attempt: number, err: ApiError): number {
-  return Math.min(MAX_BACKOFF_MS, Math.max(err.retryAfterMs ?? 0, 500 * 2 ** attempt));
+  const hinted = err.retryAfterMs;
+  if (hinted === 0) return 0;
+  if (hinted !== undefined && hinted > 0) return Math.min(hinted, MAX_BACKOFF_MS);
+  return Math.min(MAX_BACKOFF_MS, 500 * 2 ** attempt);
 }
 
+// Retry-After in ms: delay-seconds or an HTTP-date (negative when already
+// past, which backoffMs treats as no hint); undefined when unparseable.
 function parseRetryAfter(header: string | null): number | undefined {
   if (!header) return undefined;
   const seconds = Number(header);
   if (Number.isFinite(seconds)) return seconds * 1000;
   const date = Date.parse(header);
-  if (Number.isFinite(date)) return Math.max(0, date - Date.now());
-  return undefined;
+  return Number.isFinite(date) ? date - Date.now() : undefined;
 }
 
 function ensureTrailingSlash(s: string): string {

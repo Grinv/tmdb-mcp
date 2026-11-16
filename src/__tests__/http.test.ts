@@ -22,7 +22,9 @@ test("an outage is logged once, after the last retry; an authoritative failure i
   let status = 503;
   installFetch(
     t,
-    mockFetch(() => jsonResponse({ status_message: "down" }, { status })),
+    mockFetch(() =>
+      jsonResponse({ status_message: "down" }, { status, headers: { "Retry-After": "0" } }),
+    ),
   );
   const http = new HttpClient({ baseUrl: "https://example.test/api", logger, retries: 1 });
   await assert.rejects(() => http.getJson("thing", { query: { query: "what the user typed" } }));
@@ -291,15 +293,20 @@ describe("Retry-After handling", () => {
     };
   }
 
-  test("Retry-After lengthens our backoff, never shortens it, up to the cap", async (t) => {
+  // The same delays undici's RetryHandler computes for these headers.
+  test("Retry-After follows undici's policy: 0 at once, a hint up to the cap, else backoff", async (t) => {
     const backoff = backoffProbe(t);
-    assert.equal(await backoff("0"), "500");
-    assert.equal(await backoff(new Date(Date.now() - 60_000).toUTCString()), "500");
+    assert.equal(await backoff("0"), "0");
     assert.equal(await backoff("3"), "3000");
     const ms = Number(await backoff(new Date(Date.now() + 5_000).toUTCString()));
     assert.ok(ms > 3_000 && ms <= 5_000, String(ms));
-    assert.equal(await backoff("8"), "8000");
-    assert.equal(await backoff("3600"), "8000", "a long hint is retried at the cap");
+    assert.equal(await backoff("3600"), "8000", "capped");
+    assert.equal(
+      await backoff(new Date(Date.now() - 60_000).toUTCString()),
+      "500",
+      "past: no hint",
+    );
+    assert.equal(await backoff("soon"), "500", "unparseable: no hint");
   });
 
   test("a hinted 429 is retried and the retry's answer returned", async (t) => {
@@ -314,20 +321,6 @@ describe("Retry-After handling", () => {
     const res = await client({ retries: 1 }).getJson<{ ok: boolean }>("limited");
     assert.equal(res.ok, true);
     assert.equal(mock.calls.length, 2);
-  });
-
-  test("falls back to the default backoff when Retry-After is neither a number nor a date", async (t) => {
-    let n = 0;
-    const mock = mockFetch(() => {
-      n += 1;
-      return n === 1
-        ? jsonResponse({}, { status: 429, headers: { "retry-after": "not-a-valid-value" } })
-        : jsonResponse({ ok: true });
-    });
-    installFetch(t, mock);
-    const res = await client({ retries: 1 }).getJson<{ ok: boolean }>("thing");
-    assert.equal(res.ok, true);
-    assert.equal(mock.calls.length, 2); // still recovers, just via the default backoff
   });
 });
 
