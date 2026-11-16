@@ -162,14 +162,13 @@ export class TtlCache {
     return outcome.value;
   }
 
-  // The one decision sequence, run once per refresh: the compute's complete
-  // result (cached unless built from stale or partial input); else, when it
-  // hit an outage (isOutage) or came back degraded, a complete copy within
-  // the stale window, noted stale; else the degraded result, noted partial.
-  // Any other failure (a bug, a 404, a rejected key) propagates: stale data
-  // must not hide it. The compute runs in its own CallNotes record, so what
-  // it used is separate from any caller's. What failed upstream was logged
-  // by lib/http.ts; this logs only what callers got instead.
+  // Runs once per refresh: the compute's complete result (cached unless built
+  // from stale or partial input); else, on an outage (isOutage) or a degraded
+  // result, a complete copy within the stale window, noted stale; else the
+  // degraded result, noted partial. Any other failure (a bug, a 404, a
+  // rejected key) propagates: stale data must not hide it. The compute runs in
+  // its own CallNotes record, separate from any caller's. lib/http.ts logs
+  // what failed upstream; this logs only what callers got instead.
   async #refresh<T>(key: string, compute: () => Promise<T | Degraded<T>>): Promise<Outcome<T>> {
     const notes: CallNotes = {};
     let partial: T | undefined;

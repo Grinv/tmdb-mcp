@@ -38,11 +38,10 @@ export function createLogger(level: LogLevel): Logger {
   };
 }
 
-// Node's own inspect prints an error the way it is best diagnosed: its stack,
-// its own fields (an ApiError's code and status, a system error's
-// ECONNRESET), its cause chain and an AggregateError's errors, cycles
-// included. Internal errors are only ever shown here, not to the agent
-// (toProblem in lib/result.ts). emit() redacts the joined text.
+// util.inspect prints an error with its stack, own fields (an ApiError's code
+// and status, a system error's ECONNRESET), cause chain and AggregateError
+// errors, and survives cycles. Internal errors are shown only here, never to
+// the agent (toProblem in lib/result.ts). emit() redacts the joined text.
 function safeString(value: unknown): string {
   if (typeof value === "string") return value;
   // A value's own [inspect.custom] may throw; the logger must not (it runs

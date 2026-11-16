@@ -9,9 +9,8 @@ import prettier from "eslint-config-prettier";
 // with or without `new`, and no subclass of one.
 const BUILTIN_ERROR =
   "/^(Error|TypeError|RangeError|SyntaxError|ReferenceError|EvalError|URIError|AggregateError)$/";
-// Matches `Error` and `globalThis.Error` (also via global, window, self). A syntax rule catches the
-// usual spellings, not deliberate evasion (an alias, Reflect.construct);
-// toProblem() still reports anything else as an internal error.
+// Matches `Error` and `globalThis.Error` (also via global, window, self). A syntax rule
+// can't see an alias or Reflect.construct; toProblem() reports those as internal errors.
 /** @param {string} path */
 const ERROR_REF = (path) =>
   `[${path}.name=${BUILTIN_ERROR}], ` +

@@ -23,13 +23,13 @@ export interface HttpClientOptions {
   beforeRequest?: () => Promise<void> | void;
   /** JSON.parse reviver for success bodies: the upstream's own normalization rule. */
   reviver?: (this: unknown, key: string, value: unknown) => unknown;
-  /** The upstream's own failure for a success body that is really a refusal
-   *  (OMDb answers 200 with `Response: "False"`), classified by it; it then
-   *  goes through the retry decision and the outage log like an error status. */
+  /** Classifies a success body that is really a refusal (OMDb answers 200 with
+   *  `Response: "False"`); the error then gets the same retry decision and
+   *  outage log as an error status. */
   refusedBody?: (body: object) => ApiError | undefined;
-  /** The upstream's own classification rule for a failed request (e.g. OMDb
-   *  naming its daily quota in an error status's body), applied before the
-   *  retry decision. refusedBody's errors are already the upstream's own. */
+  /** The upstream's own classification of a failed request (e.g. OMDb naming
+   *  its daily quota in an error status's body), applied before the retry
+   *  decision. Not applied to refusedBody's errors. */
   refineError?: (err: ApiError) => ApiError;
 }
 
