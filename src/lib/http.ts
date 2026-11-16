@@ -76,9 +76,11 @@ export class HttpClient {
       ? AbortSignal.any([options.signal, timeoutController.signal])
       : timeoutController.signal;
 
-    let res: Response;
+    // The timer stays armed until the body is read, not just the headers: an
+    // upstream that sends headers and then stalls mid-body would otherwise
+    // hang res.text() (and every cache waiter on the same key) with no timeout.
     try {
-      res = await fetch(url, {
+      const res = await fetch(url, {
         method: "GET",
         headers: {
           "User-Agent": USER_AGENT,
@@ -87,7 +89,22 @@ export class HttpClient {
         },
         signal,
       });
+      if (!res.ok) throw await toHttpError(res);
+      if (res.status === 204) return undefined as T;
+      assertBodyWithinCap(res);
+      const text = await res.text();
+      if (text.length === 0) return undefined as T;
+      try {
+        return JSON.parse(text) as T;
+      } catch (err) {
+        throw new ApiError({
+          code: "unknown",
+          message: "Upstream returned invalid JSON",
+          cause: err,
+        });
+      }
     } catch (err) {
+      if (err instanceof ApiError) throw err;
       if (options.signal?.aborted) {
         // Caller cancelled (e.g. the MCP client sent notifications/cancelled)
         // — propagate as a non-retryable abort, distinct from our own timeout.
@@ -104,22 +121,6 @@ export class HttpClient {
       throw toNetworkError(err);
     } finally {
       clearTimeout(timer);
-    }
-
-    if (!res.ok) throw await toHttpError(res);
-
-    if (res.status === 204) return undefined as T;
-    assertBodyWithinCap(res);
-    const text = await res.text();
-    if (text.length === 0) return undefined as T;
-    try {
-      return JSON.parse(text) as T;
-    } catch (err) {
-      throw new ApiError({
-        code: "unknown",
-        message: "Upstream returned invalid JSON",
-        cause: err,
-      });
     }
   }
 

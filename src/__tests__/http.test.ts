@@ -260,6 +260,27 @@ describe("abort/timeout", () => {
     );
   });
 
+  test("times out a body that stalls after the headers arrive", async (t) => {
+    // Headers + a partial body, then silence. Like real fetch, aborting the
+    // signal errors the body stream mid-read.
+    const mock = mockFetch((_url, init) => {
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode('{"id":'));
+          init?.signal?.addEventListener("abort", () =>
+            controller.error(new DOMException("aborted", "AbortError")),
+          );
+        },
+      });
+      return new Response(body, { headers: { "content-type": "application/json" } });
+    });
+    installFetch(t, mock);
+    await assert.rejects(
+      () => client({ retries: 0, timeoutMs: 30 }).getJson("stall"),
+      (err: unknown) => err instanceof ApiError && err.code === "timeout",
+    );
+  });
+
   test("a caller-aborted request maps to a non-retryable abort error, not a timeout", async (t) => {
     const mock = hangingFetch();
     installFetch(t, mock);
