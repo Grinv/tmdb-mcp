@@ -40,10 +40,25 @@ describe("error mapping by status/body", () => {
     const mock = mockFetch(() => new Response("not actually json{{{", { status: 200 }));
     installFetch(t, mock);
     await assert.rejects(
-      () => client().getJson("thing"),
+      () => client({ retries: 0 }).getJson("thing"),
       (err: unknown) =>
         err instanceof ApiError && err.code === "bad_response" && /invalid JSON/i.test(err.message),
     );
+  });
+
+  // bad_response is transient (usually a truncated body), so the client
+  // re-fetches it like a 5xx instead of failing on the first cut-off reply.
+  test("retries an unreadable body and returns the next good one", async (t) => {
+    let calls = 0;
+    installFetch(
+      t,
+      mockFetch(() => {
+        calls += 1;
+        return calls === 1 ? new Response('{"id":', { status: 200 }) : jsonResponse({ id: 1 });
+      }),
+    );
+    assert.deepEqual(await client({ retries: 1 }).getJson("thing"), { id: 1 });
+    assert.equal(calls, 2);
   });
 
   test("falls back to the raw body when a failing response isn't JSON", async (t) => {

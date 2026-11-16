@@ -16,7 +16,7 @@ export interface HttpClientOptions {
   logger: Logger;
   defaultHeaders?: Record<string, string>;
   timeoutMs?: number;
-  /** Max retry attempts for retryable failures (network/timeout/5xx/429). */
+  /** Max retry attempts for transient failures (see errors.ts's TRANSIENT). */
   retries?: number;
   /** Called before each request; lets callers throttle (rate limiting). */
   beforeRequest?: () => Promise<void> | void;
@@ -124,7 +124,6 @@ export class HttpClient {
         throw new ApiError({
           code: "timeout",
           message: `Request timed out after ${timeoutMs}ms`,
-          retryable: true,
           cause: err,
         });
       }
@@ -146,7 +145,7 @@ export class HttpClient {
 }
 
 async function toHttpError(res: Response): Promise<ApiError> {
-  const { code, retryable } = classifyStatus(res.status);
+  const code = classifyStatus(res.status);
   let raw = "";
   try {
     raw = await res.text();
@@ -164,7 +163,6 @@ async function toHttpError(res: Response): Promise<ApiError> {
   return new ApiError({
     code,
     status: res.status,
-    retryable,
     message: `HTTP ${res.status} ${res.statusText}${detail ? `: ${detail}` : ""}`,
     // Only a structured reason reaches the tool-facing text; a raw body is wire noise.
     ...(reason ? { detail } : {}),
@@ -196,7 +194,6 @@ function toNetworkError(err: unknown): ApiError {
   return new ApiError({
     code: "network",
     message: err instanceof Error ? `Network error: ${redact(err.message)}` : "Network error",
-    retryable: true,
     cause: err,
   });
 }

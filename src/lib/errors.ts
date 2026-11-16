@@ -23,6 +23,8 @@ export interface ApiErrorOptions {
   /** The upstream's own (redacted) reason, e.g. "Invalid API key!", for the tool-facing text. */
   detail?: string;
   status?: number;
+  /** Override TRANSIENT[code] for one occurrence whose nature differs from its
+   *  code's (e.g. OMDb's daily quota: rate_limited, yet not transient). */
   retryable?: boolean;
   /** Retry-After hint, in ms, for the retry backoff. */
   retryAfterMs?: number;
@@ -43,21 +45,41 @@ export class ApiError extends Error {
     this.code = opts.code;
     this.detail = opts.detail;
     this.status = opts.status;
-    this.retryable = opts.retryable ?? false;
+    this.retryable = opts.retryable ?? TRANSIENT[opts.code];
     this.retryAfterMs = opts.retryAfterMs;
   }
 }
 
-/** Map an HTTP status code to an ApiErrorCode and whether a retry may help. */
-export function classifyStatus(status: number): { code: ApiErrorCode; retryable: boolean } {
-  if (status === 401) return { code: "unauthorized", retryable: false };
-  if (status === 403) return { code: "forbidden", retryable: false };
-  if (status === 404) return { code: "not_found", retryable: false };
-  if (status === 429) return { code: "rate_limited", retryable: true };
-  if (status === 400 || status === 405 || status === 422)
-    return { code: "bad_request", retryable: false };
-  if (status >= 500) return { code: "server_error", retryable: true };
-  return { code: "unknown", retryable: false };
+/**
+ * Whether a failure of this kind is transient — the one place that decides
+ * it, so it is never left to a forgotten flag's default. Both consumers read
+ * the result: HttpClient retries a transient failure itself, and the tool's
+ * problem tells the caller that trying again later can help. A Record, so the
+ * compiler rejects a code without an entry.
+ */
+const TRANSIENT: Record<ApiErrorCode, boolean> = {
+  unauthorized: false,
+  forbidden: false,
+  not_found: false,
+  rate_limited: true,
+  server_error: true,
+  network: true,
+  timeout: true,
+  cancelled: false, // the caller's own decision
+  bad_request: false,
+  bad_response: true, // usually a truncated body
+  unknown: false,
+};
+
+/** Map an HTTP status code to an ApiErrorCode. */
+export function classifyStatus(status: number): ApiErrorCode {
+  if (status === 401) return "unauthorized";
+  if (status === 403) return "forbidden";
+  if (status === 404) return "not_found";
+  if (status === 429) return "rate_limited";
+  if (status === 400 || status === 405 || status === 422) return "bad_request";
+  if (status >= 500) return "server_error";
+  return "unknown";
 }
 
 /** Strip anything that looks like a credential before logging. */

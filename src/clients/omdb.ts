@@ -109,6 +109,9 @@ function refusal(error: string, status?: number): ApiError {
         ? "unauthorized"
         : "unknown",
     status,
+    // OMDb's quota is daily: unlike a 429 it won't clear within this session,
+    // so it is not transient — retrying would only burn calls.
+    retryable: false,
     message: `OMDb refused the request: ${redact(error)}`,
     detail: redact(error),
   });

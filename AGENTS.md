@@ -77,8 +77,11 @@ npm run inspector      # run under the MCP Inspector
   manual duplicate configured-check) when a tool needs both checks in that
   specific order, e.g. `get_ratings` in `tools/omdb.ts`.
 - Errors have three layers, each with one job. **Classify:** every known
-  failure gets its own `ApiErrorCode` (`lib/errors.ts`); `ApiError.message`
-  is diagnostics for logs and may hold a raw body. **Translate:**
+  failure gets its own `ApiErrorCode` (`lib/errors.ts`), and whether it is
+  transient comes from the `TRANSIENT` table for that code — never pass
+  `retryable` except to override one occurrence whose nature differs (OMDb's
+  daily quota); `ApiError.message` is diagnostics for logs and may hold a raw
+  body. **Translate:**
   `toProblem()` (`lib/result.ts`) is the only place a failure becomes
   tool-facing text — an RFC 9457 problem built from `code`/`status`/`detail`
   only; anything that isn't an `ApiError` is an internal bug, logged in full

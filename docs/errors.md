@@ -20,7 +20,9 @@ MCP reserves for data matching the tool's `outputSchema`.
 - `type` — stable URI of the problem type: one of the sections below.
 - `title` — fixed summary of the type.
 - `detail` — this occurrence, as the model reads it (the result's text).
-- `retryable` — whether trying the same call again can help.
+- `retryable` — whether the failure is transient, so trying the same call
+  again later can help. The server has already retried a transient failure
+  itself (`HTTP_RETRIES`) before reporting it.
 - `upstream_status` — the TMDB/OMDb HTTP status, when there was one. RFC
   9457's own `status` member (the status of _this_ HTTP response) is not used:
   MCP results have none.
@@ -77,7 +79,7 @@ The upstream rejected the request as invalid (HTTP 400/405/422).
 ## bad_response
 
 The upstream answered with a success status but an unreadable body (invalid
-JSON, or empty).
+JSON, or empty) — usually a truncated reply, so it is retried like a 5xx.
 
 ## unknown
 
