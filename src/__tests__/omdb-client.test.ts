@@ -7,11 +7,8 @@ import { silentLogger, installFetch, mockFetch, jsonResponse } from "./helpers.t
 
 // Direct tests against OmdbClient's own interface, no MCP transport.
 
-function client(): OmdbClient {
-  return new OmdbClient(
-    loadConfig({ OMDB_API_KEY: "k", OMDB_MIN_INTERVAL_MS: "0" }),
-    silentLogger(),
-  );
+function client(logger = silentLogger()): OmdbClient {
+  return new OmdbClient(loadConfig({ OMDB_API_KEY: "k", OMDB_MIN_INTERVAL_MS: "0" }), logger);
 }
 
 const OMDB_OK = { Response: "True", Title: "The Matrix", imdbID: "tt0133093" };
@@ -96,7 +93,7 @@ describe("OmdbClient: body errors", () => {
     assert.deepEqual(r, { found: false, reason: "Incorrect IMDb ID." });
   });
 
-  test("a refusal in a 200 body throws with OMDb's reason and is never cached as a miss", async (t) => {
+  test("a refusal in a 200 body throws with OMDb's reason, is logged and is never cached as a miss", async (t) => {
     let calls = 0;
     installFetch(
       t,
@@ -107,14 +104,19 @@ describe("OmdbClient: body errors", () => {
           : jsonResponse(OMDB_OK);
       }),
     );
-    const c = client();
+    const warnings: unknown[][] = [];
+    const c = client({ ...silentLogger(), warn: (...args: unknown[]) => warnings.push(args) });
     await assert.rejects(
       () => c.ratingsByImdbId("tt0133093"),
       (err: unknown) =>
         err instanceof ApiError &&
         err.code === "rate_limited" &&
+        !err.retryable &&
         err.detail === "Request limit reached!",
     );
+    // Classified in the transport, so it is logged like any other outage.
+    assert.equal(warnings.length, 1);
+    assert.match(String(warnings[0]![0]), /^GET https:\/\/www\.omdbapi\.com\/ failed$/);
     // The next call reaches OMDb again instead of reading a cached "no ratings".
     assert.equal((await c.ratingsByImdbId("tt0133093")).found, true);
   });

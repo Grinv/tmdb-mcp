@@ -15,6 +15,7 @@ export interface UpstreamOptions {
   cacheMaxStaleMs: number;
   defaultHeaders?: Record<string, string>;
   reviver?: HttpClientOptions["reviver"];
+  refusedBody?: HttpClientOptions["refusedBody"];
   refineError?: HttpClientOptions["refineError"];
 }
 
@@ -32,6 +33,7 @@ export function createUpstream(opts: UpstreamOptions): Upstream {
     retries: opts.retries,
     defaultHeaders: opts.defaultHeaders,
     reviver: opts.reviver,
+    refusedBody: opts.refusedBody,
     refineError: opts.refineError,
     beforeRequest: () => limiter.acquire(),
   });

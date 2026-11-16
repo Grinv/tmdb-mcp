@@ -17,12 +17,15 @@ test("an outage is logged once, after the last retry; an authoritative failure i
   let status = 503;
   installFetch(
     t,
-    mockFetch(() => jsonResponse({ status_message: "down" }, { status })),
+    mockFetch(() =>
+      jsonResponse({ status_message: "down" }, { status, headers: { "Retry-After": "0" } }),
+    ),
   );
-  const http = new HttpClient({ baseUrl: "https://example.test/api", logger, retries: 2 });
-  await assert.rejects(() => http.getJson("thing"));
-  assert.equal(warnings.length, 1);
-  assert.match(String(warnings[0]![0]), /GET https:\/\/example\.test\/api\/thing failed/);
+  const http = new HttpClient({ baseUrl: "https://example.test/api", logger, retries: 1 });
+  await assert.rejects(() => http.getJson("thing", { query: { query: "what the user typed" } }));
+  assert.equal(warnings.length, 1, "after the last attempt, not per attempt");
+  // Without the query string: it holds what the user searched for.
+  assert.equal(warnings[0]![0], "GET https://example.test/api/thing failed");
   assert.ok(warnings[0]![1] instanceof ApiError);
   status = 404;
   await assert.rejects(() => http.getJson("thing"));

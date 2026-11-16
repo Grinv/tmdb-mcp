@@ -50,6 +50,10 @@ function safeString(value: unknown): string {
   try {
     return inspect(value, { depth: 6, breakLength: Infinity });
   } catch {
-    return String(value);
+    try {
+      return String(value);
+    } catch {
+      return "[unprintable value]";
+    }
   }
 }

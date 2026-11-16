@@ -42,10 +42,18 @@ export class OmdbClient {
       cacheTtlMs: config.cacheTtlMs,
       cacheMaxStaleMs: config.cacheMaxStaleMs,
       reviver: nullAsAbsent,
-      // OMDb names an exhausted quota in the body whatever the status; classify
-      // it here, before HttpClient decides to retry.
+      // OMDb refuses with `Response: "False"` in a 200 too; a miss ("Movie
+      // not found!") is an answer, not a refusal.
+      refusedBody: (body: OmdbResponse) =>
+        body.Response === "False" && body.Error && !OMDB_MISS.test(body.Error)
+          ? body.Error
+          : undefined,
+      // OMDb names an exhausted quota or a bad key in the body whatever the
+      // status; classify it here, before HttpClient decides to retry.
       refineError: (err) =>
-        err.detail && OMDB_LIMIT.test(err.detail) ? refusal(err.detail, err.status, err) : err,
+        err.detail && (OMDB_LIMIT.test(err.detail) || err.code === "unknown")
+          ? refusal(err.detail, err.status, err)
+          : err,
     });
     this.#http = http;
     this.#cache = cache;
@@ -69,14 +77,8 @@ export class OmdbClient {
     });
   }
 
-  async #get(query: Record<string, string | number | undefined>): Promise<OmdbResponse> {
-    const res = await this.#http.getJson<OmdbResponse>("", {
-      query: { apikey: this.#apiKey, ...query },
-    });
-    if (res.Response === "False" && res.Error && !OMDB_MISS.test(res.Error)) {
-      throw refusal(res.Error);
-    }
-    return res;
+  #get(query: Record<string, string | number | undefined>): Promise<OmdbResponse> {
+    return this.#http.getJson<OmdbResponse>("", { query: { apikey: this.#apiKey, ...query } });
   }
 }
 

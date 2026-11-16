@@ -89,9 +89,9 @@ export class TtlCache {
   readonly #logger?: Logger;
   readonly #clock: Clock;
   readonly #map = new Map<string, Entry>();
-  // In-flight computes, keyed like #map, so concurrent callers of a cold key
-  // share one upstream fetch.
-  readonly #pending = new Map<string, Promise<Computed<unknown>>>();
+  // In-flight refreshes, keyed like #map, so concurrent callers of a cold key
+  // share one upstream fetch and one outcome.
+  readonly #pending = new Map<string, Promise<Outcome<unknown>>>();
 
   constructor(opts: {
     ttlMs: number;
@@ -145,45 +145,58 @@ export class TtlCache {
   }
 
   /**
-   * Get-or-compute, caching a complete result. In order: a fresh value; else
-   * the compute's complete result; else, when the compute hit an outage
-   * (isOutage) or came back degraded, a complete copy within the stale window,
-   * noted stale; else the degraded result, noted partial. Any other failure (a
-   * bug, a 404, a rejected key) propagates: stale data must not hide it.
+   * Get-or-compute, caching a complete result. A fresh value is returned as
+   * is; otherwise one shared refresh (#refresh) decides, once for every
+   * caller waiting on it, what they all get and what is noted about it.
    */
   async wrapStaleOnError<T>(key: string, compute: () => Promise<T | Degraded<T>>): Promise<T> {
     const fresh = this.get<T>(key);
     if (fresh !== undefined) return fresh;
+    let refresh = this.#pending.get(key) as Promise<Outcome<T>> | undefined;
+    if (!refresh) {
+      refresh = this.#refresh(key, compute).finally(() => this.#pending.delete(key));
+      this.#pending.set(key, refresh);
+    }
+    const outcome = await refresh;
+    note(outcome.notes);
+    return outcome.value;
+  }
 
-    let partial: Computed<Degraded<T>> | undefined;
-    let outage: unknown;
+  // The one decision sequence, run once per refresh: the compute's complete
+  // result (cached unless built from stale or partial input); else, when it
+  // hit an outage (isOutage) or came back degraded, a complete copy within
+  // the stale window, noted stale; else the degraded result, noted partial.
+  // Any other failure (a bug, a 404, a rejected key) propagates: stale data
+  // must not hide it. The compute runs in its own CallNotes record, so what
+  // it used is separate from any caller's. What failed upstream was logged
+  // by lib/http.ts; this logs only what callers got instead.
+  async #refresh<T>(key: string, compute: () => Promise<T | Degraded<T>>): Promise<Outcome<T>> {
+    const notes: CallNotes = {};
+    let partial: T | undefined;
     try {
-      const computed = await this.#dedupe(key, compute);
-      // The shared compute's notes reach every caller it serves, but only
-      // with its own value.
-      if (!(computed.value instanceof Degraded)) {
-        note(computed.notes);
-        return computed.value;
+      const value = await callNotes.run(notes, compute);
+      if (!(value instanceof Degraded)) {
+        if (notes.staleAgeMs === undefined && !notes.partial) this.set(key, value);
+        return { value, notes };
       }
-      partial = { value: computed.value, notes: computed.notes };
+      partial = value.value;
     } catch (err) {
       if (!isOutage(err)) throw err;
-      outage = err;
+      const stale = this.#stale(key);
+      if (!stale) throw err;
+      return this.#serveStale(key, stale);
     }
-
     const stale = this.#stale(key);
-    if (stale) {
-      // The failure itself was logged where it happened (lib/http.ts); this
-      // records what the caller got instead.
-      this.#logger?.warn(
-        `serving stale cached value for "${key}" (${Math.round(stale.ageMs / 1000)} s old)`,
-      );
-      note({ staleAgeMs: stale.ageMs });
-      return stale.value as T;
-    }
-    if (partial === undefined) throw outage;
-    note({ ...partial.notes, partial: true });
-    return partial.value.value;
+    if (stale) return this.#serveStale(key, stale);
+    this.#logger?.warn(`refresh of "${key}" was partial`);
+    return { value: partial, notes: { ...notes, partial: true } };
+  }
+
+  #serveStale<T>(key: string, stale: { value: unknown; ageMs: number }): Outcome<T> {
+    this.#logger?.warn(
+      `serving stale cached value for "${key}" (${Math.round(stale.ageMs / 1000)} s old)`,
+    );
+    return { value: stale.value as T, notes: { staleAgeMs: stale.ageMs } };
   }
 
   // The entry for `key` if it is still within the stale window; one past it
@@ -199,34 +212,10 @@ export class TtlCache {
     this.#touch(key, hit);
     return { value: hit.value, ageMs };
   }
-
-  // One in-flight compute per key, run in its own CallNotes record so what it
-  // used is separate from any caller's. A result built from stale or partial
-  // input, or degraded itself, is returned but not cached. A rejection reaches
-  // every waiter and frees the slot. A partial result is logged here, once
-  // per refresh however many callers wait on it; what failed in it was logged
-  // by lib/http.ts.
-  #dedupe<T>(key: string, compute: () => Promise<T>): Promise<Computed<T>> {
-    const inFlight = this.#pending.get(key) as Promise<Computed<T>> | undefined;
-    if (inFlight) return inFlight;
-    const notes: CallNotes = {};
-    const promise = callNotes
-      .run(notes, compute)
-      .then((value) => {
-        if (value instanceof Degraded) {
-          this.#logger?.warn(`refresh of "${key}" was partial`);
-        } else if (notes.staleAgeMs === undefined && !notes.partial) {
-          this.set(key, value);
-        }
-        return { value, notes };
-      })
-      .finally(() => this.#pending.delete(key));
-    this.#pending.set(key, promise);
-    return promise;
-  }
 }
 
-interface Computed<T> {
+// What one refresh gives every caller waiting on it.
+interface Outcome<T> {
   value: T;
   notes: CallNotes;
 }

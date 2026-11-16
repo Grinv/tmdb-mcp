@@ -270,17 +270,30 @@ describe("TtlCache", () => {
     await assert.rejects(() => cache.wrapStaleOnError("s", down));
   });
 
-  test("a partial refresh shared by concurrent callers is logged once", async () => {
+  test("one refresh decides once for every waiting caller, and logs once", async () => {
     const clock = fakeClock();
     const warnings: string[] = [];
     const logger = { ...silentLogger(), warn: (msg: string) => warnings.push(msg) };
     const cache = new TtlCache({ ttlMs: 1, logger, clock });
     await cache.wrapStaleOnError("k", async () => "full");
     clock.advance(5);
-    const compute = async () => degraded("part");
-    const served = await Promise.all([1, 2, 3].map(() => cache.wrapStaleOnError("k", compute)));
-    assert.deepEqual(served, ["full", "full", "full"]);
-    assert.equal(warnings.filter((w) => w === 'refresh of "k" was partial').length, 1);
+    for (const compute of [
+      async () => degraded("part"),
+      async (): Promise<string> => {
+        throw new ApiError({ code: "server_error", message: "down" });
+      },
+    ]) {
+      warnings.length = 0;
+      const served = await Promise.all([1, 2, 3].map(() => cache.wrapStaleOnError("k", compute)));
+      assert.deepEqual(served, ["full", "full", "full"]);
+      assert.deepEqual(warnings, ['serving stale cached value for "k" (0 s old)']);
+    }
+    warnings.length = 0;
+    const cold = await Promise.all(
+      [1, 2, 3].map(() => cache.wrapStaleOnError("cold", async () => degraded("part"))),
+    );
+    assert.deepEqual(cold, ["part", "part", "part"]);
+    assert.deepEqual(warnings, ['refresh of "cold" was partial']);
   });
 
   test("a degraded compute's notes are dropped when a complete stale copy wins", async () => {

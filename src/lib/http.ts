@@ -23,6 +23,10 @@ export interface HttpClientOptions {
   beforeRequest?: () => Promise<void> | void;
   /** JSON.parse reviver for success bodies: the upstream's own normalization rule. */
   reviver?: (this: unknown, key: string, value: unknown) => unknown;
+  /** The upstream's reason when a success body is really a refusal (OMDb
+   *  answers 200 with `Response: "False"`); it then fails like an error
+   *  status, through refineError, the retry decision and the outage log. */
+  refusedBody?: (body: object) => string | undefined;
   /** The upstream's own classification rule (e.g. OMDb naming its daily quota
    *  in the body), applied to every failure before the retry decision. */
   refineError?: (err: ApiError) => ApiError;
@@ -51,6 +55,19 @@ export class HttpClient {
   /** GET a JSON resource. This server is read-only, so GET is the only verb. */
   async getJson<T>(path: string, options: RequestOptions = {}): Promise<T> {
     const url = this.#buildUrl(path, options.query);
+    try {
+      return await this.#withRetries<T>(url, options);
+    } catch (err) {
+      // Every request's failure leaves here once, cached or not, so this is
+      // where an outage is logged (a 404 is an answer, not one). Without the
+      // query: it holds what the user searched for.
+      const { origin, pathname } = new URL(url);
+      if (isOutage(err)) this.#opts.logger.warn(`GET ${origin}${pathname} failed`, err);
+      throw err;
+    }
+  }
+
+  async #withRetries<T>(url: string, options: RequestOptions): Promise<T> {
     const retries = this.#opts.retries ?? 2;
     const timeoutMs = this.#opts.timeoutMs ?? 15000;
 
@@ -64,12 +81,7 @@ export class HttpClient {
         const apiErr = this.#opts.refineError?.(classified) ?? classified;
         // Never retry a caller-cancelled request, even if its code is retryable
         // (e.g. it raced a timeout).
-        if (!apiErr.retryable || attempt >= retries || options.signal?.aborted) {
-          // Every upstream request ends here exactly once, cached or not, so
-          // this is where an outage is logged (a 404 is an answer, not one).
-          if (isOutage(apiErr)) this.#opts.logger.warn(`GET ${url} failed`, apiErr);
-          throw apiErr;
-        }
+        if (!apiErr.retryable || attempt >= retries || options.signal?.aborted) throw apiErr;
         const backoff = backoffMs(attempt, apiErr);
         this.#opts.logger.debug(
           `retrying ${url} after ${backoff}ms (attempt ${attempt + 1}/${retries}, ${apiErr.code})`,
@@ -140,6 +152,15 @@ export class HttpClient {
         throw new ApiError({
           code: "bad_response",
           message: "Upstream returned a non-object JSON body",
+        });
+      }
+      const reason = this.#opts.refusedBody?.(body);
+      if (reason !== undefined) {
+        throw new ApiError({
+          code: "unknown",
+          status: res.status,
+          message: `Upstream refused the request: ${redact(reason)}`,
+          detail: redact(reason),
         });
       }
       return body as T;

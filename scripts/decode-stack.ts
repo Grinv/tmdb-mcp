@@ -18,11 +18,11 @@ if (!mapPath) {
 const map = new SourceMap(JSON.parse(readFileSync(mapPath, "utf8")));
 const log = readFileSync(0, "utf8");
 
-// Only the bundle's own positions (`…/index.js:L:C`); any other file's frames
+// Only the bundle's own positions (`…/dist/index.js:L:C`); any other file's frames
 // pass through, and so does a position the map has no entry for on that line
 // (findEntry would otherwise answer with the nearest earlier line's mapping).
 const decoded = log.replace(
-  /(?:file:\/\/)?[^()\s]*\/index\.js:(\d+):(\d+)/g,
+  /(?:file:\/\/)?[^()\s]*\/dist\/index\.js:(\d+):(\d+)/g,
   (position, line: string, column: string) => {
     const entry = map.findEntry(Number(line) - 1, Number(column) - 1);
     if (!("originalSource" in entry) || entry.generatedLine !== Number(line) - 1) {
