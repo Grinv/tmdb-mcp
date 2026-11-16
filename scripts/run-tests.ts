@@ -16,12 +16,12 @@ const coverage = rawArgs.includes("--coverage");
 // `npm test -- --test-name-pattern=foo` or `npm test -- src/__tests__/omdb.test.ts`
 // works locally.
 const passthrough = rawArgs.filter((a) => a !== "--coverage");
-// A positional arg means the caller named its own test files; only fall back
-// to the whole suite without one. An arg right after a `--flag` with no `=`
-// is taken as that flag's value (`--test-name-pattern foo`), not a file.
-const namesFiles = passthrough.some(
-  (a, i) => !a.startsWith("-") && !/^--[^=]+$/.test(passthrough[i - 1] ?? ""),
-);
+// A test file or glob among the args means the caller named its own files;
+// only fall back to the whole suite without one. Recognised by its shape, not
+// its position: whether the arg after a bare `--flag` is that flag's value
+// (`--test-name-pattern foo`) or a file (`--test-only x.test.ts`) can't be
+// told from the flag itself.
+const namesFiles = passthrough.some((a) => !a.startsWith("-") && /\.[cm]?ts$|\*/.test(a));
 
 const args = ["--test"];
 if (coverage) {
