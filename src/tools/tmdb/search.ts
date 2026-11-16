@@ -215,10 +215,10 @@ export function registerSearchTools(
         "Resolve a streaming/rental/purchase service's name (e.g. 'Netflix', 'Disney Plus') to its " +
         "TMDB numeric provider id. Feed the id into discover_movies/discover_tv's " +
         "with_watch_providers, with the same watch_region, to find top titles on that service. TMDB has no name-based lookup for this, only " +
-        "numeric ids, and there are hundreds of providers (269+ for the US alone, more elsewhere), " +
-        "so don't guess an id. A provider's id, and whether it's offered at all, can differ by " +
-        "region (e.g. a service bundled as a channel add-on in one country vs. standalone in " +
-        "another).",
+        "numeric ids, and there are hundreds of providers (296 in the US), so don't guess an id. " +
+        "A provider's id, and whether it's offered at all, can differ by country (checked live: " +
+        "Amazon Prime Video is 9 in the US, Germany and Japan but 119 in France, India and " +
+        "Brazil), so search in the country you'll filter in.",
       inputSchema: z.strictObject({
         query: z
           .string()

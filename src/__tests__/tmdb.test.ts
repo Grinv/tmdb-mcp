@@ -2094,14 +2094,16 @@ describe("search_watch_providers", () => {
     const mock = mockFetch(router);
     installFetch(t, mock);
     const client = await connectServer(t, { ...ENV, TMDB_REGION: "DE" });
-    const sent = () =>
-      new URL(mock.calls.filter((c) => c.url.includes("/watch/providers/movie")).at(-1)!.url)
+    const sent = (kind = "movie") =>
+      new URL(mock.calls.filter((c) => c.url.includes(`/watch/providers/${kind}`)).at(-1)!.url)
         .searchParams;
-    await client.callTool({
-      name: "search_watch_providers",
-      arguments: { query: "Disney", media_type: "movie" },
-    });
-    assert.equal(sent().get("watch_region"), "DE");
+    for (const kind of ["movie", "tv"]) {
+      await client.callTool({
+        name: "search_watch_providers",
+        arguments: { query: "Disney", media_type: kind },
+      });
+      assert.equal(sent(kind).get("watch_region"), "DE", kind);
+    }
     await client.callTool({
       name: "search_watch_providers",
       arguments: { query: "Disney", media_type: "movie", watch_region: "FR" },

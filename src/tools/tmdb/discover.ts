@@ -188,6 +188,9 @@ const discoverShared = {
         "confirm which service offers which access model (it reports 'flatrate' as `streaming`).",
     )
     .optional(),
+  // Typing and position only: registerDiscoverTools describes it, with no
+  // schema default (see userWatchRegion there).
+  watch_region: country.optional(),
   // Applies to /discover/tv as well: a nonsense certification value returns
   // zero results there too.
   //
@@ -387,9 +390,8 @@ export const discoverParamsSchema = z.object({
   ...discoverMovieSchema,
   ...discoverTvSchema,
   sort_by: z.union([z.enum(MOVIE_SORT_BY), z.enum(TV_SORT_BY)]).optional(),
-  // Added per tool in registerDiscoverTools, with the server's defaults.
+  // Added per tool in registerDiscoverTools, with the server's default.
   language: languageCode.optional(),
-  watch_region: country.optional(),
 });
 export type DiscoverParams = z.infer<typeof discoverParamsSchema>;
 

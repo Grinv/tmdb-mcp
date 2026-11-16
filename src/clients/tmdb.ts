@@ -708,8 +708,8 @@ export class TmdbClient {
 
   // Provider ids feed discover_*'s with_watch_providers; this resolves a
   // provider name (e.g. "Netflix") to an id. TMDB's endpoint has no query
-  // parameter and always returns every provider for the media type (and
-  // region, if given), so the full list is cached and matched against `query`
+  // parameter and always returns every provider for the media type and
+  // region, so the full list is cached and matched against `query`
   // in the shaper. Each entry's lowercase name is precomputed here, once per
   // cache fill, not on every call.
   async searchWatchProviders(
