@@ -45,7 +45,7 @@ export class OmdbClient {
       // OMDb names an exhausted quota in the body whatever the status (an auth
       // or 429 one): classify it here, before HttpClient decides to retry.
       refineError: (err) =>
-        err.detail && OMDB_LIMIT.test(err.detail) ? refusal(err.detail, err.status) : err,
+        err.detail && OMDB_LIMIT.test(err.detail) ? refusal(err.detail, err.status, err) : err,
     });
     this.#http = http;
     this.#cache = cache;
@@ -82,7 +82,7 @@ export class OmdbClient {
 
 const OMDB_LIMIT = /limit/i;
 
-function refusal(error: string, status?: number): ApiError {
+function refusal(error: string, status?: number, cause?: ApiError): ApiError {
   return new ApiError({
     code: OMDB_LIMIT.test(error)
       ? "rate_limited"
@@ -95,6 +95,7 @@ function refusal(error: string, status?: number): ApiError {
     ...(OMDB_LIMIT.test(error) ? { retryable: false } : {}),
     message: `OMDb refused the request: ${redact(error)}`,
     detail: redact(error),
+    cause,
   });
 }
 
