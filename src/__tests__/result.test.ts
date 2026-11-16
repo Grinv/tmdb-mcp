@@ -55,6 +55,20 @@ describe("apiErrorToResult", () => {
     );
   });
 
+  test("states the upstream's reason once, not again via err.message", () => {
+    for (const code of ["bad_request", "unknown"] as const) {
+      const text = apiErrorToResult(
+        new ApiError({ code, status: 422, message: "HTTP 422 Unprocessable: X", detail: "X" }),
+      ).content[0]!.text;
+      assert.equal(text.split("X").length - 1, 1, text);
+    }
+    // Without a detail, err.message is still the only explanation and stays.
+    const bare = apiErrorToResult(
+      new ApiError({ code: "unknown", message: "Upstream returned invalid JSON" }),
+    );
+    assert.match(bare.content[0]!.text, /invalid JSON/);
+  });
+
   test("names no status when the failure came without one", () => {
     const r = apiErrorToResult(new ApiError({ code: "rate_limited", message: "x" }));
     assert.doesNotMatch(r.content[0]!.text, /\(\d+\)/);

@@ -57,7 +57,7 @@ function messageFor(err: ApiError): string {
   const status = err.status ? ` (${err.status})` : "";
   const base = baseMessage(err, status);
   // Never drop the upstream's own reason: one status can mean several things
-  // (OMDb answers both a bad key and an exhausted quota as an auth failure).
+  // (OMDb reports both a bad key and an exhausted quota as refusals).
   return err.detail ? `${base} The upstream said: "${err.detail}"` : base;
 }
 
@@ -80,9 +80,11 @@ function baseMessage(err: ApiError, status: string): string {
       return "Could not reach the upstream service (network error). Check connectivity and retry.";
     case "timeout":
       return "The upstream request timed out. Please retry.";
+    // Without an upstream reason (detail), our own message is all there is;
+    // with one, messageFor appends it and repeating err.message would say it twice.
     case "bad_request":
-      return `The request was rejected as invalid: ${err.message}`;
+      return `The request was rejected as invalid${status}${err.detail ? "." : `: ${err.message}`}`;
     default:
-      return `Unexpected error talking to the upstream service: ${err.message}`;
+      return `Unexpected error talking to the upstream service${err.detail ? "." : `: ${err.message}`}`;
   }
 }
