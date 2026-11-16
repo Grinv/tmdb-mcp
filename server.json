@@ -37,7 +37,7 @@
         },
         {
           "name": "TMDB_REGION",
-          "description": "Optional. Default ISO-3166-1 country code (e.g. US, RU, GB) for region-specific results.",
+          "description": "Optional. The user's default country, ISO-3166-1 (e.g. US, GB): ratings, cinemas, where to watch.",
           "isRequired": false,
           "default": "US"
         }
@@ -69,7 +69,7 @@
         },
         {
           "name": "TMDB_REGION",
-          "description": "Optional. Default ISO-3166-1 country code (e.g. US, RU, GB) for region-specific results.",
+          "description": "Optional. The user's default country, ISO-3166-1 (e.g. US, GB): ratings, cinemas, where to watch.",
           "isRequired": false,
           "default": "US"
         }

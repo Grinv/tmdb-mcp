@@ -132,7 +132,7 @@
     "tmdb_region": {
       "type": "string",
       "title": "Region",
-      "description": "Optional. Default ISO-3166-1 country code (e.g. 'US', 'RU', 'GB') for region-specific results like certifications. Defaults to US.",
+      "description": "Optional. The user's default country as an ISO-3166-1 code (e.g. 'US', 'RU', 'GB'): age ratings, what's in cinemas and where to watch. Defaults to US.",
       "required": false,
       "default": "US"
     }

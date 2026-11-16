@@ -30,7 +30,8 @@ to neither when the answer is already cached. Each request carries only what
 that specific call needs:
 
 - **TMDB** (`api.themoviedb.org`): `TMDB_API_TOKEN` as an `Authorization:
-Bearer` header, plus the search/lookup parameters the tool call supplies.
+Bearer` header, plus the search/lookup parameters the tool call supplies and
+  the language/country (the call's own, or `TMDB_LANGUAGE`/`TMDB_REGION`).
   Used by almost every tool. Governed by
   [TMDB's own Privacy Policy](https://www.themoviedb.org/privacy-policy) and
   [API Terms of Use](https://www.themoviedb.org/api-terms-of-use) once your
@@ -62,6 +63,10 @@ logging service, and no server run by its maintainer.
   fresh.
 - **Logging**: operational logs go to stderr only (never a file, never a
   remote endpoint), with credentials stripped before anything is written.
+  When TMDB/OMDb is unreachable, a warning names the failed request's address
+  without its query string (so no search text or `apikey`) and, when a cached
+  copy is served instead, that entry's cache key: an id, or the title given
+  to `get_ratings`.
   Log verbosity is controlled by `LOG_LEVEL` (default `info`); logs live only
   as long as your MCP client keeps that stderr stream around.
 - Beyond that in-memory cache and the running process's lifetime, `tmdb-mcp`
@@ -72,7 +77,7 @@ logging service, and no server run by its maintainer.
 Material changes will be noted in [CHANGELOG.md](CHANGELOG.md) and reflected
 here, at the same URL, with the effective date below updated.
 
-_Last updated: 2026-10-20._
+_Last updated: 2026-11-17._
 
 ## Contact
 

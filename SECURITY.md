@@ -18,9 +18,9 @@
   `Bearer` tokens and any `apikey`/`access_token`/`refresh_token`/
   `client_secret`/`client_id` value before a line reaches stderr (see
   `src/lib/errors.ts`'s `redact`, applied to every log line in
-  `src/lib/logger.ts`), including the full request URL an HTTP retry logs at
-  debug level, which is exactly where an unredacted OMDb `apikey` would
-  otherwise leak under `LOG_LEVEL=debug`.
+  `src/lib/logger.ts`). Request addresses are logged without their query
+  string at all (`loggable()` in `src/lib/http.ts`), so the OMDb `apikey`
+  never reaches a log line in the first place; redaction is the second line.
 - **No data kept between requests beyond a small in-memory cache** of
   upstream responses: fresh for `CACHE_TTL_MS` (default 5 minutes), then kept
   only as an outage fallback for up to `CACHE_MAX_STALE_MS` more (default a
