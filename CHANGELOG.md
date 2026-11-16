@@ -28,7 +28,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 
 - Stop hiding a bug, a 404 or a rejected key behind stale cached data ([f301a01](https://github.com/Grinv/tmdb-mcp/commit/f301a01), [f549dfe](https://github.com/Grinv/tmdb-mcp/commit/f549dfe)).
-- Keep cached data fresh only for real elapsed time, including while the machine slept or after the clock stepped back ([f301a01](https://github.com/Grinv/tmdb-mcp/commit/f301a01), [f549dfe](https://github.com/Grinv/tmdb-mcp/commit/f549dfe), [a91d856](https://github.com/Grinv/tmdb-mcp/commit/a91d856)).
+- Measure cache age in real elapsed time, including sleep; after the clock steps back, an entry is neither fresh nor an outage fallback until it catches up ([f301a01](https://github.com/Grinv/tmdb-mcp/commit/f301a01), [f549dfe](https://github.com/Grinv/tmdb-mcp/commit/f549dfe), [a91d856](https://github.com/Grinv/tmdb-mcp/commit/a91d856)).
 - Treat an HTTP 408 from a proxy as a timeout: retried, and a cached copy may stand in ([5281d94](https://github.com/Grinv/tmdb-mcp/commit/5281d94)).
 - Report an empty or non-object upstream body as unreadable, not an internal error ([6e3d792](https://github.com/Grinv/tmdb-mcp/commit/6e3d792), [3534281](https://github.com/Grinv/tmdb-mcp/commit/3534281)).
 - Stop caching a video list built while the title's details failed to load, which hid native-language trailers for the cache's lifetime ([0ae100f](https://github.com/Grinv/tmdb-mcp/commit/0ae100f)).

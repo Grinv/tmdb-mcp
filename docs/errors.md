@@ -38,6 +38,13 @@ shaper checks what it builds against its schema while the tool runs (a
 mismatch surfaces as [internal](#internal)), and the test suite checks every
 tool's whole result against its output schema.
 
+Outages: `rate_limited` (including OMDb's daily quota), `server_error`, `network`,
+`timeout` and `bad_response` mean the upstream couldn't answer, independent
+of `retryable`. For these, a cached copy no older than `CACHE_MAX_STALE_MS`
+past expiry is returned instead of the error, flagged
+`_meta["io.github.Grinv.tmdb-mcp/stale"]`; the problem below is what you get
+when no such copy exists. Every other failure is always reported.
+
 ## unauthorized
 
 TMDB or OMDb rejected the configured token/key: missing, invalid or expired.
@@ -82,8 +89,7 @@ The upstream rejected the request as invalid (HTTP 400/405/422).
 The upstream answered with a success status but an unreadable body: invalid
 JSON, no body at all, or JSON that isn't an object or array. That is a
 complete reply such as a proxy's or captive portal's page, so `retryable` is
-false. The API itself wasn't reached, though, so like a 5xx it counts as an
-outage: a cached copy may be served instead, flagged stale in `_meta`. (A
+false, but the API itself wasn't reached, so it is an outage (see above). (A
 reply cut off mid-body is a [network](#network) error.)
 
 ## unknown
