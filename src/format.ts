@@ -164,6 +164,26 @@ interface NamedRef {
   name?: string;
 }
 
+// TMDB hides adult and softcore titles only where the request takes
+// include_adult (search/*, discover/*). Every other list — trending,
+// recommendations, similar, theatrical lists, a collection's parts, a
+// person's credits and known_for — returns them as-is, and ignores
+// include_adult/include_softcore there (verified live). So this one rule is
+// applied to all of those lists; a detail lookup of one explicit id is left
+// alone, since the caller asked for that title.
+interface ExplicitFlags {
+  adult?: boolean;
+  softcore?: boolean;
+}
+
+function isExplicit(x: ExplicitFlags): boolean {
+  return x.adult === true || x.softcore === true;
+}
+
+export function withoutExplicit<R extends { results?: ExplicitFlags[] }>(res: R): R {
+  return { ...res, results: res.results?.filter((r) => !isExplicit(r)) };
+}
+
 // One shape for both media types (TmdbMultiItem extends both): a movie's
 // keywords come back under `keywords`, a show's under `results`.
 interface TmdbKeywords {
@@ -194,6 +214,7 @@ export interface TmdbMovie {
   homepage?: string | null;
   poster_path?: string | null;
   adult?: boolean;
+  softcore?: boolean;
   origin_country?: string[];
   belongs_to_collection?: { id?: number; name?: string; poster_path?: string | null } | null;
   // Appended via append_to_response=release_dates; carries certifications.
@@ -220,6 +241,8 @@ export interface TmdbTv {
   number_of_seasons?: number;
   number_of_episodes?: number;
   episode_run_time?: number[];
+  adult?: boolean;
+  softcore?: boolean;
   genres?: NamedRef[];
   genre_ids?: number[];
   vote_average?: number;
@@ -626,7 +649,11 @@ export function summarizeTvCredits(
 
 // Used directly by search_people (whose /search/person response carries no
 // media_type at all) and by summarizeMultiItem's "person" case below.
-export function summarizePerson(item: TmdbMultiItem): z.infer<typeof personSummarySchema> {
+// `includeExplicit`: the caller's include_adult on search_people/search_multi.
+export function summarizePerson(
+  item: TmdbMultiItem,
+  includeExplicit = false,
+): z.infer<typeof personSummarySchema> {
   return personSummarySchema.parse({
     id: item.id,
     media_type: "person",
@@ -635,6 +662,7 @@ export function summarizePerson(item: TmdbMultiItem): z.infer<typeof personSumma
     popularity: item.popularity ?? null,
     profile_url: imageUrl(item.profile_path),
     known_for: (item.known_for ?? [])
+      .filter((k) => includeExplicit || !isExplicit(k))
       .map((k) => k.title || k.name)
       .filter(Boolean)
       .slice(0, 5),
@@ -644,12 +672,15 @@ export function summarizePerson(item: TmdbMultiItem): z.infer<typeof personSumma
 // Trending / multi-search dispatch by media_type; people carry known_for titles.
 // Each branch delegates to a shaper that already validates its own output, so
 // there's no separate schema for the dispatcher itself.
-export function summarizeMultiItem(item: TmdbMultiItem): z.infer<typeof multiItemSchema> {
+export function summarizeMultiItem(
+  item: TmdbMultiItem,
+  includeExplicit = false,
+): z.infer<typeof multiItemSchema> {
   switch (item.media_type) {
     case "tv":
       return summarizeTv(item);
     case "person":
-      return summarizePerson(item);
+      return summarizePerson(item, includeExplicit);
     case "movie":
     default:
       // Multi-search omits media_type on some rows; title vs name disambiguates.
@@ -752,7 +783,7 @@ export function summarizeCollection(c: TmdbCollection): z.infer<typeof collectio
     name: c.name,
     overview: c.overview || null,
     poster_url: imageUrl(c.poster_path),
-    parts: parts.map(summarizeMovie),
+    parts: parts.filter((p) => !isExplicit(p)).map(summarizeMovie),
   });
 }
 
@@ -916,6 +947,8 @@ interface CombinedCreditEntry {
   vote_count?: number;
   popularity?: number;
   genre_ids?: number[];
+  adult?: boolean;
+  softcore?: boolean;
 }
 export interface CombinedCredits {
   cast?: CombinedCreditEntry[];
@@ -945,7 +978,9 @@ const CREDIT_KEYS = [
 export function trimCombinedCredits(c: CombinedCredits): CombinedCredits {
   const trim = (e: CombinedCreditEntry): CombinedCreditEntry =>
     Object.fromEntries(CREDIT_KEYS.filter((k) => k in e).map((k) => [k, e[k]]));
-  return { cast: c.cast?.map(trim), crew: c.crew?.map(trim) };
+  // Explicit credits go before trimming drops the flags (see isExplicit).
+  const keep = (e: CombinedCreditEntry): boolean => !isExplicit(e);
+  return { cast: c.cast?.filter(keep).map(trim), crew: c.crew?.filter(keep).map(trim) };
 }
 
 // Movie and TV ids are separate TMDB namespaces — a person can have movie 1487
@@ -1099,7 +1134,7 @@ export function summarizeFind(r: FindResponse): z.infer<typeof findSchema> {
     movie_results: (r.movie_results ?? []).map(summarizeMovie),
     tv_results: (r.tv_results ?? []).map(summarizeTv),
     // /find person rows carry the same fields as /search/person rows.
-    person_results: (r.person_results ?? []).map(summarizePerson),
+    person_results: (r.person_results ?? []).map((p) => summarizePerson(p)),
   });
 }
 

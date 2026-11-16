@@ -27,6 +27,7 @@ import {
   summarizeMovieReleases,
   summarizeMovie,
   summarizeMultiItem,
+  withoutExplicit,
   summarizePerson,
   summarizePersonCredits,
   summarizeReview,
@@ -295,7 +296,7 @@ export class TmdbClient {
       p.language,
       signal,
     );
-    return page(res, summarizeMultiItem);
+    return page(res, (item) => summarizeMultiItem(item, p.include_adult));
   }
 
   async searchPeople(
@@ -310,7 +311,7 @@ export class TmdbClient {
     );
     // /search/person never carries media_type, unlike /search/multi, so
     // dispatch-by-media_type (summarizeMultiItem) would misclassify every row.
-    return page(res, summarizePerson);
+    return page(res, (item) => summarizePerson(item, p.include_adult));
   }
 
   // Keyword ids feed discover_*'s with_keywords; this resolves names → ids.
@@ -611,7 +612,7 @@ export class TmdbClient {
         language,
         signal,
       );
-      return page(res, summarizeTv);
+      return page(withoutExplicit(res), summarizeTv);
     }
     const res = await this.#get<TmdbPage<TmdbMovie>>(
       `movie/${id}/${kind}`,
@@ -619,7 +620,7 @@ export class TmdbClient {
       language,
       signal,
     );
-    return page(res, summarizeMovie);
+    return page(withoutExplicit(res), summarizeMovie);
   }
 
   /** TMDB's co-viewing-based recommendations for a movie or TV show. */
@@ -693,7 +694,7 @@ export class TmdbClient {
       language,
       signal,
     );
-    return page(res, summarizeMultiItem);
+    return page(withoutExplicit(res), (item) => summarizeMultiItem(item));
   }
 
   // Theatrical lists: what's in cinemas now / opening soon in `region`
@@ -709,7 +710,7 @@ export class TmdbClient {
       p.language,
       signal,
     );
-    return summarizeMovieReleases(res);
+    return summarizeMovieReleases(withoutExplicit(res));
   }
 
   // Genre lists drive the readable names in search results; very static → cache.

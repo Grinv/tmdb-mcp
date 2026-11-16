@@ -26,6 +26,12 @@ import {
   type TmdbToolDeps,
 } from "./fields.ts";
 
+// search_multi/search_people: TMDB applies include_adult to the people it
+// matches, and this server also to their known_for titles (see withoutExplicit).
+const includeAdultPeople = includeAdult.describe(
+  "Include adult (NSFW) results, and keep such titles in each person's known_for. Defaults to false.",
+);
+
 export function registerSearchTools(
   server: McpServer,
   { tmdb, requireTmdb, requireTmdbCached }: TmdbToolDeps,
@@ -110,7 +116,7 @@ export function registerSearchTools(
         "search_people are more precise.",
       inputSchema: z.strictObject({
         query: z.string().min(1).describe("Free-text query."),
-        include_adult: includeAdult,
+        include_adult: includeAdultPeople,
         language,
         page: page.optional(),
       }),
@@ -130,7 +136,7 @@ export function registerSearchTools(
         "you already know the result is a person.",
       inputSchema: z.strictObject({
         query: z.string().min(1).describe("Person name to search for."),
-        include_adult: includeAdult,
+        include_adult: includeAdultPeople,
         language,
         page: page.optional(),
       }),

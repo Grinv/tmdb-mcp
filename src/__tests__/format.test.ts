@@ -25,6 +25,7 @@ import {
   summarizeWatchProviderMatches,
   summarizeWatchProviders,
   tvCard,
+  withoutExplicit,
   type TmdbCredits,
   type TmdbMovie,
   type TmdbMultiItem,
@@ -292,6 +293,42 @@ describe("summarizePerson", () => {
     const s = summarizePerson({ id: 1, media_type: "person", known_for_department: "" });
     assert.equal(s.known_for_department, null);
   });
+  // Live: trending/person/week listed a person whose known_for carried a
+  // softcore:true, adult:false title.
+  test("known_for drops adult/softcore titles unless the caller opted in", () => {
+    const item: TmdbMultiItem = {
+      id: 3164807,
+      media_type: "person",
+      known_for: [
+        { id: 865463, title: "Explicit", adult: false, softcore: true },
+        { id: 2, title: "Adult", adult: true, softcore: false },
+        { id: 3, title: "Paprika", adult: false, softcore: false },
+      ],
+    };
+    assert.deepEqual(summarizePerson(item).known_for, ["Paprika"]);
+    assert.deepEqual(summarizePerson(item, true).known_for, ["Explicit", "Adult", "Paprika"]);
+  });
+});
+
+describe("withoutExplicit", () => {
+  test("drops adult and softcore rows and keeps the page envelope", () => {
+    const res = withoutExplicit({
+      page: 1,
+      total_pages: 1,
+      total_results: 3,
+      dates: { minimum: "2026-01-01" },
+      results: [
+        { id: 1, adult: false, softcore: true },
+        { id: 2, adult: true, softcore: false },
+        { id: 3, adult: false, softcore: false },
+      ],
+    });
+    assert.deepEqual(
+      res.results?.map((r) => r.id),
+      [3],
+    );
+    assert.deepEqual(res.dates, { minimum: "2026-01-01" });
+  });
 });
 
 describe("summarizeReview", () => {
@@ -310,6 +347,21 @@ describe("summarizeReview", () => {
 });
 
 describe("summarizeCollection", () => {
+  test("drops adult/softcore parts", () => {
+    const s = summarizeCollection({
+      id: 1,
+      name: "Collection",
+      parts: [
+        { id: 1, release_date: "2001-01-01", adult: false, softcore: true },
+        { id: 2, release_date: "2002-01-01", adult: false, softcore: false },
+      ],
+    });
+    assert.deepEqual(
+      (s.parts as { id: number }[]).map((p) => p.id),
+      [2],
+    );
+  });
+
   test("parts are ordered chronologically regardless of input order", () => {
     const s = summarizeCollection({
       id: 1,
@@ -426,6 +478,27 @@ describe("summarizePersonCredits", () => {
     assert.equal("overview" in trimmed.cast![0]!, false);
     assert.equal("credit_id" in trimmed.crew![0]!, false);
     assert.deepEqual(summarizePersonCredits(trimmed), summarizePersonCredits(raw));
+  });
+
+  // Live /person/3164807/combined_credits: 11 softcore and 2 adult credits.
+  test("trimCombinedCredits drops adult/softcore credits before the flags are trimmed away", () => {
+    const credit = (id: number, adult: boolean, softcore: boolean) => ({
+      id,
+      media_type: "movie" as const,
+      title: `t${id}`,
+      character: "Lead",
+      adult,
+      softcore,
+    });
+    const trimmed = trimCombinedCredits({
+      cast: [credit(1, false, true), credit(2, true, false), credit(3, false, false)],
+      crew: [{ ...credit(4, false, true), job: "Director" }],
+    });
+    assert.deepEqual(
+      trimmed.cast?.map((e) => e.id),
+      [3],
+    );
+    assert.deepEqual(trimmed.crew, []);
   });
 
   // Live /person/2372/combined_credits (Ron Perlman): movie 1487 and tv 1487

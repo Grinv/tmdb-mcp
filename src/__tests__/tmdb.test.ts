@@ -787,6 +787,64 @@ describe("trending & recommendations", () => {
     assert.equal(s.results[0]!.id, 603);
     assert.equal(s.results[0]!.title, "The Matrix");
   });
+
+  // TMDB filters explicit titles only on search/discover; recommendations
+  // returned 3 softcore titles live for a softcore movie.
+  test("get_movie_recommendations drops adult/softcore titles", async (t) => {
+    const movie = (id: number, adult: boolean, softcore: boolean) => ({
+      id,
+      title: `t${id}`,
+      adult,
+      softcore,
+      release_date: "2020-01-01",
+    });
+    installFetch(
+      t,
+      mockFetch(() =>
+        jsonResponse(
+          pageOf([movie(1, false, true), movie(2, true, false), movie(3, false, false)]),
+        ),
+      ),
+    );
+    const client = await connectServer(t, ENV);
+    const res = await client.callTool({
+      name: "get_movie_recommendations",
+      arguments: { id: 865463 },
+    });
+    const s = res.structuredContent as { results: { id: number }[] };
+    assert.deepEqual(
+      s.results.map((r) => r.id),
+      [3],
+    );
+  });
+
+  test("search_people keeps explicit known_for titles only with include_adult", async (t) => {
+    const person = {
+      id: 3164807,
+      name: "P",
+      adult: false,
+      known_for: [
+        { id: 865463, media_type: "movie", title: "Explicit", adult: false, softcore: true },
+        { id: 3, media_type: "movie", title: "Paprika", adult: false, softcore: false },
+      ],
+    };
+    installFetch(
+      t,
+      mockFetch(() => jsonResponse(pageOf([person]))),
+    );
+    const client = await connectServer(t, ENV);
+    const knownFor = async (include_adult?: boolean) =>
+      (
+        (
+          await client.callTool({
+            name: "search_people",
+            arguments: { query: "P", ...(include_adult !== undefined && { include_adult }) },
+          })
+        ).structuredContent as { results: { known_for: string[] }[] }
+      ).results[0]!.known_for;
+    assert.deepEqual(await knownFor(), ["Paprika"]);
+    assert.deepEqual(await knownFor(true), ["Explicit", "Paprika"]);
+  });
 });
 
 describe("get_movie", () => {

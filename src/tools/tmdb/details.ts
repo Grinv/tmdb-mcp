@@ -352,7 +352,8 @@ export function registerDetailsTools(
         "and keywords — a blunter heuristic than get_movie_recommendations'/get_tv_recommendations' " +
         "behavioral (co-viewing) data, so results are often thematically noisy (verified live: The " +
         "Matrix's first page mixes Videodrome and Dune with The Man with the Golden Gun). Returned " +
-        "exactly as TMDB ranks them, 20 per page; the list runs into the whole catalog " +
+        "in TMDB's order, up to 20 per page (adult/softcore titles are dropped, as on every " +
+        "list TMDB doesn't filter itself); the list runs into the whole catalog " +
         "(total_results 20001 for The Matrix), so only the first page or two are worth reading. " +
         "Try recommendations first for thematically closer picks; use this when you specifically " +
         "want genre/keyword-adjacent titles. Get the id from search_movies/search_tv.",
