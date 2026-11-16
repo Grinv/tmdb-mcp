@@ -86,6 +86,11 @@ const withGenres = idMatch("TMDB genre ids; get them from get_movie_genres/get_t
 // (unlike `language` above).
 const originalLanguageRegex = /^[a-z]{2}$/;
 const dateStr = (what: string) => z.iso.date().describe(what).optional();
+const WATCH_REGION =
+  "The user's country (pass it when known), whose streaming catalog with_watch_providers / " +
+  "without_watch_providers / with_watch_monetization_types filter on. Only valid together with " +
+  "at least one of them.";
+
 const discoverShared = {
   with_genres: withGenres,
   without_genres: idList(
@@ -184,14 +189,7 @@ const discoverShared = {
         "confirm which service offers which access model (it reports 'flatrate' as `streaming`).",
     )
     .optional(),
-  watch_region: watchRegion
-    .describe(
-      "The user's country (pass it when known), whose streaming catalog with_watch_providers / " +
-        "without_watch_providers / with_watch_monetization_types filter on; the server's " +
-        "TMDB_REGION when one of them is set without it. Only valid together with at least one " +
-        "of them.",
-    )
-    .optional(),
+  watch_region: watchRegion.describe(WATCH_REGION).optional(),
   // Applies to /discover/tv as well: a nonsense certification value returns
   // zero results there too.
   //
@@ -231,9 +229,6 @@ const discoverShared = {
         "valid together with certification.",
     )
     .optional(),
-  // Typing only (discoverParamsSchema); registerDiscoverTools swaps in the
-  // user's-language field with the server's default.
-  language: languageCode.optional(),
   // Unlike region below, this measurably changes the result set on both
   // endpoints (a five/six-figure swing in total_results with no other filters).
   include_adult: includeAdult,
@@ -394,13 +389,16 @@ export const discoverParamsSchema = z.object({
   ...discoverMovieSchema,
   ...discoverTvSchema,
   sort_by: z.union([z.enum(MOVIE_SORT_BY), z.enum(TV_SORT_BY)]).optional(),
+  // Added per tool in registerDiscoverTools, with the server's defaults.
+  language: languageCode.optional(),
 });
 export type DiscoverParams = z.infer<typeof discoverParamsSchema>;
 
-// TMDB silently ignores certification/with_watch_providers/
-// without_watch_providers/with_watch_monetization_types/with_release_type/region
-// when the field they pair with is missing, which reads as "the filter was
-// applied". Catch that here instead of round-tripping to TMDB.
+// TMDB silently ignores certification/with_release_type/region when the field
+// they pair with is missing, and watch_region/certification_country without
+// a filter, which reads as "the filter was applied". Catch that here instead
+// of round-tripping to TMDB. A watch filter without watch_region is fine: the
+// client sends the user's country.
 function checkDiscoverFilterPairs(
   val: {
     min_rating?: number;
@@ -513,6 +511,17 @@ export function registerDiscoverTools(
   server: McpServer,
   { tmdb, requireTmdb, region, language }: TmdbToolDeps,
 ): void {
+  // A watch filter's country when the call gives none (TmdbClient.discover);
+  // not a schema default, which would hide a watch_region sent alone. Its
+  // value goes into the description so the caller knows which it is.
+  const userCountry = region.parse(undefined);
+  const userWatchRegion = watchRegion
+    .describe(
+      `${WATCH_REGION} Omitted with a watch filter set, it is '${userCountry}' (the server's ` +
+        "TMDB_REGION).",
+    )
+    .optional();
+
   server.registerTool(
     "get_trending",
     {
@@ -622,9 +631,8 @@ export function registerDiscoverTools(
         "(subscription/rent/buy/free/ads), certification, a release window in one country by " +
         "release type (any_release_date_gte/lte + region + with_release_type, e.g. 'movies in " +
         "German cinemas this month'), an adult-content toggle, and sort order. " +
-        "certification/with_watch_providers/without_watch_providers/" +
-        "with_watch_monetization_types/with_release_type/region have validation and " +
-        "silent-fallback rules; see their own field descriptions. Use for 'popular sci-fi from " +
+        "certification/certification_country/watch_region/with_release_type/region have pairing " +
+        "rules; see their own field descriptions. Use for 'popular sci-fi from " +
         "the 1990s with a TMDB vote average above 7 available on Netflix', or for a specific " +
         "person's work in one genre ('which of this director's/actor's/composer's films are " +
         "animated') via with_crew/with_cast/with_people + with_genres together; " +
@@ -632,7 +640,7 @@ export function registerDiscoverTools(
         "question. Resolve ids with get_movie_genres, search_people, search_keywords, " +
         "search_companies, search_watch_providers.",
       inputSchema: z
-        .strictObject({ ...discoverMovieSchema, language })
+        .strictObject({ ...discoverMovieSchema, language, watch_region: userWatchRegion })
         .superRefine(checkDiscoverFilterPairs),
       outputSchema: pageSchema(movieSummarySchema),
       annotations: READ_ONLY,
@@ -655,8 +663,7 @@ export function registerDiscoverTools(
         "all (a validation error, not a silent no-op), because TMDB's own /discover/tv would " +
         "silently ignore them, unlike /discover/movie. To find TV shows featuring someone, call " +
         "get_person_credits and filter its results to media_type 'tv'. " +
-        "certification/with_watch_providers/without_watch_providers/" +
-        "with_watch_monetization_types have validation and silent-fallback rules; see their own " +
+        "certification/certification_country/watch_region have pairing rules; see their own " +
         "field descriptions. The TV counterpart of discover_movies; use with_networks for 'HBO " +
         "shows', with_type='Miniseries' for short/limited series (e.g. 'best miniseries to " +
         "binge in a weekend'), with_status='Ended' to exclude shows still airing, " +
@@ -664,7 +671,7 @@ export function registerDiscoverTools(
         "kid'. Resolve ids with get_tv_genres, search_companies, search_keywords, " +
         "search_watch_providers.",
       inputSchema: z
-        .strictObject({ ...discoverTvSchema, language })
+        .strictObject({ ...discoverTvSchema, language, watch_region: userWatchRegion })
         .superRefine(checkDiscoverFilterPairs),
       outputSchema: pageSchema(tvSummarySchema),
       annotations: READ_ONLY,

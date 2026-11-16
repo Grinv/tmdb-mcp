@@ -60,7 +60,7 @@ result as always.
 | Var                    | Default                        | Meaning                                                                     |
 | ---------------------- | ------------------------------ | --------------------------------------------------------------------------- |
 | `TMDB_LANGUAGE`        | `en-US`                        | Default response language, e.g. `ru-RU` (localizes titles/overviews/genres) |
-| `TMDB_REGION`          | `US`                           | Default ISO-3166-1 country for region-specific results (certifications)     |
+| `TMDB_REGION`          | `US`                           | The user's default country: certifications, cinemas, where to watch         |
 | `TMDB_BASE_URL`        | `https://api.themoviedb.org/3` | TMDB API base URL                                                           |
 | `OMDB_BASE_URL`        | `https://www.omdbapi.com`      | OMDb API base URL                                                           |
 | `TMDB_MIN_INTERVAL_MS` | `60`                           | Min spacing between TMDB calls (0 disables)                                 |

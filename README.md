@@ -62,7 +62,7 @@ Add it to your MCP client's config. The only required credential is a TMDB v4
         "TMDB_API_TOKEN": "your-tmdb-v4-read-access-token (required)",
         "OMDB_API_KEY": "your-omdb-key (optional: IMDb/RT/Metacritic ratings)",
         "TMDB_LANGUAGE": "en-US (optional: localize, e.g. ru-RU)",
-        "TMDB_REGION": "US (optional: region for certifications, e.g. RU)"
+        "TMDB_REGION": "US (optional: the user's country, e.g. RU)"
       }
     }
   }
@@ -134,12 +134,14 @@ attribution to individuals) and OMDb's own age rating (`ratings.rated`, separate
 from this server's `certification`). Without an OMDb key the TMDB data still
 works, and the `ratings` field reports that OMDb is unconfigured.
 
-**Localization.** Set `TMDB_LANGUAGE` (e.g. `ru-RU`) and `TMDB_REGION` (e.g.
-`RU`) to get localized titles/overviews/genre names and region-specific
-certifications. `search_movies`/`search_tv`/`search_multi`/`search_people`/
+**Localization.** `TMDB_LANGUAGE` (e.g. `ru-RU`) and `TMDB_REGION` (e.g. `RU`)
+are the user's default language and country: localized titles/overviews/genre
+names, and the country for age ratings, cinemas and where to watch (including
+`discover_*`'s watch filters). Tools publish them as their `language`/`region`
+defaults, and the agent can pass the user's own per call. `search_movies`/`search_tv`/`search_multi`/`search_people`/
 `search_collections`, `get_movie`/`get_tv`/`get_movies`/`get_tv_shows`/`get_person`,
-`get_collection`, `get_movie_releases` and `discover_movies`/`discover_tv` also
-accept a per-call `language` override.
+`get_collection`, `get_movie_releases` and `discover_movies`/`discover_tv` take
+`language`.
 
 ## Getting your credentials
 

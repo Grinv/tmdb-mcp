@@ -52,6 +52,11 @@ import {
   type TmdbToolDeps,
 } from "./fields.ts";
 
+// get_movie/get_tv: what `region` selects.
+const CERTIFICATION_REGION =
+  "The user's country (pass it when known), whose age rating `certification` shows (falling " +
+  "back to the US rating, then any country's).";
+
 // get_movies/get_tv_shows: what getCards does with an id that fails.
 const CARD_FAILURE =
   "An id that fails to load (unknown, or hit by an upstream error such as a rate limit) " +
@@ -85,10 +90,7 @@ export function registerDetailsTools(
         "search_movies.",
       inputSchema: z.strictObject({
         id: movieId,
-        region: region.describe(
-          "The user's country (pass it when known), whose age rating `certification` shows (falling back to the US " +
-            "rating, then any country's).",
-        ),
+        region: region.describe(CERTIFICATION_REGION),
         language,
         include_ratings: includeRatings,
       }),
@@ -129,10 +131,7 @@ export function registerDetailsTools(
         "trimmed and skips the rest of this payload. Get the id from search_tv.",
       inputSchema: z.strictObject({
         id: tvId,
-        region: region.describe(
-          "The user's country (pass it when known), whose age rating `certification` shows (falling back to the US " +
-            "rating, then any country's).",
-        ),
+        region: region.describe(CERTIFICATION_REGION),
         language,
         include_ratings: includeRatings,
         expand_episodes: expandEpisodes,

@@ -98,9 +98,11 @@ run's exact calls verbatim:
   `language`/`TMDB_LANGUAGE` bug was found.
 - **Cross-field pairing rules**: filters that TMDB silently no-ops on when a
   required partner field is missing (`certification`+`certification_country`,
-  `with_watch_providers`+`watch_region`, `min_rating`>`max_rating`) — these
+  `watch_region` sent without a watch filter, `min_rating`>`max_rating`) — these
   must error via the tool's own validation, not reach TMDB and look like "the
-  filter was applied" when it wasn't. List separators too: TMDB reads `,` as
+  filter was applied" when it wasn't. The one deliberate exception: a watch
+  filter without `watch_region` gets the user's country (`TMDB_REGION`, see
+  AGENTS.md "The user's country and language"); check it is actually sent. List separators too: TMDB reads `,` as
   AND and `|` as OR in `with_*` (`with_watch_providers` `8,9` → 0, `8|9` → 73).
 - **The same fact from two tools must agree.** Ratings reach the caller by more
   than one path and a per-tool sweep passes while the paths disagree, because

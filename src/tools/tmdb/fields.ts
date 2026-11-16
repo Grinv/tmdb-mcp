@@ -154,10 +154,9 @@ export const expandEpisodes = z
   );
 
 // The user's country: every country a tool can't answer without (age rating,
-// cinemas, where to watch) defaults to the server's TMDB_REGION. Each tool
-// overrides the description with what the country selects there.
-export const regionSchema = (defaultRegion: string) =>
-  country.default(defaultRegion).describe("The user's country (ISO-3166-1); pass it when known.");
+// cinemas, where to watch) defaults to the server's TMDB_REGION. Each use
+// describes what the country selects there.
+export const regionSchema = (defaultRegion: string) => country.default(defaultRegion);
 
 export const languageCode = z
   .string()

@@ -584,19 +584,35 @@ describe("server / auth", () => {
   test("the user's country and language publish the server's TMDB_REGION/TMDB_LANGUAGE as defaults", async (t) => {
     const client = await connectServer(t, { ...ENV, TMDB_REGION: "RU" });
     const { tools } = await client.listTools();
-    for (const name of ["get_movie", "get_tv", "get_watch_providers", "get_movie_releases"]) {
-      const region = tools.find((tool) => tool.name === name)!.inputSchema.properties!.region as {
+    for (const [name, field] of [
+      ["get_movie", "region"],
+      ["get_tv", "region"],
+      ["get_watch_providers", "region"],
+      ["get_movie_releases", "region"],
+      ["search_watch_providers", "watch_region"],
+    ] as const) {
+      const region = tools.find((tool) => tool.name === name)!.inputSchema.properties![field] as {
         default?: unknown;
         description?: string;
       };
       assert.equal(region.default, "RU", name);
-      assert.doesNotMatch(region.description ?? "", /default/i, name);
+      assert.doesNotMatch(region.description ?? "", /default '/i, name); // not restated in prose
     }
     // language too, on every tool that takes it.
     const fresh = await connectServer(t, { ...ENV, TMDB_LANGUAGE: "de-DE" });
     for (const tool of (await fresh.listTools()).tools) {
       const lang = tool.inputSchema.properties?.language as { default?: unknown } | undefined;
       if (lang) assert.equal(lang.default, "de-DE", tool.name);
+    }
+    // discover's watch_region has no schema default (it would hide one sent
+    // alone), so its description names the value used.
+    for (const name of ["discover_movies", "discover_tv"]) {
+      const wr = tools.find((tool) => tool.name === name)!.inputSchema.properties!.watch_region as {
+        default?: unknown;
+        description?: string;
+      };
+      assert.equal(wr.default, undefined, name);
+      assert.match(wr.description ?? "", /^The user's country[\s\S]*it is 'RU'/, name);
     }
     // discover_movies' region narrows a release window: no default.
     const discover = tools.find((tool) => tool.name === "discover_movies")!;

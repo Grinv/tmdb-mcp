@@ -16,14 +16,7 @@ import {
   watchProviderMatchesSchema,
 } from "../../format.schemas.ts";
 import { READ_ONLY } from "../shared.ts";
-import {
-  includeAdult,
-  mediaKind,
-  page,
-  watchRegion,
-  yearFilter,
-  type TmdbToolDeps,
-} from "./fields.ts";
+import { includeAdult, mediaKind, page, yearFilter, type TmdbToolDeps } from "./fields.ts";
 
 // search_multi/search_people: TMDB applies include_adult to the people it
 // matches, and this server also to their known_for titles (see withoutExplicit).
@@ -33,7 +26,7 @@ const includeAdultPeople = includeAdult.describe(
 
 export function registerSearchTools(
   server: McpServer,
-  { tmdb, requireTmdb, language }: TmdbToolDeps,
+  { tmdb, requireTmdb, region, language }: TmdbToolDeps,
 ): void {
   server.registerTool(
     "search_movies",
@@ -221,14 +214,11 @@ export function registerSearchTools(
       description:
         "Resolve a streaming/rental/purchase service's name (e.g. 'Netflix', 'Disney Plus') to its " +
         "TMDB numeric provider id. Feed the id into discover_movies/discover_tv's " +
-        "with_watch_providers (with watch_region set to the same region given here, if any) to " +
-        "find top titles on that service. TMDB has no name-based lookup for this, only " +
+        "with_watch_providers, with the same watch_region, to find top titles on that service. TMDB has no name-based lookup for this, only " +
         "numeric ids, and there are hundreds of providers (269+ for the US alone, more elsewhere), " +
         "so don't guess an id. A provider's id, and whether it's offered at all, can differ by " +
         "region (e.g. a service bundled as a channel add-on in one country vs. standalone in " +
-        "another). Pass watch_region to match what discover_movies/discover_tv will see; " +
-        "omitting it searches the full global provider list, which may include ids not valid " +
-        "for the caller's region.",
+        "another).",
       inputSchema: z.strictObject({
         query: z
           .string()
@@ -239,7 +229,10 @@ export function registerSearchTools(
             "but not the other (its id stays the same either way; a movie-only or TV-only service " +
             "just returns nothing from the wrong media_type).",
         ),
-        watch_region: watchRegion.optional(),
+        watch_region: region.describe(
+          "The user's country (pass it when known), whose provider list to search; discover_* " +
+            "defaults its watch_region to the same country.",
+        ),
         page: page.optional(),
       }),
       outputSchema: watchProviderMatchesSchema,
