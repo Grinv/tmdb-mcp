@@ -8,6 +8,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Log each upstream outage once, where the request fails, with its code, status and cause chain; log a stale fallback as one line with its age ([d0b0998](https://github.com/Grinv/tmdb-mcp/commit/d0b0998), [a907e6a](https://github.com/Grinv/tmdb-mcp/commit/a907e6a)).
 - **Breaking:** report stale data as `_meta["io.github.Grinv.tmdb-mcp/stale"]: {"age_seconds": N}`, not `"tmdb-mcp/stale": true` ([04f2285](https://github.com/Grinv/tmdb-mcp/commit/04f2285), [d27aec1](https://github.com/Grinv/tmdb-mcp/commit/d27aec1)).
 - **Breaking:** remove `search_movies`' `region`; it only swapped in one country's release date, so `year` disagreed with every other tool ([15358f2](https://github.com/Grinv/tmdb-mcp/commit/15358f2)).
 - Drop adult/softcore titles from lists TMDB doesn't filter itself: trending, recommendations, similar, credits, collections, `known_for` ([400a8f0](https://github.com/Grinv/tmdb-mcp/commit/400a8f0)).

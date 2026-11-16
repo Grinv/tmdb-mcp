@@ -146,8 +146,9 @@ npm run inspector      # run under the MCP Inspector
   the wall clock counts sleep but steps, the monotonic one doesn't step but
   stops during sleep (a step forward still looks like sleep; see the
   comment there). Tests drive both through `fakeClock()` (`helpers.ts`).
-  An outage or partial refresh is logged once, where the shared compute
-  settles (`#dedupe`), whether or not a stale copy then stands in. `wrapStaleOnError` decides what to return, note and
+  An outage is logged once, where every upstream request settles
+  (`HttpClient.getJson`'s final throw); the cache logs only its own
+  decisions (a stale copy served, with its age; a partial refresh). `wrapStaleOnError` decides what to return, note and
   log in one sequence (fresh → computed → stale copy → partial); add a case
   there, not as another branch elsewhere.
 - Every shaper in `format.ts` returns `z.infer<typeof <name>Schema>` (the
