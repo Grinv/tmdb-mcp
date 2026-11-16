@@ -9,13 +9,13 @@ import prettier from "eslint-config-prettier";
 // with or without `new`, and no subclass of one.
 const BUILTIN_ERROR =
   "/^(Error|TypeError|RangeError|SyntaxError|ReferenceError|EvalError|URIError|AggregateError)$/";
-// Matches `Error` and `globalThis.Error` alike. A syntax rule catches the
+// Matches `Error` and `globalThis.Error` (or global., window., self.) alike. A syntax rule catches the
 // usual spellings, not deliberate evasion (an alias, Reflect.construct);
 // toProblem() still reports anything else as an internal error.
 /** @param {string} path */
 const ERROR_REF = (path) =>
   `[${path}.name=${BUILTIN_ERROR}], ` +
-  `[${path}.object.name=/^(globalThis|window|self)$/][${path}.property.name=${BUILTIN_ERROR}]`;
+  `[${path}.object.name=/^(globalThis|global|window|self)$/][${path}.property.name=${BUILTIN_ERROR}]`;
 const ERROR_TYPE_RULES = [
   {
     selector: `:matches(NewExpression, CallExpression):matches(${ERROR_REF("callee")})`,

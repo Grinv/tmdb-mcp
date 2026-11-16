@@ -643,7 +643,11 @@ describe("TmdbClient: getTv(expand_episodes) degrades per chunk, keeps season or
         status_code: 7,
         status_message: "Invalid API key: You must be granted a valid key.",
       },
-      503: { success: false, status_code: 9, status_message: "Service offline - try again later." },
+      503: {
+        success: false,
+        status_code: 9,
+        status_message: "Service offline - This service is temporarily offline, try again later.",
+      },
     };
     let status: keyof typeof errors = 401;
     installFetch(
