@@ -15,7 +15,7 @@
  * request's response into another's cache slot.
  */
 import { AsyncLocalStorage } from "node:async_hooks";
-import { ApiError } from "./errors.ts";
+import { isOutage } from "./errors.ts";
 import type { Logger } from "./logger.ts";
 
 export function cacheKey(
@@ -104,7 +104,11 @@ export class TtlCache {
   /** Fresh (non-expired) value, or undefined. */
   get<T>(key: string): T | undefined {
     const hit = this.#map.get(key);
-    if (!hit || this.#now() >= hit.storedAt + this.#ttlMs) return undefined;
+    if (!hit) return undefined;
+    // A negative age means the clock stepped back since the entry was stored;
+    // its true age is unknown, so it isn't fresh.
+    const ageMs = this.#now() - hit.storedAt;
+    if (ageMs < 0 || ageMs >= this.#ttlMs) return undefined;
     this.#touch(key, hit);
     return hit.value as T;
   }
@@ -127,10 +131,10 @@ export class TtlCache {
   }
 
   /**
-   * Get-or-compute, caching the resolved value. When the upstream is down (a
-   * transient ApiError) and a value within the stale window exists, that is
-   * served and noted as stale. Anything else (a bug, a 404, a rejected key)
-   * propagates: stale data must not hide it.
+   * Get-or-compute, caching the resolved value. During an upstream outage
+   * (isOutage) a value within the stale window is served instead and noted as
+   * stale. Anything else (a bug, a 404, a rejected key) propagates: stale data
+   * must not hide it.
    */
   async wrapStaleOnError<T>(key: string, compute: () => Promise<T | Degraded<T>>): Promise<T> {
     const fresh = this.get<T>(key);
@@ -139,19 +143,20 @@ export class TtlCache {
     try {
       computed = await this.#dedupe(key, compute);
     } catch (err) {
-      const stale =
-        err instanceof ApiError && err.retryable ? this.#usableStale<T>(key) : undefined;
+      const stale = isOutage(err) ? this.#usableStale<T>(key) : undefined;
       if (stale === undefined) throw err;
       this.#logger?.warn(`serving stale cached value for "${key}" — upstream refresh failed`, err);
       return stale;
     }
     // The shared compute's own notes apply to every caller it serves, not just
-    // the one whose context ran it.
-    note(computed.notes);
-    if (!(computed.value instanceof Degraded)) return computed.value;
+    // the one whose context ran it, but only if its value is the one returned.
+    if (!(computed.value instanceof Degraded)) {
+      note(computed.notes);
+      return computed.value;
+    }
     const stale = this.#usableStale<T>(key);
     if (stale !== undefined) return stale;
-    note({ partial: true });
+    note({ ...computed.notes, partial: true });
     return computed.value.value;
   }
 
@@ -160,7 +165,7 @@ export class TtlCache {
   #usableStale<T>(key: string): T | undefined {
     const hit = this.#map.get(key);
     if (hit === undefined) return undefined;
-    const ageMs = this.#now() - hit.storedAt;
+    const ageMs = Math.max(0, this.#now() - hit.storedAt);
     if (ageMs > this.#ttlMs + this.#maxStaleMs) {
       this.#map.delete(key);
       return undefined;

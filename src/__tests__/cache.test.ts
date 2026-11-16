@@ -214,7 +214,7 @@ describe("TtlCache", () => {
 
   // Stale data may only stand in for an outage: a bug, a 404 or a rejected
   // key must surface, not be hidden behind yesterday's copy.
-  test("serves stale only for a transient upstream failure", async () => {
+  test("serves stale only during an upstream outage", async () => {
     let now = 0;
     const cache = new TtlCache({ ttlMs: 1, now: () => now });
     await cache.wrapStaleOnError("k", async () => 1);
@@ -223,6 +223,7 @@ describe("TtlCache", () => {
       new TypeError("bug"),
       new ApiError({ code: "not_found", message: "gone" }),
       new ApiError({ code: "unauthorized", message: "bad key" }),
+      new ApiError({ code: "unknown", message: "418" }),
     ]) {
       await assert.rejects(
         () =>
@@ -232,13 +233,46 @@ describe("TtlCache", () => {
         (e) => e === err,
       );
     }
-    const outage = new ApiError({ code: "network", message: "down" });
-    assert.equal(
-      await cache.wrapStaleOnError("k", async () => {
-        throw outage;
+    for (const outage of [
+      new ApiError({ code: "network", message: "down" }),
+      // OMDb's daily quota: not worth retrying now, yet still an outage.
+      new ApiError({ code: "rate_limited", message: "quota", retryable: false }),
+      // A proxy's HTML page instead of the API.
+      new ApiError({ code: "bad_response", message: "html" }),
+    ]) {
+      assert.equal(
+        await cache.wrapStaleOnError("k", async () => {
+          throw outage;
+        }),
+        1,
+        outage.message,
+      );
+    }
+  });
+
+  test("a clock stepped back makes an entry stale, not fresh for longer", async () => {
+    let now = 10_000;
+    const cache = new TtlCache({ ttlMs: 1_000, now: () => now });
+    cache.set("k", 1);
+    now -= 3_600_000;
+    assert.equal(cache.get("k"), undefined);
+  });
+
+  test("a degraded compute's notes are dropped when a complete stale copy wins", async () => {
+    let now = 0;
+    const cache = new TtlCache({ ttlMs: 1, now: () => now });
+    await cache.wrapStaleOnError("k", async () => "full");
+    now += 5;
+    const notes: CallNotes = {};
+    const v = await callNotes.run(notes, () =>
+      cache.wrapStaleOnError("k", async () => {
+        callNotes.getStore()!.partial = true; // an inner part was partial
+        return degraded("part");
       }),
-      1,
     );
+    assert.equal(v, "full");
+    assert.equal(notes.partial, undefined);
+    assert.equal(notes.staleAgeMs, 5);
   });
 
   // A shared compute that itself used stale data: every caller it serves is

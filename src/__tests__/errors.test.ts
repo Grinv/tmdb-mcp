@@ -70,10 +70,15 @@ describe("redact", () => {
 });
 
 describe("unlessUpstreamFails", () => {
-  test("tolerates an upstream failure, but never a bug", async () => {
+  test("tolerates an upstream outage, but never an authoritative failure or a bug", async () => {
     assert.equal(await unlessUpstreamFails(Promise.resolve(1)), 1);
     const outage = new ApiError({ code: "server_error", message: "x" });
     assert.equal(await unlessUpstreamFails(Promise.reject(outage)), undefined);
+    const revoked = new ApiError({ code: "unauthorized", message: "x" });
+    await assert.rejects(
+      () => unlessUpstreamFails(Promise.reject(revoked)),
+      (e) => e === revoked,
+    );
     await assert.rejects(
       () => unlessUpstreamFails(Promise.reject(new TypeError("bug"))),
       TypeError,

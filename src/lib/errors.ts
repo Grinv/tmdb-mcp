@@ -71,6 +71,36 @@ const TRANSIENT: Record<ApiErrorCode, boolean> = {
   unknown: false,
 };
 
+/**
+ * Whether a failure means the upstream couldn't answer right now (an outage),
+ * as opposed to an authoritative answer (a 404, a rejected key, a bad request)
+ * or the caller's cancel. Only an outage lets a cached copy or a partial
+ * result stand in (RFC 5861's stale-if-error). Decided by code, not by an
+ * occurrence's `retryable`: OMDb's exhausted daily quota won't pass on retry,
+ * yet it is still an outage. A Record, so the compiler rejects a code without
+ * an entry.
+ */
+const OUTAGE: Record<ApiErrorCode, boolean> = {
+  unauthorized: false,
+  forbidden: false,
+  not_found: false,
+  rate_limited: true,
+  server_error: true,
+  network: true,
+  timeout: true,
+  cancelled: false,
+  bad_request: false,
+  // A proxy's or captive portal's page instead of the API: the upstream
+  // wasn't reached, like a 502.
+  bad_response: true,
+  // An unclassified status or refusal: unknown, so it isn't hidden.
+  unknown: false,
+};
+
+export function isOutage(err: unknown): err is ApiError {
+  return err instanceof ApiError && OUTAGE[err.code];
+}
+
 /** Map an HTTP status code to an ApiErrorCode. */
 export function classifyStatus(status: number): ApiErrorCode {
   if (status === 401) return "unauthorized";
@@ -93,14 +123,15 @@ export function redact(input: string): string {
 }
 
 /**
- * For optional data a caller can do without: resolves to undefined when the
- * upstream fails (any ApiError). Anything else is a bug and propagates.
+ * For optional data a caller can do without: resolves to undefined during an
+ * upstream outage (isOutage). Anything else (an authoritative failure, a bug)
+ * propagates.
  */
 export async function unlessUpstreamFails<T>(promise: Promise<T>): Promise<T | undefined> {
   try {
     return await promise;
   } catch (err) {
-    if (err instanceof ApiError) return undefined;
+    if (isOutage(err)) return undefined;
     throw err;
   }
 }

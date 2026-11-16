@@ -422,7 +422,8 @@ export class TmdbClient {
       language: this.#lang(language),
     });
     // A result with a failed chunk's seasons emptied is degraded(): not cached,
-    // and a complete stale copy within the stale window wins over it.
+    // a complete stale copy within the stale window wins over it, otherwise
+    // the caller gets it flagged partial.
     const bulk = await this.#cache.wrapStaleOnError(key, async () => {
       // Skip seasons whose known episode_count puts them entirely beyond the
       // budget; fetch only up through the season that crosses it (for its
@@ -451,34 +452,31 @@ export class TmdbClient {
         episodes: [],
       });
 
-      // allSettled, not all: a long-running show needs 2+ chunks (General
-      // Hospital, Top Gear), and one failed chunk shouldn't sink the others.
-      // Only when every chunk fails is it an upstream failure; rethrow so
-      // wrapStaleOnError can fall back to a stale value.
+      // Episodes are optional like any enrichment: a chunk lost to an outage
+      // only empties its own seasons (a long-running show such as General
+      // Hospital needs 2+ chunks), and the result is degraded.
       const chunks = chunk(toFetch, MAX_APPEND_TO_RESPONSE);
-      const settled = await Promise.allSettled(
+      const fetched = await Promise.all(
         chunks.map((indices) =>
-          this.#get<Record<string, TmdbSeason | undefined>>(
-            `tv/${id}`,
-            {
-              append_to_response: indices
-                .map((i) => `season/${seasons[i]!.season_number}`)
-                .join(","),
-            },
-            language,
+          unlessUpstreamFails(
+            this.#get<Record<string, TmdbSeason | undefined>>(
+              `tv/${id}`,
+              {
+                append_to_response: indices
+                  .map((i) => `season/${seasons[i]!.season_number}`)
+                  .join(","),
+              },
+              language,
+            ),
           ),
         ),
       );
-      const firstFailure = settled.find((r) => r.status === "rejected");
-      if (firstFailure && settled.every((r) => r.status === "rejected")) {
-        throw firstFailure.reason;
-      }
 
       const out = seasons.map(skippedEntry);
-      settled.forEach((result, c) => {
-        if (result.status !== "fulfilled") return;
+      fetched.forEach((body, c) => {
+        if (body === undefined) return;
         for (const i of chunks[c]!) {
-          const raw = result.value[`season/${seasons[i]!.season_number}`];
+          const raw = body[`season/${seasons[i]!.season_number}`];
           if (raw) out[i] = summarizeSeason(raw, MAX_SEASON_EPISODES, false);
         }
       });
@@ -492,7 +490,7 @@ export class TmdbClient {
           ),
         ),
       };
-      return firstFailure ? degraded(result) : result;
+      return fetched.includes(undefined) ? degraded(result) : result;
     });
     return bulk.seasons;
   }
@@ -766,8 +764,8 @@ export class TmdbClient {
         // The original language comes from the cached raw detail (shared with
         // get_movie/get_tv); without it a non-English film's native trailers
         // are dropped (Spirited Away: no ja trailer under en). It's optional:
-        // an upstream failure there degrades the list (not cached) instead of
-        // failing the call.
+        // an outage there degrades the list (not cached) instead of failing
+        // the call.
         const detail = await unlessUpstreamFails(
           mediaType === "tv" ? this.#tvRaw(id, language) : this.#movieRaw(id, language),
         );

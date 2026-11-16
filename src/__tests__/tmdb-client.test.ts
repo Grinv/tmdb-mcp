@@ -613,7 +613,7 @@ describe("TmdbClient: getTv(expand_episodes) degrades per chunk, keeps season or
     for (const x of again.seasons_detail!) assert.equal(x.episodes.length, 5);
   });
 
-  test("rethrows when every chunk fails, so a stale cached value can still be served", async (t) => {
+  test("when every chunk fails, a stale cached value is served", async (t) => {
     const seasons = [{ season_number: 1, name: "Season 1", episode_count: 3, air_date: null }];
     let failSeasons = false;
     const mock = mockFetch((url) => {
@@ -630,12 +630,31 @@ describe("TmdbClient: getTv(expand_episodes) degrades per chunk, keeps season or
     failSeasons = true;
     const record: CallNotes = {};
     const s = await callNotes.run(record, () => c.getTv(1, "US", undefined, true));
-    assert.notEqual(
-      record.staleAgeMs,
-      undefined,
-      "all-chunks-failed must surface as an error, not cached skips",
-    );
+    assert.notEqual(record.staleAgeMs, undefined, "the stale complete copy wins");
     assert.equal(s.seasons_detail![0]!.episodes.length, 3);
+  });
+
+  test("an authoritative chunk failure propagates; an outage with no stale copy is partial", async (t) => {
+    const seasons = [{ season_number: 1, name: "Season 1", episode_count: 3, air_date: null }];
+    let status = 401;
+    installFetch(
+      t,
+      mockFetch((url) =>
+        url.includes("append_to_response=season")
+          ? jsonResponse({ status_code: 7 }, { status })
+          : jsonResponse({ id: 1, name: "Show", seasons }),
+      ),
+    );
+    const c = client({ HTTP_RETRIES: "0" });
+    await assert.rejects(
+      () => c.getTv(1, "US", undefined, true),
+      (err: unknown) => err instanceof ApiError && err.code === "unauthorized",
+    );
+    status = 503;
+    const record: CallNotes = {};
+    const s = await callNotes.run(record, () => c.getTv(1, "US", undefined, true));
+    assert.equal(record.partial, true);
+    assert.deepEqual(s.seasons_detail![0]!.episodes, []);
   });
 
   test("skips a null-episode_count season once the budget is spent, and keeps the original order", async (t) => {
