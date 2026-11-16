@@ -100,20 +100,20 @@ export const personCreditsLimit = z
       "department filter still leaves more titles than the default cap keeps.",
   )
   .optional();
-export const includeAdult = z
-  .boolean()
-  .describe("Include adult (NSFW) results. Defaults to false.")
-  .optional();
+// Defaults live in the schema (.default), which both publishes them in the
+// tool's JSON Schema and hands the handler the resolved value — never restate
+// one in prose or in the handler.
+export const includeAdult = z.boolean().default(false).describe("Include adult (NSFW) results.");
 export const includeRatings = z
   .boolean()
+  .default(true)
   .describe(
-    "If true (default), enrich the result with IMDb/Rotten Tomatoes/Metacritic ratings plus an " +
+    "Enrich the result with IMDb/Rotten Tomatoes/Metacritic ratings plus an " +
       "awards summary (major-award wins/nominations — Oscars, Emmys, Golden Globes, etc., whatever " +
       "OMDb aggregates; free text, not a structured count, and describes the whole film/show, not " +
       "any one person's award) from OMDb (requires OMDB_API_KEY). Set false to skip the extra " +
       "lookup when ratings are not needed.",
-  )
-  .optional();
+  );
 // get_movies/get_tv_shows: capped well under TMDB's own per-request limits
 // (e.g. append_to_response's 20) since, unlike Steam's real batch endpoints,
 // TMDB has no batch API at all — each id here is still its own upstream
@@ -138,17 +138,18 @@ export const tvIdsBatch = z
   );
 export const includeRatingsBatch = z
   .boolean()
+  .default(false)
   .describe(
-    "If true, enrich every card with compact IMDb/Rotten Tomatoes/Metacritic ratings from OMDb " +
+    "Enrich every card with compact IMDb/Rotten Tomatoes/Metacritic ratings from OMDb " +
       "(requires OMDB_API_KEY) — one extra OMDb lookup per id, so a large batch means a burst of " +
-      "OMDb calls; mind OMDb's own rate limit. Unlike get_movie/get_tv, defaults to false (off) here.",
-  )
-  .optional();
+      "OMDb calls; mind OMDb's own rate limit. Off by default here, unlike get_movie/get_tv.",
+  );
 
 export const expandEpisodes = z
   .boolean()
+  .default(false)
   .describe(
-    "If true, also fetch every season's full episode list (name, air date, runtime, and TMDB " +
+    "Also fetch every season's full episode list (name, air date, runtime, and TMDB " +
       "`vote_average` — TMDB's own 0-10 user score, not this tool's IMDb/RT/Metacritic `ratings`) as " +
       "`seasons_detail`, in one extra request — use this instead of calling get_tv_season once per " +
       "season when you need all episodes of a multi-season show. Episode overviews are omitted " +
@@ -163,9 +164,8 @@ export const expandEpisodes = z
       "served first and the last seasons are the ones that fall off. A season that falls " +
       "entirely beyond the 250-episode budget is skipped rather than fetched-then-discarded, so its " +
       "`overview`/`poster_url` come back null too, not just its `episodes` list — call get_tv_season " +
-      "for that season's full detail. Defaults to false.",
-  )
-  .optional();
+      "for that season's full detail.",
+  );
 
 // The default named in the description must match the server's actual
 // TMDB_REGION, so it's built per-server from config rather than hardcoded.

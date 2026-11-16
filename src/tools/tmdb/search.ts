@@ -29,7 +29,7 @@ import {
 // search_multi/search_people: TMDB applies include_adult to the people it
 // matches, and this server also to their known_for titles (see withoutExplicit).
 const includeAdultPeople = includeAdult.describe(
-  "Include adult (NSFW) results, and keep such titles in each person's known_for. Defaults to false.",
+  "Include adult (NSFW) results, and keep such titles in each person's known_for.",
 );
 
 export function registerSearchTools(

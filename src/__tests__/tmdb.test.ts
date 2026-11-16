@@ -543,6 +543,27 @@ function router(url: string) {
 }
 
 describe("server / auth", () => {
+  // Defaults live in the schema (.default), so the published JSON Schema must
+  // carry them — and keep those fields optional for the caller.
+  test("tools/list publishes schema defaults on optional fields", async (t) => {
+    const client = await connectServer(t, ENV);
+    const { tools } = await client.listTools();
+    const field = (tool: string, name: string) => {
+      const schema = tools.find((x) => x.name === tool)!.inputSchema as {
+        properties: Record<string, { default?: unknown }>;
+        required?: string[];
+      };
+      return {
+        default: schema.properties[name]!.default,
+        required: !!schema.required?.includes(name),
+      };
+    };
+    assert.deepEqual(field("get_trending", "time_window"), { default: "week", required: false });
+    assert.deepEqual(field("get_movie", "include_ratings"), { default: true, required: false });
+    assert.deepEqual(field("get_movies", "include_ratings"), { default: false, required: false });
+    assert.deepEqual(field("search_movies", "include_adult"), { default: false, required: false });
+  });
+
   test("the server advertises its tools", async (t) => {
     const client = await connectServer(t, ENV);
     const { tools } = await client.listTools();

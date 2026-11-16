@@ -590,12 +590,12 @@ export function registerDiscoverTools(
       inputSchema: z.strictObject({
         media_type: z
           .enum(["all", "movie", "tv", "person"])
-          .describe("Which kind of entity to rank. Defaults to 'all'.")
-          .optional(),
+          .default("all")
+          .describe("Which kind of entity to rank."),
         time_window: z
           .enum(["day", "week"])
-          .describe("Trending period: 'day' or 'week'. Defaults to 'week'.")
-          .optional(),
+          .default("week")
+          .describe("Trending period: 'day' or 'week'."),
         page: page.optional(),
       }),
       outputSchema: pageSchema(multiItemSchema),
@@ -603,14 +603,7 @@ export function registerDiscoverTools(
     },
     ({ media_type, time_window, page: pg }, ctx) =>
       requireTmdb(
-        () =>
-          tmdb.getTrending(
-            media_type ?? "all",
-            time_window ?? "week",
-            pg,
-            undefined,
-            ctx.mcpReq.signal,
-          ),
+        () => tmdb.getTrending(media_type, time_window, pg, undefined, ctx.mcpReq.signal),
         ctx.mcpReq.signal,
       ),
   );

@@ -44,6 +44,7 @@ const ALL_PARAMS: DiscoverParams = {
   certification: "PG-13",
   certification_country: "US",
   language: "en-US",
+  include_adult: false,
   page: 2,
 };
 

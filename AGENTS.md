@@ -126,6 +126,13 @@ npm run inspector      # run under the MCP Inspector
   schemas) — a lower-layer file type-importing from a higher-layer one. This
   is intentional and fully erased at build (no runtime circular import,
   verified via `tsc`/`tsup`); don't invert the import direction to "fix" it.
+- A fixed default for a tool field goes in its schema, `.default(x)` — the
+  SDK publishes it as JSON Schema `default` (still optional for the caller)
+  and the handler receives the resolved value. Don't restate it in the
+  `.describe()` text or as `?? x` in the handler; that's two sources of truth
+  that drift apart.
+  Defaults that TMDB itself applies when a param is omitted (e.g. `sort_by`)
+  stay as omission, not `.default()`.
 - Write tool `description`s and per-field `.describe()` text for the calling
   model: explain when to use a tool and what each parameter means. Check new
   or edited descriptions against the `tool-description-check` skill (Glama's

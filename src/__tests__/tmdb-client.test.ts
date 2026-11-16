@@ -52,7 +52,7 @@ describe("TmdbClient: discover dispatches to the right endpoint with the mapped 
   test("discover('movie', ...) hits discover/movie with the mapped filters", async (t) => {
     const mock = mockFetch(() => jsonResponse(EMPTY_PAGE));
     installFetch(t, mock);
-    await client().discover("movie", { min_rating: 7, with_genres: "878" });
+    await client().discover("movie", { min_rating: 7, with_genres: "878", include_adult: false });
     const call = mock.calls.find((c) => c.url.includes("/discover/movie"));
     assert.ok(call, "expected a call to /discover/movie");
     assert.match(call!.url, /vote_average\.gte=7/);
@@ -62,7 +62,7 @@ describe("TmdbClient: discover dispatches to the right endpoint with the mapped 
   test("discover('tv', ...) hits discover/tv, not discover/movie", async (t) => {
     const mock = mockFetch(() => jsonResponse(EMPTY_PAGE));
     installFetch(t, mock);
-    await client().discover("tv", { with_networks: "49" });
+    await client().discover("tv", { with_networks: "49", include_adult: false });
     assert.ok(mock.calls.some((c) => c.url.includes("/discover/tv")));
     assert.ok(!mock.calls.some((c) => c.url.includes("/discover/movie")));
   });
@@ -105,7 +105,11 @@ describe("TmdbClient: non-cached methods honor a caller AbortSignal", () => {
     let sawAbort = false;
     installFetch(t, hangingFetch({ onAbort: () => (sawAbort = true) }));
     const controller = new AbortController();
-    const call = client().discover("movie", { min_rating: 7 }, controller.signal);
+    const call = client().discover(
+      "movie",
+      { min_rating: 7, include_adult: false },
+      controller.signal,
+    );
     controller.abort();
     await assert.rejects(() => call);
     assert.equal(sawAbort, true);
