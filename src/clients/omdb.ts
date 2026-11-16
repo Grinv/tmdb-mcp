@@ -72,22 +72,40 @@ export class OmdbClient {
   }
 
   async #get(query: Record<string, string | number | undefined>): Promise<OmdbResponse> {
-    const res = await this.#http.getJson<OmdbResponse>("", {
-      query: { apikey: this.#apiKey, ...query },
-    });
-    if (res.Response === "False" && res.Error && !OMDB_MISS.test(res.Error)) {
-      throw new ApiError({
-        code: /limit/i.test(res.Error)
-          ? "rate_limited"
-          : /api key/i.test(res.Error)
-            ? "unauthorized"
-            : "unknown",
-        message: `OMDb refused the request: ${redact(res.Error)}`,
-        detail: redact(res.Error),
+    let res: OmdbResponse | undefined;
+    try {
+      res = await this.#http.getJson<OmdbResponse>("", {
+        query: { apikey: this.#apiKey, ...query },
       });
+    } catch (err) {
+      // An exhausted quota may come with an auth status; OMDb's reason, not
+      // the status, says it isn't a bad key. Other HTTP failures keep theirs.
+      if (err instanceof ApiError && err.detail && OMDB_LIMIT.test(err.detail)) {
+        throw refusal(err.detail, err.status);
+      }
+      throw err;
+    }
+    if (!res) throw new ApiError({ code: "unknown", message: "OMDb returned an empty response" });
+    if (res.Response === "False" && res.Error && !OMDB_MISS.test(res.Error)) {
+      throw refusal(res.Error);
     }
     return res;
   }
+}
+
+const OMDB_LIMIT = /limit/i;
+
+function refusal(error: string, status?: number): ApiError {
+  return new ApiError({
+    code: OMDB_LIMIT.test(error)
+      ? "rate_limited"
+      : /api key/i.test(error)
+        ? "unauthorized"
+        : "unknown",
+    status,
+    message: `OMDb refused the request: ${redact(error)}`,
+    detail: redact(error),
+  });
 }
 
 // OMDb's "no such title" answers, verified live ("Incorrect IMDb ID.") or

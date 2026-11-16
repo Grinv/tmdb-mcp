@@ -119,3 +119,55 @@ describe("OmdbClient: body errors", () => {
     assert.equal((await c.ratingsByImdbId("tt0133093")).found, true);
   });
 });
+
+describe("OmdbClient: HTTP-level refusals", () => {
+  test("a quota message on an auth status is rate_limited, not a bad key", async (t) => {
+    installFetch(
+      t,
+      mockFetch(() =>
+        jsonResponse({ Response: "False", Error: "Request limit reached!" }, { status: 401 }),
+      ),
+    );
+    await assert.rejects(
+      () => client().ratingsByImdbId("tt0133093"),
+      (err: unknown) =>
+        err instanceof ApiError && err.code === "rate_limited" && err.status === 401,
+    );
+  });
+
+  test("a bad key stays unauthorized and a 5xx keeps its own code", async (t) => {
+    installFetch(
+      t,
+      mockFetch(() =>
+        jsonResponse({ Response: "False", Error: "Invalid API key!" }, { status: 401 }),
+      ),
+    );
+    await assert.rejects(
+      () => client().ratingsByImdbId("tt0133093"),
+      (err: unknown) => err instanceof ApiError && err.code === "unauthorized",
+    );
+    installFetch(
+      t,
+      mockFetch(() => jsonResponse({ error: "boom" }, { status: 500 })),
+    );
+    await assert.rejects(
+      () =>
+        new OmdbClient(
+          loadConfig({ OMDB_API_KEY: "k", OMDB_MIN_INTERVAL_MS: "0", HTTP_RETRIES: "0" }),
+          silentLogger(),
+        ).ratingsByImdbId("tt1"),
+      (err: unknown) => err instanceof ApiError && err.code === "server_error",
+    );
+  });
+
+  test("an empty body is a classified error, not a TypeError", async (t) => {
+    installFetch(
+      t,
+      mockFetch(() => new Response("", { status: 200 })),
+    );
+    await assert.rejects(
+      () => client().ratingsByImdbId("tt0133093"),
+      (err: unknown) => err instanceof ApiError && /empty response/.test(err.message),
+    );
+  });
+});
