@@ -3,6 +3,7 @@ import type { TestContext } from "node:test";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import assert from "node:assert/strict";
 import { createLogger, type Logger } from "../lib/logger.ts";
+import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import { buildServer } from "../server.ts";
 import { loadConfig } from "../config.ts";
 
@@ -110,12 +111,31 @@ export function hangingFetch(opts: { onStart?: () => void; onAbort?: () => void 
 /** Build the server and connect an in-memory client for end-to-end tool tests.
  *  Closing both the client and server is registered on `t.after()`, so callers
  *  don't need their own cleanup. (Not `await using`: Node 22 has no native
- *  `using` syntax, and tests run untranspiled under type stripping.) */
-export async function connectServer(t: TestContext, env: NodeJS.ProcessEnv = {}): Promise<Client> {
-  const server = buildServer(loadConfig(env), silentLogger());
+ *  `using` syntax, and tests run untranspiled under type stripping.)
+ *  `modern` serves through `serveStdio` (as start() does) with a client pinned
+ *  to protocol revision 2026-07-28; the default is a plain 2025-era connection. */
+export async function connectServer(
+  t: TestContext,
+  env: NodeJS.ProcessEnv = {},
+  { modern = false } = {},
+): Promise<Client> {
+  const config = loadConfig(env);
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const client = new Client({ name: "test", version: "0" });
-  await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+  let server: { close(): Promise<void> };
+  let client: Client;
+  if (modern) {
+    server = serveStdio(() => buildServer(config, silentLogger()), { transport: serverTransport });
+    client = new Client(
+      { name: "test", version: "0" },
+      { versionNegotiation: { mode: { pin: "2026-07-28" } } },
+    );
+    await client.connect(clientTransport);
+  } else {
+    const mcp = buildServer(config, silentLogger());
+    server = mcp;
+    client = new Client({ name: "test", version: "0" });
+    await Promise.all([mcp.connect(serverTransport), client.connect(clientTransport)]);
+  }
   // Prime the client's tools/list cache: callTool() only validates a result's
   // structuredContent against the tool's outputSchema when this cache is
   // already populated, so every callTool() in the suite doubles as an

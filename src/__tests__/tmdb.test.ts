@@ -897,6 +897,38 @@ describe("get_movie", () => {
     });
   });
 
+  test("keeps the stale flag next to the SDK's own _meta on a 2026-07-28 connection", async (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
+    let movieCalls = 0;
+    const mock = mockFetch((url) => {
+      if (url.includes("/movie/603?")) {
+        movieCalls += 1;
+        if (movieCalls > 1) return jsonResponse({ error: "server exploded" }, { status: 500 });
+      }
+      return router(url);
+    });
+    installFetch(t, mock);
+    const client = await connectServer(
+      t,
+      { ...ENV, HTTP_RETRIES: "0", CACHE_TTL_MS: "1" },
+      { modern: true },
+    );
+    assert.equal(client.getNegotiatedProtocolVersion(), "2026-07-28");
+
+    const args = { name: "get_movie", arguments: { id: 603, include_ratings: false } };
+    const first = await client.callTool(args);
+    assert.notEqual(first.isError, true);
+    assert.equal(first._meta?.["tmdb-mcp/stale"], undefined);
+
+    t.mock.timers.tick(5);
+
+    const second = await client.callTool(args);
+    assert.notEqual(second.isError, true);
+    assert.equal((second.structuredContent as { imdb_id: string }).imdb_id, "tt0133093");
+    assert.equal(second._meta?.["tmdb-mcp/stale"], true);
+    assert.ok(second._meta?.["io.modelcontextprotocol/serverInfo"]);
+  });
+
   test("skips OMDb and reports why when TMDB has no imdb_id for this title", async (t) => {
     const mock = mockFetch((url) => {
       if (/\/movie\/\d+/.test(url) && !url.includes("apikey")) {
