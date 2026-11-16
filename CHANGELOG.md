@@ -19,7 +19,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- Attach an RFC 9457 problem (`type`, `retryable`, upstream status) in `_meta` to errors raised while a tool runs; see `docs/errors.md` ([28a2d3b](https://github.com/Grinv/tmdb-mcp/commit/28a2d3b)).
+- Attach an RFC 9457 problem (`type`, `retryable`, upstream status) in `_meta` to errors raised while a tool runs; see `docs/errors.md` ([28a2d3b](https://github.com/Grinv/tmdb-mcp/commit/28a2d3b), [442c6ad](https://github.com/Grinv/tmdb-mcp/commit/442c6ad)).
 - Return keywords with their ids from `get_movie` and `get_tv`, ready for `discover_*`'s `with_keywords` ([8e8da62](https://github.com/Grinv/tmdb-mcp/commit/8e8da62)).
 - Resolve IMDb episode ids in `find_by_imdb_id` to show id plus season and episode numbers ([7fb25db](https://github.com/Grinv/tmdb-mcp/commit/7fb25db), [dbcee71](https://github.com/Grinv/tmdb-mcp/commit/dbcee71), [0a8b790](https://github.com/Grinv/tmdb-mcp/commit/0a8b790)).
 
