@@ -18,12 +18,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Correct tool descriptions: batch `found:false` also covers upstream errors, `id` fields say what they identify ([7ff1282](https://github.com/Grinv/tmdb-mcp/commit/7ff1282), [0380c8a](https://github.com/Grinv/tmdb-mcp/commit/0380c8a)).
 - Drop adult/softcore titles from lists TMDB doesn't filter itself: trending, recommendations, similar, credits, collections, `known_for` ([400a8f0](https://github.com/Grinv/tmdb-mcp/commit/400a8f0)).
 - Suggest 2-3 distinctive keywords via `with_keywords` for similar titles in `recommend_similar` and `get_movie`/`get_tv` ([726f841](https://github.com/Grinv/tmdb-mcp/commit/726f841)).
-- Retry at once on `Retry-After: 0`, as undici's retry handler does, instead of after the default backoff ([c88555b](https://github.com/Grinv/tmdb-mcp/commit/c88555b), [5f62d23](https://github.com/Grinv/tmdb-mcp/commit/5f62d23)).
-- Log each upstream outage once, with its code, status and cause chain but never the user's search ([d0b0998](https://github.com/Grinv/tmdb-mcp/commit/d0b0998), [a907e6a](https://github.com/Grinv/tmdb-mcp/commit/a907e6a), [2ca2921](https://github.com/Grinv/tmdb-mcp/commit/2ca2921)).
+- Retry at once on `Retry-After: 0` instead of after the default backoff ([c88555b](https://github.com/Grinv/tmdb-mcp/commit/c88555b), [5f62d23](https://github.com/Grinv/tmdb-mcp/commit/5f62d23)).
+- Log each upstream outage once, with its error code and status, never the user's search ([d0b0998](https://github.com/Grinv/tmdb-mcp/commit/d0b0998), [a907e6a](https://github.com/Grinv/tmdb-mcp/commit/a907e6a), [2ca2921](https://github.com/Grinv/tmdb-mcp/commit/2ca2921)).
 - Log a stale fallback once per refresh, with the data's age ([a907e6a](https://github.com/Grinv/tmdb-mcp/commit/a907e6a), [2ca2921](https://github.com/Grinv/tmdb-mcp/commit/2ca2921)).
-- Build with tsdown instead of the unmaintained tsup; the bundle shrinks from 876 kB to 514 kB ([7867d04](https://github.com/Grinv/tmdb-mcp/commit/7867d04)).
-- Drop `main` from `package.json`: the package is a server, run through its `tmdb-mcp` bin, not a library to import ([42fe465](https://github.com/Grinv/tmdb-mcp/commit/42fe465)).
-- Update `@modelcontextprotocol/server` to 2.4.0 ([b9fd54c](https://github.com/Grinv/tmdb-mcp/commit/b9fd54c)).
+- Shrink the published bundle from 876 kB to 514 kB ([7867d04](https://github.com/Grinv/tmdb-mcp/commit/7867d04)).
+- Update the MCP SDK to 2.4.0 ([b9fd54c](https://github.com/Grinv/tmdb-mcp/commit/b9fd54c)).
 
 ### Added
 
@@ -46,10 +45,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Report an empty, invalid or non-object upstream body as "unreadable", not an internal or unknown error ([28a2d3b](https://github.com/Grinv/tmdb-mcp/commit/28a2d3b), [6e3d792](https://github.com/Grinv/tmdb-mcp/commit/6e3d792), [3534281](https://github.com/Grinv/tmdb-mcp/commit/3534281)).
 - Stop waiting out a retry backoff after the caller cancels ([ee68772](https://github.com/Grinv/tmdb-mcp/commit/ee68772)).
 - Treat an HTTP 408 from a proxy as a timeout: retried, and a cached copy may stand in ([5281d94](https://github.com/Grinv/tmdb-mcp/commit/5281d94)).
-- Evict the least recently used cache entry, so hot entries keep their outage fallback ([6eab9b7](https://github.com/Grinv/tmdb-mcp/commit/6eab9b7)).
+- Keep frequently used data as an outage fallback when the cache is full, evicting the least recently used entry instead ([6eab9b7](https://github.com/Grinv/tmdb-mcp/commit/6eab9b7)).
 - Stop a system clock stepped back from making cached data look fresher than it is ([f301a01](https://github.com/Grinv/tmdb-mcp/commit/f301a01), [2af5931](https://github.com/Grinv/tmdb-mcp/commit/2af5931)).
-- Space rate-limited requests on a monotonic clock, so a system clock change no longer stalls or skips the spacing ([0aae2b8](https://github.com/Grinv/tmdb-mcp/commit/0aae2b8)).
-- Make the `.mcpb` prompt templates match the server, using mcpb's `${arguments.KEY}` placeholders and only the arguments they use ([da5e2f6](https://github.com/Grinv/tmdb-mcp/commit/da5e2f6), [3ec359a](https://github.com/Grinv/tmdb-mcp/commit/3ec359a)).
+- Keep the spacing between rate-limited requests steady when the system clock changes ([0aae2b8](https://github.com/Grinv/tmdb-mcp/commit/0aae2b8)).
+- Fill in the Claude Desktop extension's prompt arguments, and keep its prompts in step with the server's ([da5e2f6](https://github.com/Grinv/tmdb-mcp/commit/da5e2f6), [3ec359a](https://github.com/Grinv/tmdb-mcp/commit/3ec359a)).
 - Never tell the model to fetch more than 20 ids in one `get_tv_shows` call in `top_by_entity` ([3873d5d](https://github.com/Grinv/tmdb-mcp/commit/3873d5d)).
 - Log a fatal startup error with its stack trace ([9fc68ff](https://github.com/Grinv/tmdb-mcp/commit/9fc68ff)).
 
