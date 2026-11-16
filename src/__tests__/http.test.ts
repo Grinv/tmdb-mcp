@@ -289,7 +289,9 @@ describe("Retry-After handling", () => {
       };
       const http = new HttpClient({ baseUrl: "https://example.test/api", logger, retries: 1 });
       await assert.rejects(() => http.getJson("thing", { signal: controller.signal }));
-      return /after (\d+)ms/.exec(line)![1]!;
+      const delay = /after (\d+)ms/.exec(line)?.[1];
+      assert.ok(delay !== undefined, `no retry for Retry-After: ${retryAfter}`);
+      return delay;
     };
   }
 
@@ -301,6 +303,7 @@ describe("Retry-After handling", () => {
     const ms = Number(await backoff(new Date(Date.now() + 5_000).toUTCString()));
     assert.ok(ms > 3_000 && ms <= 5_000, String(ms));
     assert.equal(await backoff("3600"), "8000", "capped");
+    assert.equal(await backoff("Infinity"), "8000", "capped, as undici reads it");
     assert.equal(
       await backoff(new Date(Date.now() - 60_000).toUTCString()),
       "500",

@@ -25,7 +25,7 @@ export interface ApiErrorOptions {
   /** Override KIND[code].transient for one occurrence whose nature differs from its
    *  code's (e.g. OMDb's daily quota: rate_limited, yet not transient). */
   retryable?: boolean;
-  /** Retry-After hint, in ms, for the retry backoff. */
+  /** Retry-After hint, in ms (never negative), for the retry backoff. */
   retryAfterMs?: number;
   /** The underlying error this one wraps (a fetch or JSON.parse failure). */
   cause?: unknown;

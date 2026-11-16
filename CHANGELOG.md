@@ -8,7 +8,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- Retry at once on `Retry-After: 0`, as Node's own fetch engine (undici) does, instead of waiting out the default backoff ([c88555b](https://github.com/Grinv/tmdb-mcp/commit/c88555b)).
+- Retry at once on `Retry-After: 0`, as undici's retry handler does, instead of waiting out the default backoff ([c88555b](https://github.com/Grinv/tmdb-mcp/commit/c88555b)).
 - Log each upstream outage once, including OMDb's daily quota, with its code, status and cause chain but not the user's search; log a stale fallback once per refresh, with its age ([d0b0998](https://github.com/Grinv/tmdb-mcp/commit/d0b0998), [a907e6a](https://github.com/Grinv/tmdb-mcp/commit/a907e6a), [2ca2921](https://github.com/Grinv/tmdb-mcp/commit/2ca2921)).
 - **Breaking:** report stale data as `_meta["io.github.Grinv.tmdb-mcp/stale"]: {"age_seconds": N}`, not `"tmdb-mcp/stale": true` ([04f2285](https://github.com/Grinv/tmdb-mcp/commit/04f2285), [d27aec1](https://github.com/Grinv/tmdb-mcp/commit/d27aec1)).
 - **Breaking:** remove `search_movies`' `region`; it only swapped in one country's release date, so `year` disagreed with every other tool ([15358f2](https://github.com/Grinv/tmdb-mcp/commit/15358f2)).
