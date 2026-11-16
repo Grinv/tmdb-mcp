@@ -8,6 +8,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Breaking:** move the stale-cache flag to `_meta["io.github.Grinv.tmdb-mcp/stale"]`, a reverse-DNS key as the MCP spec asks ([04f2285](https://github.com/Grinv/tmdb-mcp/commit/04f2285)).
 - **Breaking:** remove `search_movies`' `region`; it only swapped in one country's release date, so `year` disagreed with every other tool ([15358f2](https://github.com/Grinv/tmdb-mcp/commit/15358f2)).
 - Drop adult/softcore titles from lists TMDB doesn't filter itself: trending, recommendations, similar, credits, collections, `known_for` ([400a8f0](https://github.com/Grinv/tmdb-mcp/commit/400a8f0)).
 - Suggest 2-3 distinctive keywords via `with_keywords` for similar titles in `recommend_similar` and `get_movie`/`get_tv` ([726f841](https://github.com/Grinv/tmdb-mcp/commit/726f841)).
@@ -18,11 +19,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Attach each tool error as an RFC 9457 problem (`type`, `retryable`, upstream status) in `_meta`; see `docs/errors.md` ([28a2d3b](https://github.com/Grinv/tmdb-mcp/commit/28a2d3b)).
 - Return keywords with their ids from `get_movie` and `get_tv`, ready for `discover_*`'s `with_keywords` ([8e8da62](https://github.com/Grinv/tmdb-mcp/commit/8e8da62)).
 - Resolve IMDb episode ids in `find_by_imdb_id` to show id plus season and episode numbers ([7fb25db](https://github.com/Grinv/tmdb-mcp/commit/7fb25db), [dbcee71](https://github.com/Grinv/tmdb-mcp/commit/dbcee71), [0a8b790](https://github.com/Grinv/tmdb-mcp/commit/0a8b790)).
 
 ### Fixed
 
+- Report an internal bug as a stable error and log it in full, not as raw internals or silently dropped ratings ([28a2d3b](https://github.com/Grinv/tmdb-mcp/commit/28a2d3b)).
+- Call a cancelled request "cancelled" and an unreadable upstream body "unreadable", not a network or unknown error ([28a2d3b](https://github.com/Grinv/tmdb-mcp/commit/28a2d3b)).
 - Time out a response that stalls after its headers instead of hanging the call for minutes ([7098f20](https://github.com/Grinv/tmdb-mcp/commit/7098f20)).
 - Include the upstream's own reason in tool errors, e.g. OMDb's "Invalid API key!", never a raw response body ([e723377](https://github.com/Grinv/tmdb-mcp/commit/e723377), [a6dbbea](https://github.com/Grinv/tmdb-mcp/commit/a6dbbea), [62750f3](https://github.com/Grinv/tmdb-mcp/commit/62750f3), [efbc604](https://github.com/Grinv/tmdb-mcp/commit/efbc604)).
 - Report an OMDb refusal as an error, not a cached "no ratings", and an exhausted quota as a rate limit, not a bad key ([e723377](https://github.com/Grinv/tmdb-mcp/commit/e723377), [44b17a2](https://github.com/Grinv/tmdb-mcp/commit/44b17a2)).
