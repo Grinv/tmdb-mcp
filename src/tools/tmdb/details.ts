@@ -39,6 +39,7 @@ import {
   mediaKind,
   movieIdsBatch,
   page,
+  filteredPage,
   personCreditsLimit,
   personDepartment,
   tmdbId,
@@ -269,7 +270,7 @@ export function registerDetailsTools(
         "list. Prefer this over get_similar as the default choice; get_similar matches on shared " +
         "genres/keywords, a blunter heuristic that can surface tonally unrelated titles. Get the " +
         "id from search_movies.",
-      inputSchema: z.strictObject({ id: tmdbId, page: page.optional() }),
+      inputSchema: z.strictObject({ id: tmdbId, page: filteredPage.optional() }),
       outputSchema: pageSchema(movieSummarySchema),
       annotations: READ_ONLY,
     },
@@ -290,7 +291,7 @@ export function registerDetailsTools(
         "list. Prefer this over get_similar as the default choice; get_similar matches on shared " +
         "genres/keywords, a blunter heuristic that can surface tonally unrelated titles. Get the " +
         "id from search_tv.",
-      inputSchema: z.strictObject({ id: tmdbId, page: page.optional() }),
+      inputSchema: z.strictObject({ id: tmdbId, page: filteredPage.optional() }),
       outputSchema: pageSchema(tvSummarySchema),
       annotations: READ_ONLY,
     },
@@ -315,7 +316,11 @@ export function registerDetailsTools(
         "(total_results 20001 for The Matrix), so only the first page or two are worth reading. " +
         "Try recommendations first for thematically closer picks; use this when you specifically " +
         "want genre/keyword-adjacent titles. Get the id from search_movies/search_tv.",
-      inputSchema: z.strictObject({ media_type: mediaKind, id: tmdbId, page: page.optional() }),
+      inputSchema: z.strictObject({
+        media_type: mediaKind,
+        id: tmdbId,
+        page: filteredPage.optional(),
+      }),
       outputSchema: pageSchema(movieOrTvSchema),
       annotations: READ_ONLY,
     },

@@ -18,6 +18,7 @@ import {
   includeAdult,
   language,
   page,
+  filteredPage,
   watchRegion,
   yearFilter,
   type TmdbToolDeps,
@@ -556,7 +557,7 @@ export function registerDiscoverTools(
           .enum(["day", "week"])
           .default("week")
           .describe("Trending period: 'day' or 'week'."),
-        page: page.optional(),
+        page: filteredPage.optional(),
       }),
       outputSchema: pageSchema(multiItemSchema),
       annotations: READ_ONLY,
@@ -594,7 +595,7 @@ export function registerDiscoverTools(
           .describe("'now_playing' = in cinemas now; 'upcoming' = opening soon."),
         region,
         language,
-        page: page.optional(),
+        page: filteredPage.optional(),
       }),
       outputSchema: movieReleasesSchema,
       annotations: READ_ONLY,

@@ -26,15 +26,14 @@ export interface TmdbToolDeps {
   region: ReturnType<typeof regionSchema>;
 }
 
-export const page = z
-  .int()
-  .min(1)
-  .max(TMDB_MAX_PAGE)
-  .describe(
-    `1-based page number for pagination (TMDB returns up to 20 results per page, max ${TMDB_MAX_PAGE}). ` +
-      "Lists that drop adult/softcore titles can return a shorter, even empty, page while " +
-      "total_pages/total_results stay TMDB's own — keep paging up to total_pages.",
-  );
+const PAGE = `1-based page number for pagination (TMDB returns up to 20 results per page, max ${TMDB_MAX_PAGE}).`;
+export const page = z.int().min(1).max(TMDB_MAX_PAGE).describe(PAGE);
+// For the lists this server filters itself (format.ts's withoutExplicit):
+// TMDB hides adult titles on search/discover, so only these come up short.
+export const filteredPage = page.describe(
+  `${PAGE} Adult/softcore titles are dropped from this list, so a page can come back ` +
+    "shorter, even empty, while total_pages/total_results stay TMDB's own — keep paging up to total_pages.",
+);
 export const tmdbId = z.int().positive().describe("TMDB numeric id.");
 export const mediaKind = z.enum(["movie", "tv"]).describe("Media type: 'movie' or 'tv'.");
 // Shared by get_tv_season/get_tv_episode.
