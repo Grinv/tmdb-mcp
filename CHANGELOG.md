@@ -11,23 +11,23 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - **Breaking:** search `search_watch_providers` in the user's country (`TMDB_REGION`) when `watch_region` is omitted, not the global list ([0107cbb](https://github.com/Grinv/tmdb-mcp/commit/0107cbb), [e124043](https://github.com/Grinv/tmdb-mcp/commit/e124043)).
-- Filter `discover_*` by watch provider or access model in `TMDB_REGION` when `watch_region` is omitted, instead of rejecting the call ([25bd5d6](https://github.com/Grinv/tmdb-mcp/commit/25bd5d6)).
-- Publish `TMDB_REGION`/`TMDB_LANGUAGE` as the `region`/`language` fields' schema defaults ([25bd5d6](https://github.com/Grinv/tmdb-mcp/commit/25bd5d6)).
-- Correct tool descriptions: batch `found:false` also covers upstream errors, `id` fields say what they identify ([7ff1282](https://github.com/Grinv/tmdb-mcp/commit/7ff1282), [0380c8a](https://github.com/Grinv/tmdb-mcp/commit/0380c8a)).
-- Compute retry delays as undici 8's retry handler does: `Retry-After: 0` retries at once instead of after the default backoff ([c88555b](https://github.com/Grinv/tmdb-mcp/commit/c88555b), [5f62d23](https://github.com/Grinv/tmdb-mcp/commit/5f62d23)).
-- Log each upstream outage once, with its code, status and cause chain but not the user's search; log a stale fallback with its age ([d0b0998](https://github.com/Grinv/tmdb-mcp/commit/d0b0998), [a907e6a](https://github.com/Grinv/tmdb-mcp/commit/a907e6a), [2ca2921](https://github.com/Grinv/tmdb-mcp/commit/2ca2921)).
 - **Breaking:** report stale data as `_meta["io.github.Grinv.tmdb-mcp/stale"]: {"age_seconds": N}`, not `"tmdb-mcp/stale": true` ([04f2285](https://github.com/Grinv/tmdb-mcp/commit/04f2285), [d27aec1](https://github.com/Grinv/tmdb-mcp/commit/d27aec1)).
 - **Breaking:** remove `search_movies`' `region`; it only swapped in one country's release date, so `year` disagreed with every other tool ([15358f2](https://github.com/Grinv/tmdb-mcp/commit/15358f2)).
+- Filter `discover_*` by watch provider or access model in `TMDB_REGION` when `watch_region` is omitted, instead of rejecting the call ([25bd5d6](https://github.com/Grinv/tmdb-mcp/commit/25bd5d6)).
+- Publish every tool field's default in its input schema, including `TMDB_REGION`/`TMDB_LANGUAGE` for `region`/`language` ([fef168b](https://github.com/Grinv/tmdb-mcp/commit/fef168b), [25bd5d6](https://github.com/Grinv/tmdb-mcp/commit/25bd5d6)).
+- Correct tool descriptions: batch `found:false` also covers upstream errors, `id` fields say what they identify ([7ff1282](https://github.com/Grinv/tmdb-mcp/commit/7ff1282), [0380c8a](https://github.com/Grinv/tmdb-mcp/commit/0380c8a)).
 - Drop adult/softcore titles from lists TMDB doesn't filter itself: trending, recommendations, similar, credits, collections, `known_for` ([400a8f0](https://github.com/Grinv/tmdb-mcp/commit/400a8f0)).
 - Suggest 2-3 distinctive keywords via `with_keywords` for similar titles in `recommend_similar` and `get_movie`/`get_tv` ([726f841](https://github.com/Grinv/tmdb-mcp/commit/726f841)).
-- Publish each tool field's default in its input schema ([fef168b](https://github.com/Grinv/tmdb-mcp/commit/fef168b)).
+- Retry at once on `Retry-After: 0`, as undici's retry handler does, instead of after the default backoff ([c88555b](https://github.com/Grinv/tmdb-mcp/commit/c88555b), [5f62d23](https://github.com/Grinv/tmdb-mcp/commit/5f62d23)).
+- Log each upstream outage once, with its code, status and cause chain but never the user's search ([d0b0998](https://github.com/Grinv/tmdb-mcp/commit/d0b0998), [a907e6a](https://github.com/Grinv/tmdb-mcp/commit/a907e6a), [2ca2921](https://github.com/Grinv/tmdb-mcp/commit/2ca2921)).
+- Log a stale fallback once per refresh, with the data's age ([a907e6a](https://github.com/Grinv/tmdb-mcp/commit/a907e6a), [2ca2921](https://github.com/Grinv/tmdb-mcp/commit/2ca2921)).
 - Build with tsdown instead of the unmaintained tsup; the bundle shrinks from 876 kB to 514 kB ([7867d04](https://github.com/Grinv/tmdb-mcp/commit/7867d04)).
 - Drop `main` from `package.json`: the package is a server, run through its `tmdb-mcp` bin, not a library to import ([42fe465](https://github.com/Grinv/tmdb-mcp/commit/42fe465)).
 - Update `@modelcontextprotocol/server` to 2.4.0 ([b9fd54c](https://github.com/Grinv/tmdb-mcp/commit/b9fd54c)).
 
 ### Added
 
-- Serve stale cached data only during an outage (including OMDb's daily quota), for at most `CACHE_MAX_STALE_MS` past expiry ([d27aec1](https://github.com/Grinv/tmdb-mcp/commit/d27aec1), [f549dfe](https://github.com/Grinv/tmdb-mcp/commit/f549dfe)).
+- Add `CACHE_MAX_STALE_MS` (default a day): how long past expiry cached data may stand in during an outage ([d27aec1](https://github.com/Grinv/tmdb-mcp/commit/d27aec1), [f549dfe](https://github.com/Grinv/tmdb-mcp/commit/f549dfe)).
 - Flag a result missing a part that failed to load (episodes, native-language trailers) with `_meta["io.github.Grinv.tmdb-mcp/partial"]: true` ([f301a01](https://github.com/Grinv/tmdb-mcp/commit/f301a01)).
 - Attach an RFC 9457 problem (`type`, `retryable`, upstream status) in `_meta` to errors raised while a tool runs; see `docs/errors.md` ([28a2d3b](https://github.com/Grinv/tmdb-mcp/commit/28a2d3b), [442c6ad](https://github.com/Grinv/tmdb-mcp/commit/442c6ad)).
 - Return keywords with their ids from `get_movie` and `get_tv`, ready for `discover_*`'s `with_keywords` ([8e8da62](https://github.com/Grinv/tmdb-mcp/commit/8e8da62)).
@@ -35,23 +35,27 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- Stop hiding a bug, a 404 or a rejected key behind stale cached data ([f301a01](https://github.com/Grinv/tmdb-mcp/commit/f301a01), [f549dfe](https://github.com/Grinv/tmdb-mcp/commit/f549dfe)).
-- Measure cache age in real elapsed time, counting sleep and ignoring the system clock stepping back while awake ([f301a01](https://github.com/Grinv/tmdb-mcp/commit/f301a01), [2af5931](https://github.com/Grinv/tmdb-mcp/commit/2af5931)).
-- Treat an HTTP 408 from a proxy as a timeout: retried, and a cached copy may stand in ([5281d94](https://github.com/Grinv/tmdb-mcp/commit/5281d94)).
-- Report an empty or non-object upstream body as unreadable, not an internal error ([6e3d792](https://github.com/Grinv/tmdb-mcp/commit/6e3d792), [3534281](https://github.com/Grinv/tmdb-mcp/commit/3534281)).
-- Stop caching a video list built while the title's details failed to load; it hid native-language trailers until the entry expired ([0ae100f](https://github.com/Grinv/tmdb-mcp/commit/0ae100f)).
-- Space rate-limited requests on a monotonic clock, so a system clock change no longer stalls or skips the spacing ([0aae2b8](https://github.com/Grinv/tmdb-mcp/commit/0aae2b8)).
-- Stop waiting out a retry backoff after the caller cancels ([ee68772](https://github.com/Grinv/tmdb-mcp/commit/ee68772)).
-- Log a fatal startup error with its stack trace ([9fc68ff](https://github.com/Grinv/tmdb-mcp/commit/9fc68ff)).
-- Report an internal bug as a stable error and log it in full, not as raw internals or silently dropped ratings ([28a2d3b](https://github.com/Grinv/tmdb-mcp/commit/28a2d3b)).
-- Call a cancelled request "cancelled" and an unreadable or empty upstream body "unreadable", not a network or unknown error ([28a2d3b](https://github.com/Grinv/tmdb-mcp/commit/28a2d3b)).
 - Time out a response that stalls after its headers instead of hanging the call for minutes ([7098f20](https://github.com/Grinv/tmdb-mcp/commit/7098f20)).
+- Report an OMDb refusal as an error, not a cached "no ratings" ([e723377](https://github.com/Grinv/tmdb-mcp/commit/e723377), [44b17a2](https://github.com/Grinv/tmdb-mcp/commit/44b17a2), [c50d75e](https://github.com/Grinv/tmdb-mcp/commit/c50d75e)).
+- Report OMDb's exhausted daily quota as a rate limit, not a bad key ([e723377](https://github.com/Grinv/tmdb-mcp/commit/e723377), [44b17a2](https://github.com/Grinv/tmdb-mcp/commit/44b17a2)).
+- Stop hiding a bug, a 404 or a rejected key behind stale cached data ([f301a01](https://github.com/Grinv/tmdb-mcp/commit/f301a01), [f549dfe](https://github.com/Grinv/tmdb-mcp/commit/f549dfe)).
+- Stop caching a video list built while the title's details failed to load; it hid native-language trailers until the entry expired ([0ae100f](https://github.com/Grinv/tmdb-mcp/commit/0ae100f)).
+- Report an internal bug as a stable error and log it in full, not as raw internals or silently dropped ratings ([28a2d3b](https://github.com/Grinv/tmdb-mcp/commit/28a2d3b)).
 - Include the upstream's own reason in tool errors, e.g. OMDb's "Invalid API key!", never a raw response body ([e723377](https://github.com/Grinv/tmdb-mcp/commit/e723377), [a6dbbea](https://github.com/Grinv/tmdb-mcp/commit/a6dbbea), [62750f3](https://github.com/Grinv/tmdb-mcp/commit/62750f3), [efbc604](https://github.com/Grinv/tmdb-mcp/commit/efbc604)).
-- Report an OMDb refusal as an error, not a cached "no ratings", and an exhausted quota as a rate limit, not a bad key ([e723377](https://github.com/Grinv/tmdb-mcp/commit/e723377), [44b17a2](https://github.com/Grinv/tmdb-mcp/commit/44b17a2), [c50d75e](https://github.com/Grinv/tmdb-mcp/commit/c50d75e)).
+- Report a cancelled request as "cancelled", not a network error ([28a2d3b](https://github.com/Grinv/tmdb-mcp/commit/28a2d3b)).
+- Report an empty, invalid or non-object upstream body as "unreadable", not an internal or unknown error ([28a2d3b](https://github.com/Grinv/tmdb-mcp/commit/28a2d3b), [6e3d792](https://github.com/Grinv/tmdb-mcp/commit/6e3d792), [3534281](https://github.com/Grinv/tmdb-mcp/commit/3534281)).
+- Stop waiting out a retry backoff after the caller cancels ([ee68772](https://github.com/Grinv/tmdb-mcp/commit/ee68772)).
+- Treat an HTTP 408 from a proxy as a timeout: retried, and a cached copy may stand in ([5281d94](https://github.com/Grinv/tmdb-mcp/commit/5281d94)).
+- Evict the least recently used cache entry, so hot entries keep their outage fallback ([6eab9b7](https://github.com/Grinv/tmdb-mcp/commit/6eab9b7)).
+- Stop a system clock stepped back from making cached data look fresher than it is ([f301a01](https://github.com/Grinv/tmdb-mcp/commit/f301a01), [2af5931](https://github.com/Grinv/tmdb-mcp/commit/2af5931)).
+- Space rate-limited requests on a monotonic clock, so a system clock change no longer stalls or skips the spacing ([0aae2b8](https://github.com/Grinv/tmdb-mcp/commit/0aae2b8)).
 - Make the `.mcpb` prompt templates match the server, using mcpb's `${arguments.KEY}` placeholders and only the arguments they use ([da5e2f6](https://github.com/Grinv/tmdb-mcp/commit/da5e2f6), [3ec359a](https://github.com/Grinv/tmdb-mcp/commit/3ec359a)).
 - Never tell the model to fetch more than 20 ids in one `get_tv_shows` call in `top_by_entity` ([3873d5d](https://github.com/Grinv/tmdb-mcp/commit/3873d5d)).
-- Evict the least recently used cache entry, so hot entries keep their outage fallback ([6eab9b7](https://github.com/Grinv/tmdb-mcp/commit/6eab9b7)).
-- Bump `zod` to 4.6.7 to fix a memory-exhaustion advisory when validating oversized inputs ([GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5)) ([b9fd54c](https://github.com/Grinv/tmdb-mcp/commit/b9fd54c)).
+- Log a fatal startup error with its stack trace ([9fc68ff](https://github.com/Grinv/tmdb-mcp/commit/9fc68ff)).
+
+### Security
+
+- Bump `zod` to 4.6.7 to fix a memory-exhaustion advisory when validating oversized inputs ([GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5), [b9fd54c](https://github.com/Grinv/tmdb-mcp/commit/b9fd54c)).
 
 ## [0.14.0] - 2026-10-22
 
