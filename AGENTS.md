@@ -141,7 +141,10 @@ npm run inspector      # run under the MCP Inspector
   `CACHE_MAX_STALE_MS` past expiry (RFC 5861's stale-if-error window). An
   entry's age is the larger of its wall-clock and monotonic deltas (`#ageMs`):
   the wall clock counts sleep but steps, the monotonic one doesn't step but
-  stops during sleep. `wrapStaleOnError` decides what to return, note and
+  stops during sleep (a step forward still looks like sleep; see the
+  comment there). Tests drive both through `fakeClock()` (`helpers.ts`).
+  An outage error shared by concurrent callers is logged once (with its
+  stack), not per caller. `wrapStaleOnError` decides what to return, note and
   log in one sequence (fresh → computed → stale copy → partial); add a case
   there, not as another branch elsewhere.
 - Every shaper in `format.ts` returns `z.infer<typeof <name>Schema>` (the
