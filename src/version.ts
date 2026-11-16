@@ -1,7 +1,9 @@
 // Kept in sync with package.json by a unit test (see __tests__/version.test.ts).
 export const VERSION = "0.14.0";
 
-export const USER_AGENT = `tmdb-mcp/${VERSION} (+https://github.com/Grinv/tmdb-mcp)`;
+export const REPO_URL = "https://github.com/Grinv/tmdb-mcp";
+
+export const USER_AGENT = `tmdb-mcp/${VERSION} (+${REPO_URL})`;
 
 // This server's MCP Registry identity — package.json's mcpName, already in
 // reverse-DNS form (version.test.ts keeps them equal).

@@ -19,8 +19,8 @@ import type { ToolResult } from "../../lib/result.ts";
 // the underlying (uncached, unshared) client call, which is what actually
 // aborts the fetch — but requireConfigured needs its own copy too, purely so
 // its catch block can recognize the resulting rejection as a cancellation
-// (`signal?.aborted`) and return "Request cancelled." instead of misreading
-// the abort as a generic upstream network error.
+// (`signal?.aborted`) and return the "cancelled" problem instead of reading
+// the abort as some other failure.
 export type RequireTmdb = <T extends Record<string, unknown>>(
   fn: () => Promise<T>,
   signal?: AbortSignal,

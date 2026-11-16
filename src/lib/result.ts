@@ -3,7 +3,7 @@
 // receives an actionable message instead of a protocol error.
 import { ApiError, type ApiErrorCode } from "./errors.ts";
 import type { Logger } from "./logger.ts";
-import { META_PREFIX } from "../version.ts";
+import { META_PREFIX, REPO_URL } from "../version.ts";
 
 export interface ToolResult {
   content: { type: "text"; text: string }[];
@@ -55,7 +55,7 @@ export interface Problem {
 export const PROBLEM_META_KEY = `${META_PREFIX}problem`;
 
 // Each problem type's URI points at its section in docs/errors.md.
-const TYPE_BASE = "https://github.com/Grinv/tmdb-mcp/blob/main/docs/errors.md#";
+const TYPE_BASE = `${REPO_URL}/blob/main/docs/errors.md#`;
 
 type ProblemCode = ApiErrorCode | "internal" | "not_configured" | "invalid_arguments";
 

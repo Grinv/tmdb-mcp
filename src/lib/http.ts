@@ -154,10 +154,10 @@ async function toHttpError(res: Response): Promise<ApiError> {
     /* ignore body read errors */
   }
   // Prefer a structured `message`/`error` field; fall back to the raw body.
-  // Redacted here, not just at the logger boundary: this message also flows
-  // into the tool result the calling model sees (see lib/result.ts's
-  // messageFor), and some upstreams echo the request URL — apikey and all —
-  // back in an error body.
+  // Redacted here, not just at the logger boundary: the parsed reason becomes
+  // the `detail` the calling model sees (lib/result.ts's toProblem; `message`
+  // itself never reaches it), and some upstreams echo the request URL —
+  // apikey and all — back in an error body.
   const reason = parseErrorMessage(raw);
   const detail = redact(reason ?? raw.slice(0, 500));
   const retryAfter = parseRetryAfter(res.headers.get("retry-after"));

@@ -13,6 +13,8 @@ import {
 } from "../lib/result.ts";
 import { recordingLogger, silentLogger } from "./helpers.ts";
 
+// Spelled out, not imported: these URIs are a published contract, so the test
+// pins them rather than following whatever the code computes.
 const TYPE_BASE = "https://github.com/Grinv/tmdb-mcp/blob/main/docs/errors.md#";
 
 describe("jsonResult", () => {

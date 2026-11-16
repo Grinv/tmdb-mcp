@@ -55,8 +55,7 @@ describe("release metadata stays in sync with package.json", () => {
     assert.match(mcpb.identifier, new RegExp(`/v${pkg.version}/`));
   });
 
-  // The MCP Registry verifies npm ownership by matching package.json's mcpName to
-  // the published server name, so these must stay identical.
+  // MCP_NAME is the runtime copy of mcpName; the _meta key prefix derives from it.
   test("version.ts MCP_NAME matches package.json mcpName", () => {
     assert.equal(MCP_NAME, pkg.mcpName);
   });
@@ -72,6 +71,8 @@ describe("release metadata stays in sync with package.json", () => {
     assert.doesNotMatch(META_PREFIX.split(".")[1] ?? "", /^(mcp|modelcontextprotocol)$/);
   });
 
+  // The MCP Registry verifies npm ownership by matching package.json's mcpName to
+  // the published server name, so these must stay identical.
   test("package.json mcpName matches server.json name", () => {
     assert.equal(pkg.mcpName, server.name);
   });
