@@ -3,6 +3,7 @@
 // no transpile step. Passing the glob ourselves (rather than a shell glob in
 // package.json) keeps it working on Windows cmd.exe too.
 import { spawn } from "node:child_process";
+import { existsSync, globSync } from "node:fs";
 import { join } from "node:path";
 
 const root = join(import.meta.dirname, "..");
@@ -16,12 +17,14 @@ const coverage = rawArgs.includes("--coverage");
 // `npm test -- --test-name-pattern=foo` or `npm test -- src/__tests__/omdb.test.ts`
 // works locally.
 const passthrough = rawArgs.filter((a) => a !== "--coverage");
-// A test file or glob among the args means the caller named its own files;
-// only fall back to the whole suite without one. Recognised by its shape, not
-// its position: whether the arg after a bare `--flag` is that flag's value
-// (`--test-name-pattern foo`) or a file (`--test-only x.test.ts`) can't be
-// told from the flag itself.
-const namesFiles = passthrough.some((a) => !a.startsWith("-") && /\.[cm]?ts$|\*/.test(a));
+// An arg that names files on disk (a path, or a glob that matches some)
+// means the caller picked its own tests; only fall back to the whole suite
+// without one. Checked against the disk because neither position nor shape
+// tells a file from a flag's value: `--test-only x.test.ts` vs
+// `--test-name-pattern "cache*"`.
+const namesFiles = passthrough.some(
+  (a) => !a.startsWith("-") && (existsSync(join(root, a)) || globSync(a, { cwd: root }).length > 0),
+);
 
 const args = ["--test"];
 if (coverage) {
@@ -32,6 +35,8 @@ if (coverage) {
     "--experimental-test-coverage",
     `--test-coverage-lines=${COVERAGE_LINES_THRESHOLD}`,
     "--test-coverage-include=src/**",
+    // Test files and their helpers aren't what the gate measures.
+    "--test-coverage-exclude=src/__tests__/**",
   );
 }
 // Our own flags go first and file patterns last: Node treats every argument
