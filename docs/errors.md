@@ -27,6 +27,15 @@ MCP reserves for data matching the tool's `outputSchema`.
 
 The text never includes an error's raw upstream body or internal message.
 
+Scope: every failure raised while a tool runs carries a problem. Arguments
+that fail a tool's input schema (or exceed its element limit) are rejected by
+the MCP SDK before the tool runs: that `isError` result carries the SDK's own
+text — which lists what is wrong, so the model can fix the call — and no
+problem object. The SDK's own output-schema check is a backstop only: each
+shaper checks what it builds against its schema while the tool runs (a
+mismatch surfaces as [internal](#internal)), and the test suite checks every
+tool's whole result against its output schema.
+
 ## unauthorized
 
 TMDB or OMDb rejected the configured token/key: missing, invalid or expired.
