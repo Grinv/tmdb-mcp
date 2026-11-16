@@ -68,6 +68,33 @@ describe("error mapping by status/body", () => {
     );
   });
 
+  test("reads the upstream's reason from TMDB's status_message and OMDb's Error", async (t) => {
+    const bodies = [
+      { status_code: 7, status_message: "Invalid API key: You must be granted a valid key." },
+      { Response: "False", Error: "Invalid API key!" },
+    ];
+    for (const body of bodies) {
+      const mock = mockFetch(() => jsonResponse(body, { status: 401 }));
+      installFetch(t, mock);
+      await assert.rejects(
+        () => client({ retries: 0 }).getJson("thing"),
+        (err: unknown) =>
+          err instanceof ApiError && err.detail === (body.status_message ?? body.Error),
+      );
+    }
+  });
+
+  test("leaves detail unset for an unstructured body, so wire noise never reaches the agent", async (t) => {
+    installFetch(
+      t,
+      mockFetch(() => new Response("<html>502</html>", { status: 502 })),
+    );
+    await assert.rejects(
+      () => client({ retries: 0 }).getJson("thing"),
+      (err: unknown) => err instanceof ApiError && err.detail === undefined,
+    );
+  });
+
   test("redacts a credential the upstream echoes back in an error body", async (t) => {
     const mock = mockFetch(() =>
       jsonResponse(

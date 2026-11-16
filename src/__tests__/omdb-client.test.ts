@@ -1,6 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { OmdbClient } from "../clients/omdb.ts";
+import { ApiError } from "../lib/errors.ts";
 import { loadConfig } from "../config.ts";
 import { silentLogger, installFetch, mockFetch, jsonResponse } from "./helpers.ts";
 
@@ -80,5 +81,41 @@ describe("OmdbClient: cache is wired through the real client, not just TtlCache 
     await c.ratingsByTitle("Chuck", undefined, "series");
     await c.ratingsByTitle("Chuck", undefined, "movie");
     assert.equal(mock.calls.length, 2);
+  });
+});
+
+// OMDb reports failures in the body ({ Response: "False", Error }), a miss
+// with a 200 OK (verified live: "Incorrect IMDb ID.", "Movie not found!").
+describe("OmdbClient: body errors", () => {
+  test("a miss stays a soft found:false", async (t) => {
+    installFetch(
+      t,
+      mockFetch(() => jsonResponse({ Response: "False", Error: "Incorrect IMDb ID." })),
+    );
+    const r = await client().ratingsByImdbId("tt9999999999");
+    assert.deepEqual(r, { found: false, reason: "Incorrect IMDb ID." });
+  });
+
+  test("a refusal in a 200 body throws with OMDb's reason and is never cached as a miss", async (t) => {
+    let calls = 0;
+    installFetch(
+      t,
+      mockFetch(() => {
+        calls += 1;
+        return calls === 1
+          ? jsonResponse({ Response: "False", Error: "Request limit reached!" })
+          : jsonResponse(OMDB_OK);
+      }),
+    );
+    const c = client();
+    await assert.rejects(
+      () => c.ratingsByImdbId("tt0133093"),
+      (err: unknown) =>
+        err instanceof ApiError &&
+        err.code === "rate_limited" &&
+        err.detail === "Request limit reached!",
+    );
+    // The next call reaches OMDb again instead of reading a cached "no ratings".
+    assert.equal((await c.ratingsByImdbId("tt0133093")).found, true);
   });
 });

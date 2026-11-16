@@ -26,7 +26,7 @@ describe("apiErrorToResult", () => {
       ["unauthorized", /expired|credentials/i],
       ["forbidden", /denied access/i],
       ["not_found", /no matching resource|404/i],
-      ["rate_limited", /rate limit/i],
+      ["rate_limited", /rate-limiting/i],
       ["server_error", /5xx|retry later/i],
       ["network", /network/i],
       ["timeout", /timed out/i],
@@ -38,5 +38,25 @@ describe("apiErrorToResult", () => {
       assert.equal(r.isError, true);
       assert.match(r.content[0]!.text, re);
     }
+  });
+
+  test("keeps the upstream's own reason and the real status", () => {
+    const r = apiErrorToResult(
+      new ApiError({
+        code: "unauthorized",
+        status: 401,
+        message: "HTTP 401",
+        detail: "Request limit reached!",
+      }),
+    );
+    assert.match(
+      r.content[0]!.text,
+      /credentials \(401\).*The upstream said: "Request limit reached!"/,
+    );
+  });
+
+  test("names no status when the failure came without one", () => {
+    const r = apiErrorToResult(new ApiError({ code: "rate_limited", message: "x" }));
+    assert.doesNotMatch(r.content[0]!.text, /\(\d+\)/);
   });
 });

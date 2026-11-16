@@ -3,10 +3,13 @@
 // TMDB already returns. It is intentionally thin — TMDB is the navigator. Needs
 // a free API key (https://www.omdbapi.com/apikey.aspx) passed as `?apikey=`.
 //
-// OMDb quirk: it answers 200 OK even for "not found", with a JSON body of
-// { Response: "False", Error: "..." }. summarizeRatings() turns that into a
-// soft { found: false } object so enrichment never hard-fails a TMDB lookup.
+// OMDb quirk: it reports failures in the body as { Response: "False", Error }
+// — "not found" with a 200 OK, a bad key with a 401. #get() keeps only a miss
+// as data (summarizeRatings turns it into a soft { found: false }); any other
+// body error is the service refusing, so it throws like an HTTP failure would
+// and is never cached as "no ratings".
 import { HttpClient } from "../lib/http.ts";
+import { ApiError, redact } from "../lib/errors.ts";
 import { TtlCache, cacheKey } from "../lib/cache.ts";
 import { createUpstream } from "../lib/upstream.ts";
 import { summarizeRatings, type OmdbResponse } from "../format.ts";
@@ -46,10 +49,7 @@ export class OmdbClient {
     return this.#cache.wrapStaleOnError(
       cacheKey(`omdb:i:${imdbId}`),
       async () => {
-        const res = await this.#http.getJson<OmdbResponse>("", {
-          query: { apikey: this.#apiKey, i: imdbId },
-        });
-        return summarizeRatings(res);
+        return summarizeRatings(await this.#get({ i: imdbId }));
       },
       onStale,
     );
@@ -65,12 +65,32 @@ export class OmdbClient {
     return this.#cache.wrapStaleOnError(
       cacheKey(`omdb:t:${title}`, { year, type }),
       async () => {
-        const res = await this.#http.getJson<OmdbResponse>("", {
-          query: { apikey: this.#apiKey, t: title, y: year, type },
-        });
-        return summarizeRatings(res);
+        return summarizeRatings(await this.#get({ t: title, y: year, type }));
       },
       onStale,
     );
   }
+
+  async #get(query: Record<string, string | number | undefined>): Promise<OmdbResponse> {
+    const res = await this.#http.getJson<OmdbResponse>("", {
+      query: { apikey: this.#apiKey, ...query },
+    });
+    if (res.Response === "False" && res.Error && !OMDB_MISS.test(res.Error)) {
+      throw new ApiError({
+        code: /limit/i.test(res.Error)
+          ? "rate_limited"
+          : /api key/i.test(res.Error)
+            ? "unauthorized"
+            : "unknown",
+        message: `OMDb refused the request: ${redact(res.Error)}`,
+        detail: redact(res.Error),
+      });
+    }
+    return res;
+  }
 }
+
+// OMDb's "no such title" answers, verified live ("Incorrect IMDb ID.") or
+// documented; anything else in `Error` (an exhausted quota, a bad key) is a
+// refusal, not an empty result.
+const OMDB_MISS = /not found|incorrect imdb id|error getting data|too many results/i;

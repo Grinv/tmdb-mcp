@@ -52,20 +52,30 @@ export function apiErrorMessage(err: ApiError): string {
 }
 
 function messageFor(err: ApiError): string {
+  // The status is shown only when there was one: OMDb also reports failures
+  // in a 200 body (see clients/omdb.ts), so the code alone can't name it.
+  const status = err.status ? ` (${err.status})` : "";
+  const base = baseMessage(err, status);
+  // Never drop the upstream's own reason: one status can mean several things
+  // (OMDb answers both a bad key and an exhausted quota as an auth failure).
+  return err.detail ? `${base} The upstream said: "${err.detail}"` : base;
+}
+
+function baseMessage(err: ApiError, status: string): string {
   switch (err.code) {
     case "unauthorized":
       return (
-        "The upstream service rejected the credentials (401). They may be missing or expired — " +
-        "check the configured API key / token."
+        `The upstream service rejected the credentials${status}. They may be missing, invalid ` +
+        "or expired — check the configured API key / token."
       );
     case "forbidden":
-      return "The upstream service denied access (403). The credentials may lack permission.";
+      return `The upstream service denied access${status}. The credentials may lack permission.`;
     case "not_found":
-      return "No matching resource was found (404).";
+      return `No matching resource was found${status}.`;
     case "rate_limited":
-      return "Upstream rate limit hit (429). Please retry in a few seconds.";
+      return `The upstream service is rate-limiting requests${status}. Please retry later.`;
     case "server_error":
-      return "The upstream service returned an error (5xx). Please retry later.";
+      return `The upstream service returned an error${status}. Please retry later.`;
     case "network":
       return "Could not reach the upstream service (network error). Check connectivity and retry.";
     case "timeout":

@@ -16,6 +16,8 @@ export type ApiErrorCode =
 export interface ApiErrorOptions {
   code: ApiErrorCode;
   message: string;
+  /** The upstream's own (redacted) reason, e.g. "Invalid API key!", for the tool-facing text. */
+  detail?: string;
   status?: number;
   retryable?: boolean;
   cause?: unknown;
@@ -25,11 +27,13 @@ export class ApiError extends Error {
   readonly code: ApiErrorCode;
   readonly status: number | undefined;
   readonly retryable: boolean;
+  readonly detail: string | undefined;
 
   constructor(opts: ApiErrorOptions) {
     super(opts.message, opts.cause === undefined ? undefined : { cause: opts.cause });
     this.name = "ApiError";
     this.code = opts.code;
+    this.detail = opts.detail;
     this.status = opts.status;
     this.retryable = opts.retryable ?? false;
   }

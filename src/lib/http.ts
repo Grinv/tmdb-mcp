@@ -145,29 +145,33 @@ async function toHttpError(res: Response): Promise<ApiError> {
   // into the tool result the calling model sees (see lib/result.ts's
   // messageFor), and some upstreams echo the request URL — apikey and all —
   // back in an error body.
-  const detail = redact(parseErrorMessage(raw) ?? raw.slice(0, 500));
+  const reason = parseErrorMessage(raw);
+  const detail = redact(reason ?? raw.slice(0, 500));
   const retryAfter = parseRetryAfter(res.headers.get("retry-after"));
   return new ApiError({
     code,
     status: res.status,
     retryable,
     message: `HTTP ${res.status} ${res.statusText}${detail ? `: ${detail}` : ""}`,
+    // Only a structured reason reaches the tool-facing text; a raw body is wire noise.
+    ...(reason ? { detail } : {}),
     ...(retryAfter === undefined ? {} : { cause: { retryAfterMs: retryAfter } }),
   });
 }
 
-// Many JSON APIs return an error envelope like { message } or { error }.
+// JSON APIs return an error envelope with the reason in a named field.
 function parseErrorMessage(raw: string): string | undefined {
   if (!raw) return undefined;
   try {
     const obj: unknown = JSON.parse(raw);
     if (obj === null || typeof obj !== "object") return undefined;
     const rec = obj as Record<string, unknown>;
-    // Bound the structured message the same way the raw-body fallback is
-    // sliced (toHttpError) — a verbose upstream `message`/`error` otherwise
-    // becomes unbounded tool-facing error text.
-    if (typeof rec.message === "string") return rec.message.slice(0, 500);
-    if (typeof rec.error === "string") return rec.error.slice(0, 500);
+    // TMDB puts its reason in `status_message`, OMDb in `Error`. Bounded the
+    // same way the raw-body fallback is sliced (toHttpError) — a verbose
+    // upstream reason otherwise becomes unbounded tool-facing error text.
+    for (const field of ["message", "error", "status_message", "Error"]) {
+      if (typeof rec[field] === "string") return rec[field].slice(0, 500);
+    }
     return undefined;
   } catch {
     return undefined; // not JSON — caller falls back to the raw body

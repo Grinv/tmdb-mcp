@@ -850,7 +850,7 @@ describe("get_movie", () => {
     };
     assert.equal(s.imdb_id, "tt0133093"); // TMDB data still came through
     assert.equal(s.ratings.found, false);
-    assert.match(s.ratings.reason, /^OMDb lookup failed: .*5xx/);
+    assert.match(s.ratings.reason, /^OMDb lookup failed: .*error \(500\)/);
   });
 
   test("drops OMDb enrichment when its release year is unrelated to TMDB's (stale imdb_id)", async (t) => {
@@ -1115,7 +1115,10 @@ describe("get_movies", () => {
     // Same text get_movie returns for the same 404 — not ApiError.message's
     // `HTTP 404 : {"success":false,...}` wire payload, which is what the agent
     // used to receive here while every other error surface stayed friendly.
-    assert.equal(reason, "No matching resource was found (404).");
+    assert.equal(
+      reason,
+      'No matching resource was found (404). The upstream said: "The resource you requested…"',
+    );
     assert.doesNotMatch(reason, /status_code|success|HTTP 404 :/);
   });
 });
