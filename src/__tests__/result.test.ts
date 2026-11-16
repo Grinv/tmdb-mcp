@@ -63,7 +63,12 @@ describe("apiErrorToResult", () => {
       assert.equal(text.split("X").length - 1, 1, text);
       assert.match(text, /\(422\)/, "the status stays when err.message is dropped");
     }
-    // Without a detail, err.message is still the only explanation and stays.
+    // An HTTP error's message is the raw body: never shown, and no stray "..".
+    const html = apiErrorToResult(
+      new ApiError({ code: "bad_request", status: 405, message: "HTTP 405 : <html>oops.</html>" }),
+    ).content[0]!.text;
+    assert.equal(html, "The request was rejected as invalid (405).");
+    // Without a status or detail, err.message is our own wording and stays.
     const bare = apiErrorToResult(
       new ApiError({ code: "unknown", message: "Upstream returned invalid JSON" }),
     );

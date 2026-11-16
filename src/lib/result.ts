@@ -74,8 +74,8 @@ const MESSAGES: Record<ApiErrorCode, { what: string; advice?: string; ownMessage
     advice: "Check connectivity and retry.",
   },
   timeout: { what: "The upstream request timed out", advice: "Please retry." },
-  // No fixed text explains these, so our own message does — unless the
-  // upstream's reason is there, which it would only repeat.
+  // No fixed text explains these, so our own message does when it is ours —
+  // see messageFor.
   bad_request: { what: "The request was rejected as invalid", ownMessage: true },
   unknown: { what: "Unexpected error talking to the upstream service", ownMessage: true },
 };
@@ -85,7 +85,10 @@ function messageFor(err: ApiError): string {
   // The status is shown only when there was one: OMDb also reports failures
   // in a 200 body (see clients/omdb.ts), so the code alone can't name it.
   const status = err.status ? ` (${err.status})` : "";
-  const own = ownMessage && !err.detail ? `: ${err.message}` : "";
+  // Only a status-less error's message is our own wording ("Upstream returned
+  // invalid JSON"); an HTTP error's message carries the raw response body,
+  // which is wire noise (toHttpError keeps it out of detail for that reason).
+  const own = ownMessage && err.status === undefined && !err.detail ? `: ${err.message}` : "";
   // Never drop the upstream's own reason: one status can mean several things
   // (OMDb reports both a bad key and an exhausted quota as refusals).
   const reason = err.detail ? `The upstream said: "${err.detail}"` : undefined;
