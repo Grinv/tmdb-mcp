@@ -1,6 +1,6 @@
 // Minimal leveled logger. Writes to stderr only (stdout is the MCP stdio
 // protocol) and redacts credentials.
-import { redact } from "./errors.ts";
+import { ApiError, redact } from "./errors.ts";
 
 export type LogLevel = "debug" | "info" | "warn" | "error" | "silent";
 
@@ -37,13 +37,14 @@ export function createLogger(level: LogLevel): Logger {
   };
 }
 
-// `seen` stops a cause chain that loops back on itself (a.cause = b,
-// b.cause = a) from recursing until the logger itself throws.
-function safeString(value: unknown, seen = new Set<unknown>()): string {
+// A bug (any error but ApiError) is logged with its stack, the only clue to
+// where it happened (toProblem in lib/result.ts). A classified ApiError is
+// always raised in lib/http.ts, so its stack says nothing: it gets one line
+// with its code and status. Causes get one line each (`name: message`, plus a
+// system error's code such as ECONNRESET). `seen` stops a cause chain that
+// loops back on itself. emit() redacts the joined text.
+function safeString(value: unknown, seen = new Set<unknown>(), outermost = true): string {
   if (typeof value === "string") return value;
-  // The stack (it opens with "Name: message") and cause chain are the only
-  // diagnostics: internal errors are logged, not shown to the agent
-  // (toProblem in lib/result.ts). emit() redacts the joined text.
   if (value instanceof Error) {
     seen.add(value);
     const cause =
@@ -51,12 +52,22 @@ function safeString(value: unknown, seen = new Set<unknown>()): string {
         ? ""
         : seen.has(value.cause)
           ? "\ncaused by: (cycle)"
-          : `\ncaused by: ${safeString(value.cause, seen)}`;
-    return `${value.stack ?? `${value.name}: ${value.message}`}${cause}`;
+          : `\ncaused by: ${safeString(value.cause, seen, false)}`;
+    return `${headline(value, outermost)}${cause}`;
   }
   try {
     return JSON.stringify(value);
   } catch {
     return String(value);
   }
+}
+
+function headline(err: Error, outermost: boolean): string {
+  if (err instanceof ApiError) {
+    const status = err.status === undefined ? "" : ` ${err.status}`;
+    return `${err.name} [${err.code}${status}]: ${err.message}`;
+  }
+  if (outermost && err.stack) return err.stack;
+  const code = (err as { code?: unknown }).code;
+  return `${err.name}${typeof code === "string" ? ` [${code}]` : ""}: ${err.message}`;
 }

@@ -7,6 +7,10 @@
 // parameter is on each method, not on the class: callers get back the type
 // their own `compute()`/`value` has.
 
+import { AsyncLocalStorage } from "node:async_hooks";
+import { isOutage } from "./errors.ts";
+import type { Logger } from "./logger.ts";
+
 /**
  * Build a deterministic cache key from a stable resource path (e.g.
  * `movie:${id}`) plus the params that vary the *shaped* response (region,
@@ -14,10 +18,6 @@
  * and independent of order. A dimension left out of a key would leak one
  * request's response into another's cache slot.
  */
-import { AsyncLocalStorage } from "node:async_hooks";
-import { ApiError, isOutage } from "./errors.ts";
-import type { Logger } from "./logger.ts";
-
 export function cacheKey(
   resource: string,
   dims: Record<string, string | number | boolean | undefined> = {},
@@ -28,9 +28,11 @@ export function cacheKey(
   return parts.length ? `${resource}:${parts.join(":")}` : resource;
 }
 
+// Stored on both clocks; see TtlCache's #ageMs.
 interface Entry {
   value: unknown;
-  storedAt: number;
+  wallAt: number;
+  monoAt: number;
 }
 
 /** What one tool call learned about its data, for the result's `_meta`: the
@@ -76,7 +78,8 @@ export class TtlCache {
   readonly #max: number;
   readonly #maxStaleMs: number;
   readonly #logger?: Logger;
-  readonly #now: () => number;
+  readonly #wall: () => number;
+  readonly #mono: () => number;
   readonly #map = new Map<string, Entry>();
   // In-flight computes, keyed like #map, so concurrent callers of a cold key
   // share one upstream fetch.
@@ -89,34 +92,34 @@ export class TtlCache {
      *  (RFC 5861's stale-if-error window); unbounded by default. */
     maxStaleMs?: number;
     logger?: Logger;
-    /** Clock (ms), injectable for tests. Wall clock by default: an entry's age
-     *  must include time the machine slept, and a monotonic clock stops during
-     *  suspend, which would keep yesterday's data "fresh" after wake-up. */
+    /** Clocks (ms), injectable for tests: `now` is the wall clock, `monoNow`
+     *  a monotonic one (defaults to `now` when only that is given). */
     now?: () => number;
+    monoNow?: () => number;
   }) {
     this.#ttlMs = opts.ttlMs;
     this.#max = opts.max ?? 500;
     this.#maxStaleMs = opts.maxStaleMs ?? Infinity;
     this.#logger = opts.logger;
-    this.#now = opts.now ?? (() => Date.now());
+    this.#wall = opts.now ?? (() => Date.now());
+    this.#mono = opts.monoNow ?? opts.now ?? (() => performance.now());
+  }
+
+  // An entry's real age is never less than the monotonic clock's delta (that
+  // clock only stops while the machine sleeps) and, between clock steps,
+  // equals the wall clock's (which counts sleep). The larger of the two is
+  // never negative, counts sleep and isn't shortened by the clock stepping
+  // back; a step forward only expires the entry early.
+  #ageMs(hit: Entry): number {
+    return Math.max(this.#wall() - hit.wallAt, this.#mono() - hit.monoAt);
   }
 
   /** Fresh (non-expired) value, or undefined. */
   get<T>(key: string): T | undefined {
     const hit = this.#map.get(key);
-    if (!hit) return undefined;
-    const ageMs = this.#ageMs(hit);
-    if (ageMs === undefined || ageMs >= this.#ttlMs) return undefined;
+    if (!hit || this.#ageMs(hit) >= this.#ttlMs) return undefined;
     this.#touch(key, hit);
     return hit.value as T;
-  }
-
-  // Undefined when the clock stepped back since the entry was stored: its
-  // true age is unknown, so it counts as neither fresh nor a fallback until
-  // the clock catches up (it isn't dropped; LRU eviction bounds it).
-  #ageMs(hit: Entry): number | undefined {
-    const ageMs = this.#now() - hit.storedAt;
-    return ageMs < 0 ? undefined : ageMs;
   }
 
   set<T>(key: string, value: T): void {
@@ -126,7 +129,7 @@ export class TtlCache {
       const oldest = this.#map.keys().next().value;
       if (oldest !== undefined) this.#map.delete(oldest);
     }
-    this.#map.set(key, { value, storedAt: this.#now() });
+    this.#map.set(key, { value, wallAt: this.#wall(), monoAt: this.#mono() });
   }
 
   // Map iterates in insertion order, so re-inserting on every hit keeps the
@@ -137,53 +140,58 @@ export class TtlCache {
   }
 
   /**
-   * Get-or-compute, caching the resolved value. During an upstream outage
-   * (isOutage) a value within the stale window is served instead and noted as
-   * stale. Anything else (a bug, a 404, a rejected key) propagates: stale data
-   * must not hide it.
+   * Get-or-compute, caching a complete result. In order: a fresh value; else
+   * the compute's complete result; else, when the compute hit an outage
+   * (isOutage) or came back degraded, a complete copy within the stale window,
+   * noted stale; else the degraded result, noted partial. Any other failure (a
+   * bug, a 404, a rejected key) propagates: stale data must not hide it.
    */
   async wrapStaleOnError<T>(key: string, compute: () => Promise<T | Degraded<T>>): Promise<T> {
     const fresh = this.get<T>(key);
     if (fresh !== undefined) return fresh;
-    let computed: Computed<T | Degraded<T>>;
+
+    let partial: Computed<Degraded<T>> | undefined;
+    let outage: unknown;
     try {
-      computed = await this.#dedupe(key, compute);
+      const computed = await this.#dedupe(key, compute);
+      // The shared compute's notes reach every caller it serves, but only
+      // with its own value.
+      if (!(computed.value instanceof Degraded)) {
+        note(computed.notes);
+        return computed.value;
+      }
+      partial = { value: computed.value, notes: computed.notes };
     } catch (err) {
-      const stale =
-        err instanceof ApiError && isOutage(err)
-          ? this.#usableStale<T>(key, `upstream ${err.code}`)
-          : undefined;
-      if (stale === undefined) throw err;
-      return stale;
+      if (!isOutage(err)) throw err;
+      outage = err;
     }
-    // The shared compute's own notes apply to every caller it serves, not just
-    // the one whose context ran it, but only if its value is the one returned.
-    if (!(computed.value instanceof Degraded)) {
-      note(computed.notes);
-      return computed.value;
+
+    const stale = this.#stale(key);
+    if (stale) {
+      this.#logger?.warn(
+        `serving stale cached value for "${key}"`,
+        outage ?? "(the fresh result was partial)",
+      );
+      note({ staleAgeMs: stale.ageMs });
+      return stale.value as T;
     }
-    const stale = this.#usableStale<T>(key, "the fresh result was partial");
-    if (stale !== undefined) return stale;
-    note({ ...computed.notes, partial: true });
-    return computed.value.value;
+    if (!partial) throw outage;
+    note({ ...partial.notes, partial: true });
+    return partial.value.value;
   }
 
-  // A cached value still inside the stale window, noted with its age and
-  // logged in one line (an expected outage needs no stack). One past the
-  // window is dropped for good.
-  #usableStale<T>(key: string, why: string): T | undefined {
+  // The entry for `key` if it is still within the stale window; one past it
+  // is dropped for good.
+  #stale(key: string): { value: unknown; ageMs: number } | undefined {
     const hit = this.#map.get(key);
     if (hit === undefined) return undefined;
     const ageMs = this.#ageMs(hit);
-    if (ageMs === undefined) return undefined;
     if (ageMs > this.#ttlMs + this.#maxStaleMs) {
       this.#map.delete(key);
       return undefined;
     }
     this.#touch(key, hit);
-    this.#logger?.warn(`serving stale cached value for "${key}": ${why}`);
-    note({ staleAgeMs: ageMs });
-    return hit.value as T;
+    return { value: hit.value, ageMs };
   }
 
   // One in-flight compute per key, run in its own CallNotes record so what it

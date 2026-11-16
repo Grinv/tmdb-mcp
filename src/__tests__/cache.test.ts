@@ -251,18 +251,35 @@ describe("TtlCache", () => {
     }
   });
 
-  test("a clock stepped back leaves an entry of unknown age: neither fresh nor a fallback, until it catches up", async () => {
-    let now = 10_000_000;
-    const cache = new TtlCache({ ttlMs: 1_000, maxStaleMs: 1_000, now: () => now });
-    cache.set("k", 1);
+  // Age is the larger of the wall-clock and monotonic deltas: it counts
+  // sleep (wall moves, monotonic doesn't), ignores a step back (wall moves
+  // back, monotonic doesn't), and a step forward only expires early.
+  test("an entry's age counts sleep and ignores the clock stepping back", async () => {
+    let wall = 10_000_000;
+    let mono = 0;
+    const cache = new TtlCache({
+      ttlMs: 1_000,
+      maxStaleMs: 1_000,
+      now: () => wall,
+      monoNow: () => mono,
+    });
     const down = async (): Promise<number> => {
       throw new ApiError({ code: "network", message: "down" });
     };
-    now -= 3_600_000;
-    assert.equal(cache.get("k"), undefined);
-    await assert.rejects(() => cache.wrapStaleOnError("k", down));
-    now = 10_000_000 + 1_500; // caught up, past the TTL, inside the stale window
-    assert.equal(await cache.wrapStaleOnError("k", down), 1, "kept, not dropped");
+
+    cache.set("k", 1);
+    wall -= 3_600_000; // clock stepped back an hour; no real time passed
+    assert.equal(cache.get("k"), 1, "still fresh: its real age is ~0");
+    mono += 1_500; // 1.5 s of real time later
+    wall += 1_500;
+    assert.equal(cache.get("k"), undefined, "expired by real time, not by the stepped clock");
+    const notes: CallNotes = {};
+    assert.equal(await callNotes.run(notes, () => cache.wrapStaleOnError("k", down)), 1);
+    assert.equal(notes.staleAgeMs, 1_500);
+
+    cache.set("s", 2);
+    wall += 3_000; // the machine slept 3 s: the wall clock moved, mono didn't
+    await assert.rejects(() => cache.wrapStaleOnError("s", down), "past ttl + maxStale");
   });
 
   test("serving a stale copy over a partial result is logged too", async () => {

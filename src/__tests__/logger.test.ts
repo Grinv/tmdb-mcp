@@ -1,5 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
+import { ApiError } from "../lib/errors.ts";
 import { createLogger } from "../lib/logger.ts";
 
 function captureStderr<T>(fn: () => T): { result: T; lines: string[] } {
@@ -95,5 +96,30 @@ describe("createLogger", () => {
     });
     assert.match(lines[0]!, /Error: Network error[\s\S]*caused by: Error: socket hang up/);
     assert.doesNotMatch(lines[0]!, /supersecret/);
+  });
+
+  // An ApiError is always raised in lib/http.ts, so its stack says nothing:
+  // one line with code and status, and one line per cause (with a system
+  // error's code), so an outage logged per caller stays readable.
+  test("an ApiError is one line with its code; causes one line each", () => {
+    const sys = Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" });
+    const fetchFailed = new TypeError("fetch failed", { cause: sys });
+    const { lines } = captureStderr(() =>
+      createLogger("info").warn(
+        "stale",
+        new ApiError({
+          code: "network",
+          message: "Network error",
+          status: 502,
+          cause: fetchFailed,
+        }),
+      ),
+    );
+    assert.equal(
+      lines[0],
+      "[tmdb-mcp] warn: stale ApiError [network 502]: Network error\n" +
+        "caused by: TypeError: fetch failed\n" +
+        "caused by: Error [ECONNRESET]: read ECONNRESET",
+    );
   });
 });
