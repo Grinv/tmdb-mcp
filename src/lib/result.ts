@@ -133,7 +133,7 @@ export function toProblem(err: unknown, logger: Logger): Problem {
 /** A problem this server raises itself (no thrown error): its own `detail`,
  *  or the type's title and advice. */
 export function ownProblem(
-  code: "internal" | "not_configured" | "invalid_arguments" | "cancelled",
+  code: "internal" | "not_configured" | "invalid_arguments",
   detail?: string,
 ): Problem {
   const { title, advice } = PROBLEMS[code];

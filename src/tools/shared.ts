@@ -1,6 +1,7 @@
 // Small pieces shared by every tool-registration module: the read-only
 // annotation, and the "does this client have credentials" short-circuit that
 // every TMDB/OMDb tool needs before it can call its client.
+import { ApiError } from "../lib/errors.ts";
 import {
   jsonResult,
   ownProblem,
@@ -73,7 +74,6 @@ export async function requireConfigured(
     const data = await raceAbort(fn(), signal);
     return jsonResult(data, getMeta?.());
   } catch (err) {
-    if (signal?.aborted) return problemResult(ownProblem("cancelled"));
     return problemResult(toProblem(err, client.logger));
   }
 }
@@ -105,9 +105,13 @@ export function requireConfiguredCached<T extends Record<string, unknown>>(
  *  also cancel it for every other caller currently waiting on that same key. */
 function raceAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
   if (!signal) return promise;
-  if (signal.aborted) return Promise.reject(new Error("Request cancelled."));
+  // The same classified failure the transport raises for a cancelled fetch,
+  // so toProblem reports both one way.
+  const cancelled = () =>
+    new ApiError({ code: "cancelled", message: "Request cancelled by the caller" });
+  if (signal.aborted) return Promise.reject(cancelled());
   return new Promise<T>((resolve, reject) => {
-    const onAbort = () => reject(new Error("Request cancelled."));
+    const onAbort = () => reject(cancelled());
     signal.addEventListener("abort", onAbort, { once: true });
     promise.then(
       (value) => {
