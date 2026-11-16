@@ -41,22 +41,22 @@ export function registerSearchTools(server: McpServer, { tmdb, requireTmdb }: Tm
         "Search TMDB movies by title; returns compact summaries with the TMDB id that the other " +
         "movie tools (get_movie, get_movie_credits, …) require, plus pagination info. Use this over " +
         "search_multi when you already know the result is a movie. `year`/`release_date` are the " +
-        "original (primary) release, as everywhere except get_movie_releases (which shows the " +
-        "chosen country's date).",
+        "original (primary) release, as everywhere except get_movie_releases, which shows the " +
+        "chosen country's date.",
       inputSchema: z
         .strictObject({
           query: z.string().min(1).describe("Movie title to search for."),
           year: yearFilter(
             "Bias results toward this release year. Soft by default: it matches any of a movie's " +
-              "release dates, so re-releases and older films still appear (verified live: 'alien' " +
+              "release dates, so re-releases and older films still appear (checked live: 'alien' " +
               "with year 2003 ranks the 1979 Alien first). Set exact_year to match only the " +
               "original release year.",
           ),
           exact_year: z
             .boolean()
             .describe(
-              "Match `year` against the original (primary) release year only, dropping every " +
-                "movie first released in another year. Requires `year`.",
+              "Match `year` against the original (primary) release year only, dropping movies " +
+                "first released in another year. Requires `year`.",
             )
             .optional(),
           include_adult: includeAdult,
@@ -91,7 +91,7 @@ export function registerSearchTools(server: McpServer, { tmdb, requireTmdb }: Tm
         query: z.string().min(1).describe("TV show name to search for."),
         year: yearFilter(
           "Filter by first-air-date year. Unlike search_movies' soft year filter, this is a hard " +
-            "first-air-year match (verified live). For a first-air-date range, use discover_tv.",
+            "first-air-year match (checked live). For a first-air-date range, use discover_tv.",
         ),
         include_adult: includeAdult,
         language,
@@ -168,10 +168,10 @@ export function registerSearchTools(server: McpServer, { tmdb, requireTmdb }: Tm
       title: "Search production companies",
       description:
         "Resolve a production company's name to its TMDB numeric id (e.g. 'A24', 'Pixar'). Feed the " +
-        "id into discover_movies/discover_tv via with_companies. Company names aren't unique — TMDB " +
-        "can have several unrelated companies sharing the same name (e.g. two different 'A24's, one " +
-        "US and one GB) — check origin_country and logo_url to tell rows apart when a name matches " +
-        "more than one.",
+        "id into discover_movies/discover_tv via with_companies. Company names aren't unique: TMDB " +
+        "can have several unrelated companies with the same name (e.g. two different 'A24's, one " +
+        "US and one GB), so check origin_country and logo_url to tell rows apart when a name " +
+        "matches more than one.",
       inputSchema: z.strictObject({
         query: z.string().min(1).describe("Company name to look up."),
         page: page.optional(),
@@ -189,13 +189,13 @@ export function registerSearchTools(server: McpServer, { tmdb, requireTmdb }: Tm
       title: "Search movie collections",
       description:
         "Resolve a franchise/series name (e.g. 'harry potter', 'james bond') to its TMDB " +
-        "collection id — a collection is TMDB's grouping of a movie series' films. Pass the id " +
+        "collection id (TMDB's grouping of a movie series' films). Pass the id " +
         "to get_collection for every part in release order. Use this when you only have the " +
         "franchise name; if you already have one of its movies, get_movie's `collection` field " +
         "carries the same id. Movies only: collection parts are movies, and a TV series name " +
         "finds nothing (e.g. 'breaking bad' → 0 results). A name can match several " +
         "collections ('star wars' also returns 'LEGO Star Wars Collection' and other spin-off " +
-        "groupings) — pick by name/overview. Rows are id, name, overview, poster_url, " +
+        "groupings); pick by name/overview. Rows are id, name, overview, poster_url, " +
         "localized per `language` (e.g. 'de-DE' → 'Harry Potter Filmreihe').",
       inputSchema: z.strictObject({
         query: z.string().min(1).describe("Franchise/collection name to look up."),
@@ -220,20 +220,20 @@ export function registerSearchTools(server: McpServer, { tmdb, requireTmdb }: Tm
         "Resolve a streaming/rental/purchase service's name (e.g. 'Netflix', 'Disney Plus') to its " +
         "TMDB numeric provider id. Feed the id into discover_movies/discover_tv's " +
         "with_watch_providers (with watch_region set to the same region given here, if any) to " +
-        "find top titles on that service — TMDB has no name-based lookup of its own for this, only " +
+        "find top titles on that service. TMDB has no name-based lookup for this, only " +
         "numeric ids, and there are hundreds of providers (269+ for the US alone, more elsewhere), " +
-        "so don't guess an id. A provider's id and even whether it's offered at all can differ by " +
+        "so don't guess an id. A provider's id, and whether it's offered at all, can differ by " +
         "region (e.g. a service bundled as a channel add-on in one country vs. standalone in " +
-        "another) — pass watch_region to match what discover_movies/discover_tv will actually see; " +
-        "omitting it searches the full global provider list instead, which may include ids not valid " +
-        "for the region the caller actually cares about.",
+        "another). Pass watch_region to match what discover_movies/discover_tv will see; " +
+        "omitting it searches the full global provider list, which may include ids not valid " +
+        "for the caller's region.",
       inputSchema: z.strictObject({
         query: z
           .string()
           .min(1)
           .describe("Service name (or part of it) to look up, e.g. 'Netflix'."),
         media_type: mediaKind.describe(
-          "Whether to search movie or TV providers — a service can be offered for one media type " +
+          "Whether to search movie or TV providers. A service can be offered for one media type " +
             "but not the other (its id stays the same either way; a movie-only or TV-only service " +
             "just returns nothing from the wrong media_type).",
         ),

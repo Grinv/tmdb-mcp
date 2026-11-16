@@ -179,7 +179,7 @@ const discoverShared = {
         "of them. Requires watch_region; works alone (any provider). Combined with " +
         "with_watch_providers, TMDB checks the two independently, not per provider: " +
         "with_watch_providers=2 (Apple TV, rent/buy only) + 'flatrate' still matches titles " +
-        "rentable on Apple TV that some OTHER service streams — check get_watch_providers to " +
+        "rentable on Apple TV that some OTHER service streams. Check get_watch_providers to " +
         "confirm which service offers which access model (it reports 'flatrate' as `streaming`).",
     )
     .optional(),
@@ -209,19 +209,18 @@ const discoverShared = {
     .describe(
       "Filter by exact age/content certification, e.g. 'PG-13' (movies) or 'TV-Y7' (TV); join " +
         "several with '|' to match ANY of them, e.g. 'G|PG' for kids/family movies or " +
-        "'TV-Y|TV-Y7|TV-G' for kids' TV. Requires " +
-        "certification_country, and a certification_country TMDB doesn't recognize silently " +
-        "disables this filter (returns unfiltered results) instead of erroring or matching nothing " +
-        "— double-check the country actually has data for that rating system. Matching is " +
-        "case-insensitive (verified live: 'pg-13' and 'PG-13' return identical results) but must " +
-        "otherwise exactly match one of TMDB's known rating strings for that country's system, " +
-        "punctuation included (e.g. 'PG-13', not 'PG13'). Unlike get_movie/get_tv's own certification " +
-        "field (which falls back to the US rating, then any country, when the requested region has " +
-        "none), this filter has NO fallback: a title with no certification entry at all for the " +
-        "exact country given is silently excluded from results, even if it's certified elsewhere " +
-        "(e.g. has a US rating) — for a country with sparse TMDB certification data, prefer " +
-        "certification_country='US' for broader, more reliable coverage over the user's actual " +
-        "country if completeness matters more than exact local ratings.",
+        "'TV-Y|TV-Y7|TV-G' for kids' TV. Requires certification_country; one TMDB doesn't " +
+        "recognize silently disables this filter (returns unfiltered results) instead of " +
+        "erroring or matching nothing, so check the country has data for that rating system. " +
+        "Matching is case-insensitive (checked live: 'pg-13' and 'PG-13' return identical " +
+        "results) but otherwise must exactly match one of TMDB's known rating strings for that " +
+        "country's system, punctuation included (e.g. 'PG-13', not 'PG13'). Unlike " +
+        "get_movie/get_tv's own certification field (which falls back to the US rating, then " +
+        "any country, when the requested region has none), this filter has NO fallback: a title " +
+        "with no certification entry for the exact country given is silently excluded, even if " +
+        "it's certified elsewhere (e.g. has a US rating). For a country with sparse TMDB " +
+        "certification data, prefer certification_country='US' for broader, more reliable " +
+        "coverage if completeness matters more than exact local ratings.",
     )
     .optional(),
   certification_country: z
@@ -268,7 +267,7 @@ const discoverMovieSchema = {
   // Inverted range → 0, so it's rejected like release_date_gte/lte.
   any_release_date_gte: dateStr(
     "Only movies with at least one release (any country and release type, re-releases " +
-      "included) on/after this date (YYYY-MM-DD) — unlike release_date_gte, which uses each " +
+      "included) on/after this date (YYYY-MM-DD); unlike release_date_gte, which uses each " +
       "movie's original premiere date. Narrow it with region and with_release_type, e.g. " +
       "region='DE' + with_release_type=['theatrical'] + this window = movies in German cinemas " +
       "then. A re-released movie matches, but its row's release_date stays the original one. " +
@@ -341,20 +340,20 @@ const discoverTvSchema = {
     .enum(TV_SORT_BY)
     .describe(
       "Sort order. Defaults to TMDB's own default (roughly popularity-based) if omitted. TV's " +
-        "vocabulary differs from discover_movies' — 'name'/'first_air_date' instead of " +
-        "'original_title'/'primary_release_date', and no 'revenue' (TMDB doesn't track it per-show).",
+        "vocabulary differs from discover_movies': 'name'/'first_air_date' instead of " +
+        "'original_title'/'primary_release_date', and no 'revenue' (TMDB doesn't track it per show).",
     )
     .optional(),
   with_networks: idMatch(
-    "TMDB TV network ids, e.g. HBO=49, Netflix=213 (verified live). Unlike " +
+    "TMDB TV network ids, e.g. HBO=49, Netflix=213 (checked live). Unlike " +
       "with_companies/with_keywords/with_people, this server has no name-based resolver for " +
-      "networks — supply the raw TMDB network id directly; a well-known network's id may " +
+      "networks: supply the raw TMDB network id directly; a well-known network's id may " +
       "already be known, otherwise there's no in-server way to look one up.",
   ),
   with_type: z
     .enum(TV_TYPES)
     .describe(
-      "Restrict to this TV type — e.g. 'Miniseries' for short/limited series, excluding " +
+      "Restrict to this TV type, e.g. 'Miniseries' for short/limited series, excluding " +
         "documentaries/reality/talk shows/etc. that would otherwise mix into a genre/rating search.",
     )
     .optional(),
@@ -365,7 +364,7 @@ const discoverTvSchema = {
   // America/New_York, 450 UTC, 490 Europe/Berlin). The timezone param isn't
   // exposed (an unknown zone silently falls back to the default).
   air_date_gte: dateStr(
-    "Only shows with an episode airing on/after this date (YYYY-MM-DD) — e.g. 'what's airing " +
+    "Only shows with an episode airing on/after this date (YYYY-MM-DD), e.g. 'what's airing " +
       "this week' with air_date_lte; unlike release_date_gte, which uses the show's first " +
       "air date. Dates are US Eastern time. Must be <= air_date_lte if both are given.",
   ),
@@ -546,7 +545,7 @@ export function registerDiscoverTools(
       description:
         "Get what's trending on TMDB. media_type selects movies, TV, people, or all; time_window " +
         "is the trending period (today vs this week). Good for 'what's popular right now'. Each " +
-        "result row carries its own media_type ('movie' | 'tv' | 'person') — check it to route to " +
+        "result row carries its own media_type ('movie' | 'tv' | 'person'); check it to route to " +
         "the right get_* tool, especially when media_type is left at 'all'.",
       inputSchema: z.strictObject({
         media_type: z
@@ -556,7 +555,7 @@ export function registerDiscoverTools(
         time_window: z
           .enum(["day", "week"])
           .default("week")
-          .describe("Trending period: 'day' or 'week'."),
+          .describe("Trending period: today or this week."),
         page: filteredPage.optional(),
       }),
       outputSchema: pageSchema(multiItemSchema),
@@ -579,16 +578,16 @@ export function registerDiscoverTools(
       title: "Get movies in or coming to cinemas",
       description:
         "List movies in cinemas now (list='now_playing') or opening soon (list='upcoming') in " +
-        "one country — for 'what's playing in theaters' or 'what comes out next month'. Use " +
+        "one country, for 'what's playing in theaters' or 'what comes out next month'. Use " +
         "get_trending for overall popularity regardless of release, discover_movies for an " +
         "arbitrary date range. `region` filters to movies with a theatrical release in that " +
         "country inside the window (a different set per country, not just a re-sort; an " +
-        "unrecognized code such as 'ZZ' returns an empty page, but 'XX' is a real TMDB pseudo-region), and each row's release_date is that country's " +
-        "release date, which can predate the window for a re-release (e.g. a 2014 film " +
-        "re-released this month). The window itself comes from TMDB and is returned as " +
-        "`dates` {minimum, maximum} (YYYY-MM-DD; same for every region — roughly the last six " +
-        "weeks for now_playing, the next three weeks for upcoming). TMDB's own order: roughly " +
-        "most popular first, not by date.",
+        "unrecognized code such as 'ZZ' returns an empty page, but 'XX' is a real TMDB " +
+        "pseudo-region). Each row's release_date is that country's release date, which can " +
+        "predate the window for a re-release (e.g. a 2014 film re-released this month). The " +
+        "window comes from TMDB and is returned as `dates` {minimum, maximum} (YYYY-MM-DD; same " +
+        "for every region; roughly the last six weeks for now_playing, the next three weeks for " +
+        "upcoming). TMDB's own order: roughly most popular first, not by date.",
       inputSchema: z.strictObject({
         list: z
           .enum(["now_playing", "upcoming"])
@@ -642,20 +641,21 @@ export function registerDiscoverTools(
       title: "Discover movies (filters)",
       description:
         "Find movies by structured filters instead of a title query: genres (include/exclude), " +
-        "year or release-date range, TMDB vote-average range, vote count, runtime range, original language, " +
-        "cast/crew/people, companies (include/exclude), origin country, keywords (include/exclude), watch providers " +
-        "(include/exclude) and access model (subscription/rent/buy/free/ads), certification, " +
-        "a release window in one country by release type (any_release_date_gte/lte + region + " +
-        "with_release_type — e.g. 'movies in German cinemas this month'), an adult-content " +
-        "toggle, and sort order. certification/with_watch_providers/without_watch_providers/" +
+        "year or release-date range, TMDB vote-average range, vote count, runtime range, " +
+        "original language, cast/crew/people, companies (include/exclude), origin country, " +
+        "keywords (include/exclude), watch providers (include/exclude) and access model " +
+        "(subscription/rent/buy/free/ads), certification, a release window in one country by " +
+        "release type (any_release_date_gte/lte + region + with_release_type, e.g. 'movies in " +
+        "German cinemas this month'), an adult-content toggle, and sort order. " +
+        "certification/with_watch_providers/without_watch_providers/" +
         "with_watch_monetization_types/with_release_type/region have validation and " +
-        "silent-fallback rules — see their own field descriptions. Use for " +
-        "'popular sci-fi from the 1990s with a TMDB vote average above 7 available on Netflix', or for a specific " +
-        "person's work in one genre — 'which of this director's/actor's/composer's films are " +
-        "animated' — via with_crew/with_cast/with_people + with_genres together; get_person_credits " +
-        "has no genre filter, so this combination is the right tool for that question, not that one. " +
-        "Resolve ids with get_movie_genres, search_people, search_keywords, search_companies, " +
-        "search_watch_providers.",
+        "silent-fallback rules; see their own field descriptions. Use for 'popular sci-fi from " +
+        "the 1990s with a TMDB vote average above 7 available on Netflix', or for a specific " +
+        "person's work in one genre ('which of this director's/actor's/composer's films are " +
+        "animated') via with_crew/with_cast/with_people + with_genres together; " +
+        "get_person_credits has no genre filter, so this combination is the right tool for that " +
+        "question. Resolve ids with get_movie_genres, search_people, search_keywords, " +
+        "search_companies, search_watch_providers.",
       inputSchema: discoverMovieInputSchema,
       outputSchema: pageSchema(movieSummarySchema),
       annotations: READ_ONLY,
@@ -669,22 +669,22 @@ export function registerDiscoverTools(
     {
       title: "Discover TV shows (filters)",
       description:
-        "Find TV shows by structured filters (genres (include/exclude), first-air year or date range, TMDB vote-average range, " +
-        "vote count, runtime, language, origin country, companies (include/exclude), networks, " +
-        "keywords (include/exclude), watch providers (include/exclude) and access model (subscription/rent/buy/" +
-        "free/ads), episodes airing in a date range (air_date_gte/lte), type, " +
-        "status, certification, an adult-content toggle, sort) — but NOT cast/crew/person: this " +
-        "tool doesn't accept those " +
-        "params for TV at all (calling with them is a validation error, not a silent no-op) " +
-        "because TMDB's own /discover/tv would silently ignore them anyway, unlike /discover/movie; " +
-        "to find TV shows featuring someone, call get_person_credits instead and filter its results " +
-        "to media_type 'tv'. certification/with_watch_providers/without_watch_providers/" +
-        "with_watch_monetization_types have validation and silent-fallback " +
-        "rules — see their own field descriptions. The TV counterpart of discover_movies; " +
-        "use with_networks for 'HBO shows', with_type='Miniseries' for short/limited series (e.g. " +
-        "'best miniseries to binge in a weekend'), with_status='Ended' to exclude shows still " +
-        "airing, certification='TV-Y7' + certification_country='US' for 'shows appropriate for a " +
-        "young kid'. Resolve ids with get_tv_genres, search_companies, search_keywords, " +
+        "Find TV shows by structured filters: genres (include/exclude), first-air year or date " +
+        "range, TMDB vote-average range, vote count, runtime, language, origin country, " +
+        "companies (include/exclude), networks, keywords (include/exclude), watch providers " +
+        "(include/exclude) and access model (subscription/rent/buy/free/ads), episodes airing " +
+        "in a date range (air_date_gte/lte), type, status, certification, an adult-content " +
+        "toggle, sort. Not cast/crew/person: this tool doesn't accept those params for TV at " +
+        "all (a validation error, not a silent no-op), because TMDB's own /discover/tv would " +
+        "silently ignore them, unlike /discover/movie. To find TV shows featuring someone, call " +
+        "get_person_credits and filter its results to media_type 'tv'. " +
+        "certification/with_watch_providers/without_watch_providers/" +
+        "with_watch_monetization_types have validation and silent-fallback rules; see their own " +
+        "field descriptions. The TV counterpart of discover_movies; use with_networks for 'HBO " +
+        "shows', with_type='Miniseries' for short/limited series (e.g. 'best miniseries to " +
+        "binge in a weekend'), with_status='Ended' to exclude shows still airing, " +
+        "certification='TV-Y7' + certification_country='US' for 'shows appropriate for a young " +
+        "kid'. Resolve ids with get_tv_genres, search_companies, search_keywords, " +
         "search_watch_providers.",
       inputSchema: discoverTvInputSchema,
       outputSchema: pageSchema(tvSummarySchema),

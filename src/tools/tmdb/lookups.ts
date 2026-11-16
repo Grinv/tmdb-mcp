@@ -22,9 +22,9 @@ export function registerLookupTools(
       title: "Where to watch",
       description:
         "Find where a movie or TV show can be streamed, rented or bought in a given country " +
-        "(JustWatch data via TMDB). Returns provider names per access type for that country; if it " +
-        "has no data, returns `available:false` plus `available_regions` to retry with. Get the id " +
-        "from search_movies/search_tv.",
+        "(JustWatch data via TMDB). Returns provider names per access type for that country; with " +
+        "no data there, returns `available:false` plus `available_regions` to retry with. Get the " +
+        "id from search_movies/search_tv.",
       inputSchema: z.strictObject({
         media_type: mediaKind,
         id: mediaId,
@@ -62,10 +62,10 @@ export function registerLookupTools(
     {
       title: "Find by IMDb id",
       description:
-        "Resolve an IMDb id (e.g. 'tt0133093') to TMDB entities — returns matching movie, TV, " +
+        "Resolve an IMDb id (e.g. 'tt0133093') to TMDB entities: returns matching movie, TV, " +
         "person and TV-episode results. Use when you only have an IMDb id and need the TMDB id for " +
         "the other tools. IMDb also gives individual episodes 'tt' ids (e.g. Breaking Bad's pilot " +
-        "'tt0959621'): those land in tv_episode_results as show_id + season_number + " +
+        "'tt0959621'); those land in tv_episode_results as show_id + season_number + " +
         "episode_number, ready for get_tv_episode. An unknown id comes back with every list empty.",
       inputSchema: z.strictObject({
         imdb_id: z
@@ -87,13 +87,12 @@ export function registerLookupTools(
       title: "Get TV season",
       description:
         "Get one season of a TV show (by show id + season number): overview and the episode list " +
-        "with air dates, runtimes and TMDB vote averages (per-episode `vote_average`, TMDB's own " +
-        "0-10 user score — not the IMDb/RT/Metacritic scores get_movie/get_tv return as " +
-        "`ratings`, which are whole-show only; this tool makes no OMDb call, and TMDB's season " +
-        "payload carries no per-episode IMDb ids either, so call get_tv_episode when you need " +
-        "one episode's `imdb_id` for get_ratings), capped at 50 " +
-        "episodes (`episode_count` reports the " +
-        "true total). Season 0 is usually specials, which can run to hundreds of bonus clips on a " +
+        "with air dates, runtimes and TMDB vote averages, capped at 50 episodes (`episode_count` " +
+        "reports the true total). Per-episode `vote_average` is TMDB's own 0-10 user score, not " +
+        "the IMDb/RT/Metacritic scores get_movie/get_tv return as `ratings`, which are whole-show " +
+        "only; this tool makes no OMDb call, and TMDB's season payload carries no per-episode IMDb " +
+        "ids either, so call get_tv_episode when you need one episode's `imdb_id` for " +
+        "get_ratings. Season 0 is usually specials, which can run to hundreds of bonus clips on a " +
         "long-running show. Use get_tv with expand_episodes=true instead if you need every " +
         "season's episodes in one call. Get the show id from search_tv.",
       inputSchema: z.strictObject({
@@ -114,10 +113,10 @@ export function registerLookupTools(
       title: "Get TV episode",
       description:
         "Get one episode of a TV show by show id + season number + episode number: overview, air " +
-        "date, runtime, TMDB vote average (`vote_average`, TMDB's own 0-10 user score — not an " +
+        "date, runtime, TMDB vote average (`vote_average`, TMDB's own 0-10 user score, not an " +
         "IMDb/RT/Metacritic score; get_movie/get_tv's `ratings` are whole-show only and this " +
         "tool makes no OMDb call), guest stars (up to 15) and director/writer. Also returns the " +
-        "episode's own `imdb_id`/`imdb_url` — pass that id to get_ratings for this one episode's " +
+        "episode's own `imdb_id`/`imdb_url`; pass that id to get_ratings for this episode's " +
         "IMDb rating, the only way to get a per-episode IMDb score here. Get the show id from " +
         "search_tv.",
       inputSchema: z.strictObject({

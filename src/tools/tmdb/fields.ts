@@ -32,7 +32,7 @@ export const page = z.int().min(1).max(TMDB_MAX_PAGE).describe(PAGE);
 // TMDB hides adult titles on search/discover, so only these come up short.
 export const filteredPage = page.describe(
   `${PAGE} Adult/softcore titles are dropped from this list, so a page can come back ` +
-    "shorter, even empty, while total_pages/total_results stay TMDB's own — keep paging up to total_pages.",
+    "shorter, even empty, while total_pages/total_results stay TMDB's own; keep paging up to total_pages.",
 );
 export const tmdbId = z.int().positive().describe("TMDB numeric id.");
 // The same id, named for what it identifies, so the caller knows which search
@@ -78,8 +78,8 @@ export const personDepartment = z
   .enum(PERSON_DEPARTMENTS)
   .describe(
     "Restrict crew credits to this department (e.g. 'Directing' for a director's filmography). " +
-      "Without it, a multi-hyphenate's OTHER departments (writing, producing, …) compete for the " +
-      `same ${PERSON_CREDITS_LIMIT}-credit cap and can crowd out titles in the department you actually want.`,
+      "Without it, a multi-hyphenate's other departments (writing, producing, ...) compete for the " +
+      `same ${PERSON_CREDITS_LIMIT}-credit cap and can crowd out the department you want.`,
   )
   .optional();
 export const personCreditsLimit = z
@@ -89,19 +89,18 @@ export const personCreditsLimit = z
   .default(PERSON_CREDITS_LIMIT)
   .describe(
     "Max cast entries and max crew entries to return (each capped separately, 1-100). Raise " +
-      "this for an exceptionally prolific person — e.g. a director with 50+ films — where even a " +
-      "department filter still leaves more titles than the default cap keeps.",
+      "this for a very prolific person (e.g. a director with 50+ films) when even a " +
+      "department filter leaves more titles than the default cap keeps.",
   );
 export const includeAdult = z.boolean().default(false).describe("Include adult (NSFW) results.");
 export const includeRatings = z
   .boolean()
   .default(true)
   .describe(
-    "Enrich the result with IMDb/Rotten Tomatoes/Metacritic ratings plus an " +
-      "awards summary (major-award wins/nominations — Oscars, Emmys, Golden Globes, etc., whatever " +
-      "OMDb aggregates; free text, not a structured count, and describes the whole film/show, not " +
-      "any one person's award) from OMDb (requires OMDB_API_KEY). Set false to skip the extra " +
-      "lookup when ratings are not needed.",
+    "Add IMDb/Rotten Tomatoes/Metacritic ratings and an awards summary from OMDb (requires " +
+      "OMDB_API_KEY). The summary is free text (major-award wins/nominations: Oscars, Emmys, " +
+      "Golden Globes, etc., whatever OMDb aggregates), not a structured count, and covers the " +
+      "whole film/show, not any one person's award. Set false to skip the extra lookup.",
   );
 // get_movies/get_tv_shows cap. TMDB has no batch API, so each id is its own
 // upstream request, fanned out through the shared rate limiter.
@@ -126,8 +125,8 @@ export const includeRatingsBatch = z
   .boolean()
   .default(false)
   .describe(
-    "Enrich every card with compact IMDb/Rotten Tomatoes/Metacritic ratings from OMDb " +
-      "(requires OMDB_API_KEY) — one extra OMDb lookup per id, so a large batch means a burst of " +
+    "Add compact IMDb/Rotten Tomatoes/Metacritic ratings from OMDb to every card (requires " +
+      "OMDB_API_KEY). Costs one extra OMDb lookup per id, so a large batch means a burst of " +
       "OMDb calls; mind OMDb's own rate limit. Off by default here, unlike get_movie/get_tv.",
   );
 
@@ -136,21 +135,20 @@ export const expandEpisodes = z
   .default(false)
   .describe(
     "Also fetch every season's full episode list (name, air date, runtime, and TMDB " +
-      "`vote_average` — TMDB's own 0-10 user score, not this tool's IMDb/RT/Metacritic `ratings`) as " +
-      "`seasons_detail`, in one extra request (more only past 20 seasons) — use this instead of calling get_tv_season once per " +
-      "season when you need all episodes of a multi-season show. Episode overviews are omitted " +
-      "here to keep that aggregate response usable — call get_tv_season for one season's full " +
-      "detail including overview. Each season's episode list is capped at 50 (season 0 'Specials' " +
-      "in particular can otherwise run to hundreds of bonus clips), and the combined count across " +
-      "every season is capped at 250 total, and the whole aggregate additionally has a hard size " +
-      "ceiling (trims further if episode names are unusually long) since a 30+ season show could " +
-      "otherwise still exceed a usable response size even with the per-season cap alone; " +
-      "`episode_count` on each season still reports that season's true total. The 250 budget is " +
-      "spent in season order starting at season 0, so on a long-running show the specials are " +
-      "served first and the last seasons are the ones that fall off. A season that falls " +
-      "entirely beyond the 250-episode budget is skipped rather than fetched-then-discarded, so its " +
-      "`overview`/`poster_url` come back null too, not just its `episodes` list — call get_tv_season " +
-      "for that season's full detail.",
+      "`vote_average`, TMDB's own 0-10 user score, not this tool's IMDb/RT/Metacritic `ratings`) as " +
+      "`seasons_detail`, in one extra request (more only past 20 seasons). Use this instead of " +
+      "calling get_tv_season once per season when you need all episodes of a multi-season show. " +
+      "Episode overviews are omitted to keep the response usable; call get_tv_season for one " +
+      "season's full detail including overview. Each season's episode list is capped at 50 " +
+      "(season 0 'Specials' can otherwise run to hundreds of bonus clips), the combined count " +
+      "across every season is capped at 250, and the whole aggregate has a hard size ceiling " +
+      "(it trims further if episode names are unusually long), since a 30+ season show could " +
+      "otherwise still exceed a usable size. `episode_count` on each season still reports that " +
+      "season's true total. The 250 budget is spent in season order starting at season 0, so on a " +
+      "long-running show the specials are served first and the last seasons fall off. A season " +
+      "entirely beyond the 250-episode budget is skipped rather than fetched and discarded, so its " +
+      "`overview`/`poster_url` come back null too, not just its `episodes` list; call " +
+      "get_tv_season for that season's full detail.",
   );
 
 // Built from config because the description names the server's TMDB_REGION default.
