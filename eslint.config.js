@@ -9,13 +9,17 @@ import prettier from "eslint-config-prettier";
 // with or without `new`, and no subclass of one.
 const BUILTIN_ERROR =
   "/^(Error|TypeError|RangeError|SyntaxError|ReferenceError|EvalError|URIError|AggregateError)$/";
+// Matches `Error` and `globalThis.Error` (or window./self.) alike.
+/** @param {string} path */
+const ERROR_REF = (path) =>
+  `[${path}.name=${BUILTIN_ERROR}], [${path}.property.name=${BUILTIN_ERROR}]`;
 const ERROR_TYPE_RULES = [
   {
-    selector: `NewExpression[callee.name=${BUILTIN_ERROR}], CallExpression[callee.name=${BUILTIN_ERROR}]`,
+    selector: `:matches(NewExpression, CallExpression):matches(${ERROR_REF("callee")})`,
     message: "Throw a classified ApiError (lib/errors.ts), not a built-in error.",
   },
   {
-    selector: `ClassDeclaration[superClass.name=${BUILTIN_ERROR}]`,
+    selector: `:matches(ClassDeclaration, ClassExpression):matches(${ERROR_REF("superClass")})`,
     message: "ApiError (lib/errors.ts) is the one error type; give it a code instead.",
   },
 ];
