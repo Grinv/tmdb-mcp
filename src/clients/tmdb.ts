@@ -383,8 +383,9 @@ export class TmdbClient {
       cacheKey(`movie:${id}`, { language: this.#lang(language) }),
       `movie/${id}`,
       (res: TmdbMovie) => res,
-      // release_dates appended so the detail carries age/content certifications.
-      { append_to_response: "release_dates" },
+      // release_dates appended so the detail carries age/content certifications;
+      // keywords so the agent can feed their ids straight into discover_*.
+      { append_to_response: "release_dates,keywords" },
       language,
       onStale,
     );
@@ -397,8 +398,8 @@ export class TmdbClient {
       (res: TmdbTv) => res,
       // external_ids appended so the TV detail carries an imdb_id (the base
       // /tv/{id} response, unlike /movie/{id}, does not include one);
-      // content_ratings appended for age/content certifications.
-      { append_to_response: "external_ids,content_ratings" },
+      // content_ratings appended for age/content certifications; keywords as for movies.
+      { append_to_response: "external_ids,content_ratings,keywords" },
       language,
       onStale,
     );

@@ -83,6 +83,11 @@ function names(list: { name?: string }[] | undefined): string[] {
   return (list ?? []).map((x) => x.name).filter((n): n is string => Boolean(n));
 }
 
+// Like names(), but keeps the id too (e.g. keyword ids for discover_*'s with_keywords).
+function idNames(list: NamedRef[] | undefined): { id: number; name: string }[] {
+  return (list ?? []).flatMap((x) => (x.id != null && x.name ? [{ id: x.id, name: x.name }] : []));
+}
+
 // Truncate free text (e.g. a review body) to `max` chars with an ellipsis.
 function clip(text: string | null | undefined, max: number): string | null {
   if (!text) return null;
@@ -159,6 +164,13 @@ interface NamedRef {
   name?: string;
 }
 
+// One shape for both media types (TmdbMultiItem extends both): a movie's
+// keywords come back under `keywords`, a show's under `results`.
+interface TmdbKeywords {
+  keywords?: NamedRef[];
+  results?: NamedRef[];
+}
+
 export interface TmdbMovie {
   id: number;
   imdb_id?: string | null;
@@ -191,6 +203,8 @@ export interface TmdbMovie {
       release_dates?: { certification?: string; type?: number }[];
     }[];
   };
+  // Appended via append_to_response=keywords.
+  keywords?: TmdbKeywords;
 }
 
 export interface TmdbTv {
@@ -223,6 +237,8 @@ export interface TmdbTv {
   external_ids?: { imdb_id?: string | null };
   // Appended via append_to_response=content_ratings.
   content_ratings?: { results?: { iso_3166_1?: string; rating?: string }[] };
+  // Appended via append_to_response=keywords.
+  keywords?: TmdbKeywords;
 }
 
 interface TmdbEpisodeBrief {
@@ -318,6 +334,7 @@ export function detailMovie(m: TmdbMovie, region: string): z.infer<typeof movieD
     runtime_minutes: m.runtime || null,
     status: m.status || null,
     genres: names(m.genres),
+    keywords: idNames(m.keywords?.keywords),
     vote_average: score(m.vote_average, m.vote_count),
     vote_count: m.vote_count ?? null,
     popularity: m.popularity ?? null,
@@ -398,6 +415,7 @@ export function detailTv(t: TmdbTv, region: string): z.infer<typeof tvDetailSche
       air_date: s.air_date || null,
     })),
     genres: names(t.genres),
+    keywords: idNames(t.keywords?.results),
     vote_average: score(t.vote_average, t.vote_count),
     vote_count: t.vote_count ?? null,
     popularity: t.popularity ?? null,

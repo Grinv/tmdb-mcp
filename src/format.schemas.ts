@@ -45,6 +45,9 @@ const castMemberSchema = z.strictObject({
 // seasonSchema/episodeSchema carry neither a `vote_count` nor a sibling
 // `ratings` field, so the text names get_movie/get_tv as where the other
 // family lives instead of pointing at a field that isn't always there.
+// A keyword on a movie/show detail; its id feeds discover_*'s with_keywords.
+const keywordRefSchema = z.strictObject({ id: z.number(), name: z.string() });
+
 const voteAverage = z
   .number()
   .nullable()
@@ -109,6 +112,7 @@ export const movieDetailSchema = z.strictObject({
   runtime_minutes: z.number().nullable(),
   status: z.string().nullable(),
   genres: z.array(z.string()),
+  keywords: z.array(keywordRefSchema),
   vote_average: voteAverage,
   vote_count: z.number().nullable(),
   popularity: z.number().nullable(),
@@ -184,6 +188,7 @@ export const tvDetailSchema = z.strictObject({
   episode_run_time: z.array(z.number()),
   seasons: z.array(seasonBriefSchema),
   genres: z.array(z.string()),
+  keywords: z.array(keywordRefSchema),
   vote_average: voteAverage,
   vote_count: z.number().nullable(),
   popularity: z.number().nullable(),

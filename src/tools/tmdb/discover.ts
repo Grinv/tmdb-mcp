@@ -151,7 +151,10 @@ const discoverShared = {
     "Comma-separated TMDB production company ids to exclude: titles produced by ANY of them " +
       "are dropped (use search_companies to resolve names → ids).",
   ),
-  with_keywords: idMatch("TMDB keyword ids (use search_keywords to resolve names → ids)."),
+  with_keywords: idMatch(
+    "TMDB keyword ids (use search_keywords to resolve names → ids, or take them from a " +
+      "title's `keywords` in get_movie/get_tv).",
+  ),
   without_keywords: idList(
     "Comma-separated TMDB keyword ids to exclude (use search_keywords to resolve names → ids).",
   ),

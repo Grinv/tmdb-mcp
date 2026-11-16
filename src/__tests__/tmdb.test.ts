@@ -32,6 +32,13 @@ const MOVIE_DETAIL = {
       { iso_3166_1: "GB", release_dates: [{ certification: "15", type: 3 }] },
     ],
   },
+  // A movie's appended keywords nest under `keywords` (verified live).
+  keywords: {
+    keywords: [
+      { id: 312, name: "man vs machine" },
+      { id: 310, name: "artificial intelligence (a.i.)" },
+    ],
+  },
 };
 
 const TV_DETAIL = {
@@ -62,6 +69,8 @@ const TV_DETAIL = {
       { iso_3166_1: "DE", rating: "16" },
     ],
   },
+  // A show's appended keywords nest under `results`, unlike a movie's (verified live).
+  keywords: { results: [{ id: 1508, name: "new mexico" }] },
 };
 
 const OMDB_OK = {
@@ -782,6 +791,24 @@ describe("get_movie", () => {
     assert.ok(mock.calls.some((c) => c.url.includes("apikey")));
   });
 
+  test("returns the movie's keywords with ids, fetched in the same request", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    const client = await connectServer(t, ENV);
+    const res = await client.callTool({
+      name: "get_movie",
+      arguments: { id: 603, include_ratings: false },
+    });
+    const s = res.structuredContent as { keywords: { id: number; name: string }[] };
+    assert.deepEqual(s.keywords, [
+      { id: 312, name: "man vs machine" },
+      { id: 310, name: "artificial intelligence (a.i.)" },
+    ]);
+    const calls = mock.calls.filter((c) => /\/movie\/603/.test(c.url));
+    assert.equal(calls.length, 1);
+    assert.match(decodeURIComponent(calls[0]!.url), /append_to_response=release_dates,keywords/);
+  });
+
   test("with include_ratings=false skips the OMDb call", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
@@ -1122,6 +1149,20 @@ describe("get_tv", () => {
     assert.equal(s.certifications.DE, "16");
     const call = mock.calls.find((c) => /\/tv\/1396/.test(c.url))!;
     assert.match(call.url, /content_ratings/);
+  });
+
+  test("returns the show's keywords from TMDB's `results` nesting", async (t) => {
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    const client = await connectServer(t, ENV);
+    const res = await client.callTool({
+      name: "get_tv",
+      arguments: { id: 1396, include_ratings: false },
+    });
+    const s = res.structuredContent as { keywords: { id: number; name: string }[] };
+    assert.deepEqual(s.keywords, [{ id: 1508, name: "new mexico" }]);
+    const call = mock.calls.find((c) => /\/tv\/1396/.test(c.url))!;
+    assert.match(decodeURIComponent(call.url), /keywords/);
   });
 
   test("surfaces episode air info, seasons, homepage and type", async (t) => {

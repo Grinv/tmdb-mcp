@@ -58,7 +58,9 @@ export function registerDetailsTools(
     {
       title: "Get movie details",
       description:
-        "Get full details for one movie by TMDB id: overview, genres, runtime, budget/revenue, " +
+        "Get full details for one movie by TMDB id: overview, genres, keywords (`{id, name}`; pass " +
+        "the ids to discover_movies' with_keywords for thematically similar titles), runtime, " +
+        "budget/revenue, " +
         "vote average, the age/content rating (certification) for `region` — falling back to the " +
         "US rating, then any available country, when `region` has none; check `certification_region` " +
         "to see which one was used — and links (TMDB + IMDb). " +
@@ -103,7 +105,8 @@ export function registerDetailsTools(
     {
       title: "Get TV show details",
       description:
-        "Get full details for one TV show by TMDB id: overview, genres, seasons/episodes counts, " +
+        "Get full details for one TV show by TMDB id: overview, genres, keywords (`{id, name}`; " +
+        "pass the ids to discover_tv's with_keywords), seasons/episodes counts, " +
         "networks, created_by (the show's creator(s)), status, the age/content rating " +
         "(certification) for `region` — falling back to " +
         "the US rating, then any available country, when `region` has none; check " +
