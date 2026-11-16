@@ -22,7 +22,7 @@ export interface ApiErrorOptions {
   /** The upstream's own (redacted) reason, e.g. "Invalid API key!", for the tool-facing text. */
   detail?: string;
   status?: number;
-  /** Override TRANSIENT[code] for one occurrence whose nature differs from its
+  /** Override KIND[code].transient for one occurrence whose nature differs from its
    *  code's (e.g. OMDb's daily quota: rate_limited, yet not transient). */
   retryable?: boolean;
   /** Retry-After hint, in ms, for the retry backoff. */
@@ -44,61 +44,42 @@ export class ApiError extends Error {
     this.code = opts.code;
     this.detail = opts.detail;
     this.status = opts.status;
-    this.retryable = opts.retryable ?? TRANSIENT[opts.code];
+    this.retryable = opts.retryable ?? KIND[opts.code].transient;
     this.retryAfterMs = opts.retryAfterMs;
   }
 }
 
 /**
- * Whether a failure of this kind is transient. This is the only place that
- * decides it: HttpClient retries transient failures, and the tool's problem
- * tells the caller a later retry can help. A Record, so the compiler rejects a
- * code without an entry.
+ * Two separate properties of each kind of failure, decided only here (a
+ * Record, so the compiler rejects a code without an entry):
+ * - `transient`: retrying soon can help. HttpClient retries these, and the
+ *   tool's problem tells the caller so. One occurrence may override it via
+ *   `retryable` (OMDb's daily quota).
+ * - `outage`: the upstream couldn't answer, as opposed to answering
+ *   authoritatively (a 404, a rejected key, a bad request). Only then may a
+ *   cached copy or a partial result stand in (RFC 5861's stale-if-error).
+ *   Never overridden, so OMDb's quota stays an outage though not retryable.
  */
-const TRANSIENT: Record<ApiErrorCode, boolean> = {
-  unauthorized: false,
-  forbidden: false,
-  not_found: false,
-  rate_limited: true,
-  server_error: true,
-  network: true,
-  timeout: true,
-  cancelled: false, // the caller's own decision
-  bad_request: false,
-  // A complete body that isn't JSON (a proxy's HTML page) won't change on
-  // retry. A truncated body never gets here: undici rejects the read itself.
-  bad_response: false,
-  unknown: false,
-};
-
-/**
- * Whether a failure means the upstream couldn't answer right now (an outage),
- * as opposed to an authoritative answer (a 404, a rejected key, a bad request)
- * or the caller's cancel. Only an outage lets a cached copy or a partial
- * result stand in (RFC 5861's stale-if-error). Decided by code, not by an
- * occurrence's `retryable`: OMDb's exhausted daily quota won't pass on retry,
- * yet it is still an outage. A Record, so the compiler rejects a code without
- * an entry.
- */
-const OUTAGE: Record<ApiErrorCode, boolean> = {
-  unauthorized: false,
-  forbidden: false,
-  not_found: false,
-  rate_limited: true,
-  server_error: true,
-  network: true,
-  timeout: true,
-  cancelled: false,
-  bad_request: false,
-  // A proxy's or captive portal's page instead of the API: the upstream
-  // wasn't reached, like a 502.
-  bad_response: true,
+const KIND: Record<ApiErrorCode, { transient: boolean; outage: boolean }> = {
+  unauthorized: { transient: false, outage: false },
+  forbidden: { transient: false, outage: false },
+  not_found: { transient: false, outage: false },
+  rate_limited: { transient: true, outage: true },
+  server_error: { transient: true, outage: true },
+  network: { transient: true, outage: true },
+  timeout: { transient: true, outage: true },
+  cancelled: { transient: false, outage: false }, // the caller's own decision
+  bad_request: { transient: false, outage: false },
+  // A complete body that isn't the API's JSON (a proxy's or captive portal's
+  // page) won't change on retry, but the upstream wasn't reached, like a 502.
+  // A truncated body never gets here: undici rejects the read itself.
+  bad_response: { transient: false, outage: true },
   // An unclassified status or refusal: unknown, so it isn't hidden.
-  unknown: false,
+  unknown: { transient: false, outage: false },
 };
 
-export function isOutage(err: unknown): err is ApiError {
-  return err instanceof ApiError && OUTAGE[err.code];
+export function isOutage(err: unknown): boolean {
+  return err instanceof ApiError && KIND[err.code].outage;
 }
 
 /** Map an HTTP status code to an ApiErrorCode. */
@@ -106,6 +87,7 @@ export function classifyStatus(status: number): ApiErrorCode {
   if (status === 401) return "unauthorized";
   if (status === 403) return "forbidden";
   if (status === 404) return "not_found";
+  if (status === 408) return "timeout"; // a proxy or gateway gave up waiting
   if (status === 429) return "rate_limited";
   if (status === 400 || status === 405 || status === 422) return "bad_request";
   if (status >= 500) return "server_error";
@@ -127,7 +109,7 @@ export function redact(input: string): string {
  * upstream outage (isOutage). Anything else (an authoritative failure, a bug)
  * propagates.
  */
-export async function unlessUpstreamFails<T>(promise: Promise<T>): Promise<T | undefined> {
+export async function unlessOutage<T>(promise: Promise<T>): Promise<T | undefined> {
   try {
     return await promise;
   } catch (err) {

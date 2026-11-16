@@ -8,7 +8,7 @@
 // to every request; callers may override per call.
 import { HttpClient, nullAsAbsent } from "../lib/http.ts";
 import { TtlCache, cacheKey, degraded } from "../lib/cache.ts";
-import { unlessUpstreamFails } from "../lib/errors.ts";
+import { unlessOutage } from "../lib/errors.ts";
 import { createUpstream } from "../lib/upstream.ts";
 import {
   detailMovie,
@@ -458,7 +458,7 @@ export class TmdbClient {
       const chunks = chunk(toFetch, MAX_APPEND_TO_RESPONSE);
       const fetched = await Promise.all(
         chunks.map((indices) =>
-          unlessUpstreamFails(
+          unlessOutage(
             this.#get<Record<string, TmdbSeason | undefined>>(
               `tv/${id}`,
               {
@@ -766,7 +766,7 @@ export class TmdbClient {
         // are dropped (Spirited Away: no ja trailer under en). It's optional:
         // an outage there degrades the list (not cached) instead of failing
         // the call.
-        const detail = await unlessUpstreamFails(
+        const detail = await unlessOutage(
           mediaType === "tv" ? this.#tvRaw(id, language) : this.#movieRaw(id, language),
         );
         // `language` alone keeps only that language's videos (29 → 2 for a

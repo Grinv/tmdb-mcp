@@ -4,7 +4,8 @@ import {
   ApiError,
   classifyStatus,
   redact,
-  unlessUpstreamFails,
+  isOutage,
+  unlessOutage,
   type ApiErrorCode,
 } from "../lib/errors.ts";
 
@@ -20,37 +21,43 @@ describe("classifyStatus", () => {
     assert.equal(classifyStatus(400), "bad_request");
     // A status matching none of the known cases must not throw — "unknown".
     assert.equal(classifyStatus(418), "unknown");
+    assert.equal(classifyStatus(408), "timeout");
   });
 });
 
-// Transience is a property of the code (errors.ts's TRANSIENT), decided in
-// one place — not by whichever construction site remembers to pass a flag.
-describe("ApiError.retryable", () => {
-  // A Record, so adding an ApiErrorCode fails to compile until its expected
-  // transience is stated here too.
-  const expected: Record<ApiErrorCode, boolean> = {
-    unauthorized: false,
-    forbidden: false,
-    not_found: false,
-    rate_limited: true,
-    server_error: true,
-    network: true,
-    timeout: true,
-    cancelled: false,
-    bad_request: false,
-    bad_response: false,
-    unknown: false,
+// Transience and outage are properties of the code (errors.ts's KIND),
+// decided in one place, not by whichever construction site passes a flag.
+describe("ApiError.retryable and isOutage", () => {
+  // A Record, so adding an ApiErrorCode fails to compile until both are
+  // stated here too.
+  const expected: Record<ApiErrorCode, [transient: boolean, outage: boolean]> = {
+    unauthorized: [false, false],
+    forbidden: [false, false],
+    not_found: [false, false],
+    rate_limited: [true, true],
+    server_error: [true, true],
+    network: [true, true],
+    timeout: [true, true],
+    cancelled: [false, false],
+    bad_request: [false, false],
+    bad_response: [false, true],
+    unknown: [false, false],
   };
 
-  test("follows the code's transience unless an occurrence overrides it", () => {
-    for (const [code, transient] of Object.entries(expected) as [ApiErrorCode, boolean][]) {
-      assert.equal(new ApiError({ code, message: "x" }).retryable, transient, code);
+  test("follow the code; an occurrence may override only retryable", () => {
+    for (const [code, [transient, outage]] of Object.entries(expected) as [
+      ApiErrorCode,
+      [boolean, boolean],
+    ][]) {
+      const err = new ApiError({ code, message: "x" });
+      assert.equal(err.retryable, transient, code);
+      assert.equal(isOutage(err), outage, code);
     }
-    // e.g. OMDb's daily quota: rate_limited, yet not transient.
-    assert.equal(
-      new ApiError({ code: "rate_limited", message: "x", retryable: false }).retryable,
-      false,
-    );
+    // OMDb's daily quota: rate_limited, not retryable, still an outage.
+    const quota = new ApiError({ code: "rate_limited", message: "x", retryable: false });
+    assert.equal(quota.retryable, false);
+    assert.equal(isOutage(quota), true);
+    assert.equal(isOutage(new TypeError("bug")), false);
   });
 });
 
@@ -69,19 +76,16 @@ describe("redact", () => {
   });
 });
 
-describe("unlessUpstreamFails", () => {
+describe("unlessOutage", () => {
   test("tolerates an upstream outage, but never an authoritative failure or a bug", async () => {
-    assert.equal(await unlessUpstreamFails(Promise.resolve(1)), 1);
+    assert.equal(await unlessOutage(Promise.resolve(1)), 1);
     const outage = new ApiError({ code: "server_error", message: "x" });
-    assert.equal(await unlessUpstreamFails(Promise.reject(outage)), undefined);
+    assert.equal(await unlessOutage(Promise.reject(outage)), undefined);
     const revoked = new ApiError({ code: "unauthorized", message: "x" });
     await assert.rejects(
-      () => unlessUpstreamFails(Promise.reject(revoked)),
+      () => unlessOutage(Promise.reject(revoked)),
       (e) => e === revoked,
     );
-    await assert.rejects(
-      () => unlessUpstreamFails(Promise.reject(new TypeError("bug"))),
-      TypeError,
-    );
+    await assert.rejects(() => unlessOutage(Promise.reject(new TypeError("bug"))), TypeError);
   });
 });

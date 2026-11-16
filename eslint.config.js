@@ -9,10 +9,13 @@ import prettier from "eslint-config-prettier";
 // with or without `new`, and no subclass of one.
 const BUILTIN_ERROR =
   "/^(Error|TypeError|RangeError|SyntaxError|ReferenceError|EvalError|URIError|AggregateError)$/";
-// Matches `Error` and `globalThis.Error` (or window./self.) alike.
+// Matches `Error` and `globalThis.Error` alike. A syntax rule catches the
+// usual spellings, not deliberate evasion (an alias, Reflect.construct);
+// toProblem() still reports anything else as an internal error.
 /** @param {string} path */
 const ERROR_REF = (path) =>
-  `[${path}.name=${BUILTIN_ERROR}], [${path}.property.name=${BUILTIN_ERROR}]`;
+  `[${path}.name=${BUILTIN_ERROR}], ` +
+  `[${path}.object.name=/^(globalThis|window|self)$/][${path}.property.name=${BUILTIN_ERROR}]`;
 const ERROR_TYPE_RULES = [
   {
     selector: `:matches(NewExpression, CallExpression):matches(${ERROR_REF("callee")})`,
@@ -61,7 +64,7 @@ export default defineConfig(
   { files: ["src/config.ts", "src/lib/errors.ts"], rules: { "no-restricted-syntax": "off" } },
   // Clients fetch and cache only: tolerating or translating a failure is the
   // tools layer's job (lib/result.ts) or an upstream rule (HttpClient's
-  // refineError); optional data uses unlessUpstreamFails(). (A later
+  // refineError); optional data uses unlessOutage(). (A later
   // no-restricted-syntax replaces the earlier list, hence the spread.)
   {
     files: ["src/clients/**/*.ts"],
@@ -72,7 +75,7 @@ export default defineConfig(
         { selector: "TryStatement", message: "Clients don't catch; see AGENTS.md's error layers." },
         {
           selector: "CallExpression[callee.property.name='catch']",
-          message: "Clients don't catch; use unlessUpstreamFails() for optional data.",
+          message: "Clients don't catch; use unlessOutage() for optional data.",
         },
       ],
     },

@@ -636,12 +636,21 @@ describe("TmdbClient: getTv(expand_episodes) degrades per chunk, keeps season or
 
   test("an authoritative chunk failure propagates; an outage with no stale copy is partial", async (t) => {
     const seasons = [{ season_number: 1, name: "Season 1", episode_count: 3, air_date: null }];
-    let status = 401;
+    // TMDB's own error bodies for these statuses.
+    const errors = {
+      401: {
+        success: false,
+        status_code: 7,
+        status_message: "Invalid API key: You must be granted a valid key.",
+      },
+      503: { success: false, status_code: 9, status_message: "Service offline - try again later." },
+    };
+    let status: keyof typeof errors = 401;
     installFetch(
       t,
       mockFetch((url) =>
         url.includes("append_to_response=season")
-          ? jsonResponse({ status_code: 7 }, { status })
+          ? jsonResponse(errors[status], { status })
           : jsonResponse({ id: 1, name: "Show", seasons }),
       ),
     );

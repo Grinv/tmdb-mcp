@@ -17,7 +17,7 @@ export interface HttpClientOptions {
   logger: Logger;
   defaultHeaders?: Record<string, string>;
   timeoutMs?: number;
-  /** Max retry attempts for transient failures (see errors.ts's TRANSIENT). */
+  /** Max retry attempts for transient failures (see errors.ts's KIND). */
   retries?: number;
   /** Called before each request; lets callers throttle (rate limiting). */
   beforeRequest?: () => Promise<void> | void;
