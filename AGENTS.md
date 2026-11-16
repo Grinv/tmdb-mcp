@@ -90,6 +90,22 @@ npm run inspector      # run under the MCP Inspector
   `_meta["io.github.Grinv.tmdb-mcp/problem"]` (never `structuredContent`). A new code needs a
   `PROBLEMS` entry (the compiler enforces it) and a `docs/errors.md` section
   (a test enforces it). Never put `err.message` in front of the agent.
+  Rules around it, each with what enforces it:
+  - Only the classification layer creates failures, and only as `ApiError`
+    (an upstream's own rule goes in `HttpClient`'s `refineError`, applied
+    before the retry decision) — ESLint bans `new Error`/`extends Error`
+    outside `lib/errors.ts` and `config.ts`.
+  - Clients fetch and cache only; they never catch — ESLint bans `try` and
+    `.catch()` in `src/clients/`. Optional data uses `unlessUpstreamFails()`
+    (tolerates an `ApiError`, lets a bug through); a usable-but-partial
+    result is returned as `degraded(value)`, which the cache never stores.
+  - Only the logger writes to stdio and turns an error into log text (stack,
+    cause chain, redaction): pass it the error object, never `err.message` —
+    ESLint bans `console` and `process.stdout`/`stderr` outside
+    `lib/logger.ts`.
+  - Tolerating a failure is never silent: an upstream outage degrades with a
+    signal the caller sees (`found: false` + reason, the stale `_meta`, a
+    degraded value), and a bug is logged by `toProblem()` — review-enforced.
 - Mocked-`fetch` test fixtures must mirror the real upstream response shape
   for that exact endpoint, not just whatever fields make the current code
   pass — see

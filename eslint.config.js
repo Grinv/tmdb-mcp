@@ -16,6 +16,65 @@ export default defineConfig(
       ],
     },
   },
+  // The error pipeline's invariants (AGENTS.md, "Errors have three layers"),
+  // enforced so a new file can't quietly bypass them. Tests are exempt.
+  {
+    files: ["src/**/*.ts"],
+    ignores: ["src/__tests__/**"],
+    rules: {
+      // Only the logger writes to stdio: it redacts credentials, and stdout
+      // is the MCP protocol channel.
+      "no-console": "error",
+      "no-restricted-properties": [
+        "error",
+        { object: "process", property: "stderr", message: "Log through lib/logger.ts." },
+        { object: "process", property: "stdout", message: "stdout is the MCP channel." },
+      ],
+      // Failures are created by the classification layer, as ApiError — so
+      // toProblem() can describe every one of them.
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "NewExpression[callee.name='Error']",
+          message: "Throw a classified ApiError (lib/errors.ts), not a plain Error.",
+        },
+        {
+          selector: "ClassDeclaration[superClass.name='Error']",
+          message: "ApiError (lib/errors.ts) is the one error type; give it a code instead.",
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/lib/logger.ts"],
+    rules: { "no-console": "off", "no-restricted-properties": "off" },
+  },
+  // Startup config errors happen before any upstream exists; ApiError lives here.
+  { files: ["src/config.ts", "src/lib/errors.ts"], rules: { "no-restricted-syntax": "off" } },
+  // Clients fetch and cache only: tolerating or translating a failure is the
+  // tools layer's job (lib/result.ts) or an upstream rule (HttpClient's
+  // refineError); optional data uses unlessUpstreamFails().
+  {
+    files: ["src/clients/**/*.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "NewExpression[callee.name='Error']",
+          message: "Throw a classified ApiError (lib/errors.ts), not a plain Error.",
+        },
+        {
+          selector: "ClassDeclaration[superClass.name='Error']",
+          message: "ApiError (lib/errors.ts) is the one error type; give it a code instead.",
+        },
+        { selector: "TryStatement", message: "Clients don't catch; see AGENTS.md's error layers." },
+        {
+          selector: "CallExpression[callee.property.name='catch']",
+          message: "Clients don't catch; use unlessUpstreamFails() for optional data.",
+        },
+      ],
+    },
+  },
   // Must be last: disables ESLint rules that conflict with Prettier.
   prettier,
 );
