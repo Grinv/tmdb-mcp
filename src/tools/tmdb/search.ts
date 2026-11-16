@@ -28,7 +28,7 @@ import {
 
 export function registerSearchTools(
   server: McpServer,
-  { tmdb, requireTmdb, requireTmdbCached, region }: TmdbToolDeps,
+  { tmdb, requireTmdb, requireTmdbCached }: TmdbToolDeps,
 ): void {
   server.registerTool(
     "search_movies",
@@ -37,10 +37,8 @@ export function registerSearchTools(
       description:
         "Search TMDB movies by title; returns compact summaries with the TMDB id that the other " +
         "movie tools (get_movie, get_movie_credits, …) require, plus pagination info. Use this over " +
-        "search_multi when you already know the result is a movie. `region` here only picks which " +
-        "country's release_date is shown per result (e.g. a title's US vs. India theatrical date) — " +
-        "verified live, it does not filter which movies match or reorder them; for actual " +
-        "region-based availability use get_watch_providers instead.",
+        "search_multi when you already know the result is a movie. `year`/`release_date` are the " +
+        "original (primary) release, as in every other tool.",
       inputSchema: z
         .strictObject({
           query: z.string().min(1).describe("Movie title to search for."),
@@ -59,7 +57,6 @@ export function registerSearchTools(
             .optional(),
           include_adult: includeAdult,
           language,
-          region,
           page: page.optional(),
         })
         .superRefine((v, ctx) => {

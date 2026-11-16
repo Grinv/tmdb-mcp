@@ -626,6 +626,23 @@ describe("search", () => {
     assert.equal(exact!.get("year"), null);
   });
 
+  test("search_movies sends no region, so release_date/year stay the original release", async (t) => {
+    // On /search/movie TMDB's `region` swaps in that country's release date
+    // (verified live: Oldboy 2003-11-21 → 2005-03-11 under US).
+    const mock = mockFetch(router);
+    installFetch(t, mock);
+    const client = await connectServer(t, { ...ENV, TMDB_REGION: "US" });
+    await client.callTool({ name: "search_movies", arguments: { query: "oldboy" } });
+    const u = new URL(mock.calls.find((c) => c.url.includes("/search/movie"))!.url);
+    assert.equal(u.searchParams.get("region"), null);
+    const res = await client.callTool({
+      name: "search_movies",
+      arguments: { query: "oldboy", region: "KR" },
+    });
+    assert.equal(res.isError, true);
+    assert.match(toolText(res), /region/);
+  });
+
   test("search_movies rejects exact_year without year instead of ignoring it", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);

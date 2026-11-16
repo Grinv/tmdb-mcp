@@ -79,14 +79,6 @@ describe("TmdbClient: region/language resolve from config when not overridden pe
     assert.ok(s.available);
     assert.deepEqual(s.streaming, ["Kion"]);
   });
-
-  test("searchMovies falls back to the configured TMDB_REGION for release-date bias", async (t) => {
-    const mock = mockFetch(() => jsonResponse(EMPTY_PAGE));
-    installFetch(t, mock);
-    await client({ TMDB_REGION: "DE" }).searchMovies({ query: "matrix" });
-    const call = mock.calls.find((c) => c.url.includes("/search/movie"))!;
-    assert.match(call.url, /region=DE/);
-  });
 });
 
 describe("TmdbClient: non-cached methods honor a caller AbortSignal", () => {

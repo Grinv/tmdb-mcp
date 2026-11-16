@@ -172,8 +172,6 @@ interface SearchParams {
   page?: number;
   include_adult?: boolean;
   language?: string;
-  /** search/movie only: bias release-date relevance to a country. */
-  region?: string;
 }
 
 type TrendingMediaType = "all" | "movie" | "tv" | "person";
@@ -259,7 +257,9 @@ export class TmdbClient {
         ...(p.exact_year ? { primary_release_year: p.year } : { year: p.year }),
         page: p.page,
         include_adult: p.include_adult,
-        region: p.region ?? this.#region,
+        // No `region`: on /search/movie it only swaps release_date (and so
+        // `year`) for that country's date — verified live, it neither filters
+        // nor reorders — which made Oldboy (2003) read as 2005 under US.
       },
       p.language,
       signal,
