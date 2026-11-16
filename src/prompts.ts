@@ -5,10 +5,16 @@
 // upstream itself.
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/server";
+import { MAX_BATCH_IDS } from "./tools/tmdb/fields.ts";
 
 // Prompt arguments always arrive as strings over MCP (there's no argument
 // JSON-Schema, only name/description/required) — z.string()/z.enum() only.
 const COUNT_DEFAULT = "5";
+
+// One wording for the batch tools' id cap, from the same constant their
+// schemas enforce, so a prompt can't promise "one call" for a longer list.
+const batchSplit = (tool: string): string =>
+  `${tool} takes at most ${MAX_BATCH_IDS} ids per call, so split a longer list into several calls`;
 
 export function registerPrompts(server: McpServer): void {
   server.registerPrompt(
@@ -86,8 +92,8 @@ export function registerPrompts(server: McpServer): void {
                 `filtered to the same genres.\n` +
                 `4. Once you've picked the best ${n} ids, call ${t.batch} with ` +
                 `include_ratings=true (not ${t.detail} per title) to get title, year and ratings ` +
-                `together — ${t.batch} caps each call at 20 ids, so split into multiple ` +
-                `calls if ${n} is more than that. Return each with a one-line reason it fits.`,
+                `together${Number(n) > MAX_BATCH_IDS ? ` (${batchSplit(t.batch)})` : ""}. ` +
+                `Return each with a one-line reason it fits.`,
             },
           },
         ],
@@ -185,28 +191,21 @@ export function registerPrompts(server: McpServer): void {
         // discover_tv can filter by company but not by person, so this step
         // splits entirely on entity_type — state only the applicable branch
         // when the caller already told us which one it is.
-        const companyTvStep =
-          `For TV: discover_tv's with_companies works the same way as discover_movies' ` +
-          `with_companies filter${genre ? ` (also add with_genres from step ${genreStepNum})` : ""}.`;
-        const personTvStep =
-          `For TV: discover_tv can NOT filter by person at all — it doesn't even accept ` +
+        const companyTv =
+          `discover_tv's with_companies works the same way as discover_movies' with_companies ` +
+          `filter${genre ? ` (also add with_genres from step ${genreStepNum})` : ""}.`;
+        const personTv =
+          `discover_tv can NOT filter by person at all — it doesn't even accept ` +
           `with_cast/with_crew/with_people as parameters for TV (a validation error, not a silent ` +
           `no-op) — instead call get_person_credits for that id, keep only entries with media_type ` +
-          `'tv', then batch-fetch ratings/genres for those ids via get_tv_shows in one call` +
+          `'tv', then batch-fetch ratings/genres for those ids via get_tv_shows (${batchSplit("it")})` +
           `${genre ? ` and filter to the requested genre yourself` : ""}.`;
         steps.push(
           entity_type === "company"
-            ? companyTvStep
+            ? `For TV: ${companyTv}`
             : entity_type === "person"
-              ? personTvStep
-              : `For TV: if this is a COMPANY, discover_tv's with_companies works the same way as ` +
-                `discover_movies's with_companies filter${
-                  genre ? ` (also add with_genres from step ${genreStepNum})` : ""
-                }. If this is a PERSON, discover_tv can NOT filter ` +
-                `by person at all — it doesn't even accept with_cast/with_crew/with_people as parameters ` +
-                `for TV (a validation error, not a silent no-op) — instead call get_person_credits for ` +
-                `that id, keep only entries with media_type 'tv', then batch-fetch ratings/genres for those ids ` +
-                `via get_tv_shows in one call${genre ? ` and filter to the requested genre yourself` : ""}.`,
+              ? `For TV: ${personTv}`
+              : `For TV: if this is a COMPANY, ${companyTv} If this is a PERSON, ${personTv}`,
         );
       }
       // "rating" alone would be ambiguous here: the discover step above sorted

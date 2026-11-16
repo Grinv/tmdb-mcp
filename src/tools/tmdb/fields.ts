@@ -119,20 +119,21 @@ export const includeRatings = z
 // TMDB has no batch API at all — each id here is still its own upstream
 // request under the hood, just fanned out concurrently through the same
 // rate limiter every other call shares.
+export const MAX_BATCH_IDS = 20;
 export const movieIdsBatch = z
   .array(z.int().positive())
   .min(1)
-  .max(20)
+  .max(MAX_BATCH_IDS)
   .describe(
-    "TMDB movie ids to fetch (1-20). Get them from search_movies/discover_movies/get_similar/" +
+    `TMDB movie ids to fetch (1-${MAX_BATCH_IDS}). Get them from search_movies/discover_movies/get_similar/` +
       "get_movie_recommendations/etc.",
   );
 export const tvIdsBatch = z
   .array(z.int().positive())
   .min(1)
-  .max(20)
+  .max(MAX_BATCH_IDS)
   .describe(
-    "TMDB TV show ids to fetch (1-20). Get them from search_tv/discover_tv/get_similar/" +
+    `TMDB TV show ids to fetch (1-${MAX_BATCH_IDS}). Get them from search_tv/discover_tv/get_similar/` +
       "get_tv_recommendations/etc.",
   );
 export const includeRatingsBatch = z

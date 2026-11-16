@@ -38,6 +38,22 @@ describe("recommend_similar prompt", () => {
     assert.match(text, /Recommend 3/);
   });
 
+  // The batch tools cap ids per call; a split hint only matters past that cap.
+  test("tells the model to split the batch call only when count exceeds its cap", async (t) => {
+    const client = await connectServer(t, {});
+    const render = async (count: string) =>
+      contentText(
+        (
+          await client.getPrompt({
+            name: "recommend_similar",
+            arguments: { title: "Alien", media_type: "movie", count },
+          })
+        ).messages[0]!.content,
+      );
+    assert.doesNotMatch(await render("5"), /split/);
+    assert.match(await render("25"), /get_movies takes at most 20 ids per call/);
+  });
+
   // A TV request used to be told to weigh get_movie_recommendations.
   test("names only the TV tools for media_type tv", async (t) => {
     const client = await connectServer(t, {});
@@ -177,6 +193,21 @@ describe("top_by_entity prompt", () => {
     assert.doesNotMatch(text, /if this is a COMPANY/i);
     assert.doesNotMatch(text, /with_companies/);
     assert.match(text, /get_person_credits/);
+  });
+
+  // get_person_credits returns up to 25 credits per list, so its TV ids can
+  // exceed get_tv_shows' 20-id cap (live: Oprah has 27 TV credits).
+  test("the person TV branch never promises a single get_tv_shows call", async (t) => {
+    const client = await connectServer(t, {});
+    for (const entity_type of ["person", undefined]) {
+      const res = await client.getPrompt({
+        name: "top_by_entity",
+        arguments: { name: "Oprah Winfrey", media_type: "tv", ...(entity_type && { entity_type }) },
+      });
+      const text = contentText(res.messages[0]!.content);
+      assert.doesNotMatch(text, /in one call/);
+      assert.match(text, /at most 20 ids per call/);
+    }
   });
 
   test("a company + genre + media_type=tv combo still applies the genre to discover_tv", async (t) => {
