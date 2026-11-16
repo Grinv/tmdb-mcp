@@ -8,12 +8,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- **Breaking:** search `search_watch_providers` in the user's country (`TMDB_REGION`) when `watch_region` is omitted, like `discover_*`'s watch filters, not the global list ([0107cbb](https://github.com/Grinv/tmdb-mcp/commit/0107cbb), [e124043](https://github.com/Grinv/tmdb-mcp/commit/e124043)).
-- Filter `discover_*` by watch provider or access model in the user's country (`TMDB_REGION`) when `watch_region` is omitted, instead of rejecting the call ([25bd5d6](https://github.com/Grinv/tmdb-mcp/commit/25bd5d6)).
+- **Breaking:** search `search_watch_providers` in the user's country (`TMDB_REGION`) when `watch_region` is omitted, not the global list ([0107cbb](https://github.com/Grinv/tmdb-mcp/commit/0107cbb), [e124043](https://github.com/Grinv/tmdb-mcp/commit/e124043)).
+- Filter `discover_*` by watch provider or access model in `TMDB_REGION` when `watch_region` is omitted, instead of rejecting the call ([25bd5d6](https://github.com/Grinv/tmdb-mcp/commit/25bd5d6)).
 - Publish `TMDB_REGION`/`TMDB_LANGUAGE` as the `region`/`language` fields' schema defaults ([25bd5d6](https://github.com/Grinv/tmdb-mcp/commit/25bd5d6)).
-- Correct and sharpen tool descriptions: batch `found:false` covers upstream errors too, `id` fields say what they identify, `expand_episodes`' caps up front ([7ff1282](https://github.com/Grinv/tmdb-mcp/commit/7ff1282)).
+- Correct tool descriptions: batch `found:false` also covers upstream errors, `id` fields say what they identify ([7ff1282](https://github.com/Grinv/tmdb-mcp/commit/7ff1282), [0380c8a](https://github.com/Grinv/tmdb-mcp/commit/0380c8a)).
 - Compute retry delays as undici 8's retry handler does: `Retry-After: 0` retries at once instead of after the default backoff ([c88555b](https://github.com/Grinv/tmdb-mcp/commit/c88555b), [5f62d23](https://github.com/Grinv/tmdb-mcp/commit/5f62d23)).
-- Log each upstream outage once, including OMDb's daily quota, with its code, status and cause chain but not the user's search; log a stale fallback once per refresh, with its age ([d0b0998](https://github.com/Grinv/tmdb-mcp/commit/d0b0998), [a907e6a](https://github.com/Grinv/tmdb-mcp/commit/a907e6a), [2ca2921](https://github.com/Grinv/tmdb-mcp/commit/2ca2921)).
+- Log each upstream outage once, with its code, status and cause chain but not the user's search; log a stale fallback with its age ([d0b0998](https://github.com/Grinv/tmdb-mcp/commit/d0b0998), [a907e6a](https://github.com/Grinv/tmdb-mcp/commit/a907e6a), [2ca2921](https://github.com/Grinv/tmdb-mcp/commit/2ca2921)).
 - **Breaking:** report stale data as `_meta["io.github.Grinv.tmdb-mcp/stale"]: {"age_seconds": N}`, not `"tmdb-mcp/stale": true` ([04f2285](https://github.com/Grinv/tmdb-mcp/commit/04f2285), [d27aec1](https://github.com/Grinv/tmdb-mcp/commit/d27aec1)).
 - **Breaking:** remove `search_movies`' `region`; it only swapped in one country's release date, so `year` disagreed with every other tool ([15358f2](https://github.com/Grinv/tmdb-mcp/commit/15358f2)).
 - Drop adult/softcore titles from lists TMDB doesn't filter itself: trending, recommendations, similar, credits, collections, `known_for` ([400a8f0](https://github.com/Grinv/tmdb-mcp/commit/400a8f0)).
