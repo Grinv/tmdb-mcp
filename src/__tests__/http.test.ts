@@ -258,11 +258,15 @@ describe("Retry-After handling", () => {
 });
 
 describe("empty body handling", () => {
-  test("a 204 response resolves to undefined instead of throwing on empty body", async (t) => {
-    const mock = mockFetch(() => new Response(null, { status: 204 }));
-    installFetch(t, mock);
-    const res = await client().getJson<{ ok: boolean } | undefined>("thing");
-    assert.equal(res, undefined);
+  test("a 204 is a bad_response: a JSON resource was expected", async (t) => {
+    installFetch(
+      t,
+      mockFetch(() => new Response(null, { status: 204 })),
+    );
+    await assert.rejects(
+      () => client({ retries: 0 }).getJson("thing"),
+      (err: unknown) => err instanceof ApiError && err.code === "bad_response",
+    );
   });
 
   // Both upstreams always send JSON on success, so an empty 200 body is an

@@ -116,11 +116,10 @@ export class HttpClient {
         signal,
       });
       if (!res.ok) throw await toHttpError(res);
-      if (res.status === 204) return undefined as T;
       const text = await res.text();
-      // Both upstreams always send JSON on success, so an empty body is as
-      // unreadable as invalid JSON (a body cut off mid-read rejects res.text()
-      // instead — that is a transient network error).
+      // Both upstreams always send JSON on success, so no body — a 204 or an
+      // empty 200 — is as unreadable as invalid JSON (a body cut off mid-read
+      // rejects res.text() instead — that is a transient network error).
       if (text.length === 0) {
         throw new ApiError({ code: "bad_response", message: "Upstream returned an empty body" });
       }
