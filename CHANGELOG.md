@@ -8,6 +8,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Correct and sharpen tool descriptions: batch `found:false` covers upstream errors too, `id` fields say what they identify, `expand_episodes`' caps up front ([7ff1282](https://github.com/Grinv/tmdb-mcp/commit/7ff1282)).
 - Compute retry delays as undici 8's retry handler does: `Retry-After: 0` retries at once instead of after the default backoff ([c88555b](https://github.com/Grinv/tmdb-mcp/commit/c88555b), [5f62d23](https://github.com/Grinv/tmdb-mcp/commit/5f62d23)).
 - Log each upstream outage once, including OMDb's daily quota, with its code, status and cause chain but not the user's search; log a stale fallback once per refresh, with its age ([d0b0998](https://github.com/Grinv/tmdb-mcp/commit/d0b0998), [a907e6a](https://github.com/Grinv/tmdb-mcp/commit/a907e6a), [2ca2921](https://github.com/Grinv/tmdb-mcp/commit/2ca2921)).
 - **Breaking:** report stale data as `_meta["io.github.Grinv.tmdb-mcp/stale"]: {"age_seconds": N}`, not `"tmdb-mcp/stale": true` ([04f2285](https://github.com/Grinv/tmdb-mcp/commit/04f2285), [d27aec1](https://github.com/Grinv/tmdb-mcp/commit/d27aec1)).
