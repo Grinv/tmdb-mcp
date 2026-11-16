@@ -8,13 +8,15 @@ export class RateLimiter {
   readonly #minIntervalMs: number;
   #tail: Promise<void> = Promise.resolve();
   // `null` is an explicit "no acquisition yet" sentinel — NOT a stand-in for
-  // "far in the past". Using 0 for that purpose implicitly relied on real
-  // Date.now() always being far from the epoch, which breaks if the clock is
-  // ever mocked to start at/near 0 (e.g. by t.mock.timers in tests).
+  // "far in the past": the monotonic clock starts near 0 at process start.
   #lastStart: number | null = null;
+  readonly #now: () => number;
 
-  constructor(minIntervalMs: number) {
+  /** `now` is a monotonic clock (ms): wall-clock jumps would stall or skip
+   *  the spacing. Tests pass their own. */
+  constructor(minIntervalMs: number, now: () => number = () => performance.now()) {
     this.#minIntervalMs = Math.max(0, minIntervalMs);
+    this.#now = now;
   }
 
   /** Resolves when the caller is allowed to proceed. */
@@ -28,7 +30,7 @@ export class RateLimiter {
     return prev.then(async () => {
       const wait = this.#delayUntilAllowed();
       if (wait > 0) await delay(wait);
-      this.#lastStart = Date.now();
+      this.#lastStart = this.#now();
       // Release the next waiter's gate; the spacing above keeps them in line.
       release();
     });
@@ -37,7 +39,7 @@ export class RateLimiter {
   /** Delay (ms) before the next acquisition may start. */
   #delayUntilAllowed(): number {
     if (this.#lastStart === null) return 0;
-    return Math.max(0, this.#lastStart + this.#minIntervalMs - Date.now());
+    return Math.max(0, this.#lastStart + this.#minIntervalMs - this.#now());
   }
 }
 

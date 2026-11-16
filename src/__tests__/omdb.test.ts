@@ -1,5 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
+import { setTimeout as delay } from "node:timers/promises";
 import {
   connectServer,
   installFetch,
@@ -44,7 +45,6 @@ describe("get_ratings", () => {
   });
 
   test("carries the stale _meta flag when serving a stale cached rating", async (t) => {
-    t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
     let calls = 0;
     installFetch(
       t,
@@ -62,7 +62,7 @@ describe("get_ratings", () => {
     });
     assert.equal((first as { _meta?: unknown })._meta, undefined);
 
-    t.mock.timers.tick(5);
+    await delay(5);
 
     const second = await client.callTool({
       name: "get_ratings",

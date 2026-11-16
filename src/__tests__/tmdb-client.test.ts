@@ -1,5 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
+import { setTimeout as delay } from "node:timers/promises";
 import {
   TmdbClient,
   MAX_EXPANDED_EPISODES,
@@ -565,7 +566,6 @@ describe("TmdbClient: getTv(expand_episodes) degrades per chunk, keeps season or
   });
 
   test("rethrows when every chunk fails, so a stale cached value can still be served", async (t) => {
-    t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
     const seasons = [{ season_number: 1, name: "Season 1", episode_count: 3, air_date: null }];
     let failSeasons = false;
     const mock = mockFetch((url) => {
@@ -578,7 +578,7 @@ describe("TmdbClient: getTv(expand_episodes) degrades per chunk, keeps season or
     installFetch(t, mock);
     const c = client({ HTTP_RETRIES: "0", CACHE_TTL_MS: "1" });
     await c.getTv(1, "US", undefined, true);
-    t.mock.timers.tick(5);
+    await delay(5);
     failSeasons = true;
     let stale = false;
     const s = await c.getTv(1, "US", undefined, true, () => (stale = true));

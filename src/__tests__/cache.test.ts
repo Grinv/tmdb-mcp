@@ -30,7 +30,7 @@ describe("cacheKey", () => {
 
 describe("TtlCache", () => {
   test("wrapStaleOnError caches and reuses the fresh value", async () => {
-    const cache = new TtlCache(60_000);
+    const cache = new TtlCache({ ttlMs: 60_000 });
     let calls = 0;
     const compute = async () => {
       calls += 1;
@@ -41,19 +41,19 @@ describe("TtlCache", () => {
     assert.equal(calls, 1);
   });
 
-  test("wrapStaleOnError serves the stale value when compute fails", async (t) => {
-    t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
-    const cache = new TtlCache(1); // 1ms TTL → expires almost immediately
+  test("wrapStaleOnError serves the stale value when compute fails", async () => {
+    let now = 0;
+    const cache = new TtlCache({ ttlMs: 1, now: () => now }); // 1ms TTL; `now` is the cache's clock
     await cache.wrapStaleOnError("k", async () => 1);
-    t.mock.timers.tick(5);
+    now += 5;
     const v = await cache.wrapStaleOnError("k", async () => {
       throw new Error("upstream down");
     });
     assert.equal(v, 1);
   });
 
-  test("wrapStaleOnError logs a warning when serving stale data", async (t) => {
-    t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
+  test("wrapStaleOnError logs a warning when serving stale data", async () => {
+    let now = 0;
     const warnings: string[] = [];
     const logger = {
       debug: () => {},
@@ -61,9 +61,9 @@ describe("TtlCache", () => {
       warn: (msg: string) => warnings.push(msg),
       error: () => {},
     };
-    const cache = new TtlCache(1, 500, logger);
+    const cache = new TtlCache({ ttlMs: 1, logger, now: () => now });
     await cache.wrapStaleOnError("k", async () => 1);
-    t.mock.timers.tick(5);
+    now += 5;
     await cache.wrapStaleOnError("k", async () => {
       throw new Error("upstream down");
     });
@@ -72,16 +72,16 @@ describe("TtlCache", () => {
     assert.match(warnings[0]!, /"k"/);
   });
 
-  test("wrapStaleOnError fires onStale only when actually falling back to stale data", async (t) => {
-    t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
-    const cache = new TtlCache(1);
+  test("wrapStaleOnError fires onStale only when actually falling back to stale data", async () => {
+    let now = 0;
+    const cache = new TtlCache({ ttlMs: 1, now: () => now });
     let onStaleCalls = 0;
     const onStale = () => (onStaleCalls += 1);
 
     await cache.wrapStaleOnError("k", async () => 1, onStale);
     assert.equal(onStaleCalls, 0, "a successful fresh compute is not stale");
 
-    t.mock.timers.tick(5);
+    now += 5;
     await cache.wrapStaleOnError(
       "k",
       async () => {
@@ -93,7 +93,7 @@ describe("TtlCache", () => {
   });
 
   test("wrapStaleOnError rethrows when nothing was ever cached", async () => {
-    const cache = new TtlCache(60_000);
+    const cache = new TtlCache({ ttlMs: 60_000 });
     await assert.rejects(() =>
       cache.wrapStaleOnError("missing", async () => {
         throw new Error("boom");
@@ -102,7 +102,7 @@ describe("TtlCache", () => {
   });
 
   test("ttl <= 0 disables caching", async () => {
-    const cache = new TtlCache(0);
+    const cache = new TtlCache({ ttlMs: 0 });
     let calls = 0;
     const compute = async () => {
       calls += 1;
@@ -114,7 +114,7 @@ describe("TtlCache", () => {
   });
 
   test("wrapStaleOnError: concurrent calls on a cold key share one in-flight compute()", async () => {
-    const cache = new TtlCache(60_000);
+    const cache = new TtlCache({ ttlMs: 60_000 });
     let calls = 0;
     const compute = async () => {
       calls += 1;
@@ -135,7 +135,7 @@ describe("TtlCache", () => {
   });
 
   test("wrapStaleOnError: a failed in-flight compute() clears the slot so the next call retries", async () => {
-    const cache = new TtlCache(60_000);
+    const cache = new TtlCache({ ttlMs: 60_000 });
     let calls = 0;
     const failing = async () => {
       calls += 1;
@@ -147,7 +147,7 @@ describe("TtlCache", () => {
   });
 
   test("wrapStaleOnError: concurrent calls on a cold key share one in-flight compute()", async () => {
-    const cache = new TtlCache(60_000);
+    const cache = new TtlCache({ ttlMs: 60_000 });
     let calls = 0;
     const compute = async () => {
       calls += 1;
@@ -163,8 +163,18 @@ describe("TtlCache", () => {
     assert.equal(calls, 1);
   });
 
+  // The default clock is monotonic: a wall-clock jump (NTP, resume from
+  // sleep) neither expires a fresh entry nor revives an expired one.
+  test("ignores wall-clock jumps", (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
+    const cache = new TtlCache({ ttlMs: 60_000 });
+    cache.set("k", 1);
+    t.mock.timers.tick(24 * 60 * 60 * 1000); // Date jumps a day ahead
+    assert.equal(cache.get("k"), 1);
+  });
+
   test("set evicts the oldest entry once at max size, keeping the cache bounded", () => {
-    const cache = new TtlCache(60_000, 2); // max 2 entries
+    const cache = new TtlCache({ ttlMs: 60_000, max: 2 }); // max 2 entries
     cache.set("a", 1);
     cache.set("b", 2);
     cache.set("c", 3); // should evict "a" (the oldest), not "b"
@@ -174,7 +184,7 @@ describe("TtlCache", () => {
   });
 
   test("set does not evict when overwriting an existing key at max size", () => {
-    const cache = new TtlCache(60_000, 2);
+    const cache = new TtlCache({ ttlMs: 60_000, max: 2 });
     cache.set("a", 1);
     cache.set("b", 2);
     cache.set("a", 99); // same key, size stays at 2 — must not evict "b"
@@ -183,7 +193,7 @@ describe("TtlCache", () => {
   });
 
   test("evicts the least recently used entry, not the first inserted", () => {
-    const cache = new TtlCache(60_000, 2);
+    const cache = new TtlCache({ ttlMs: 60_000, max: 2 });
     cache.set("a", 1);
     cache.set("b", 2);
     cache.get("a"); // a read makes "a" recent, leaving "b" the eviction candidate
@@ -196,11 +206,11 @@ describe("TtlCache", () => {
     assert.equal(cache.get("a"), 10);
   });
 
-  test("wrapStaleOnError: concurrent failures each independently fall back to the same stale value", async (t) => {
-    t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
-    const cache = new TtlCache(1); // 1ms TTL → expires almost immediately
+  test("wrapStaleOnError: concurrent failures each independently fall back to the same stale value", async () => {
+    let now = 0;
+    const cache = new TtlCache({ ttlMs: 1, now: () => now }); // 1ms TTL; `now` is the cache's clock
     await cache.wrapStaleOnError("k", async () => 5);
-    t.mock.timers.tick(5);
+    now += 5;
     let calls = 0;
     const failing = async () => {
       calls += 1;

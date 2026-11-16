@@ -31,14 +31,13 @@ describe("RateLimiter", () => {
 
   test("first acquisition never waits, even when the clock starts at/near the epoch", async (t) => {
     // Regression: #delayUntilAllowed used to compare against a `#lastStart = 0`
-    // sentinel, silently relying on Date.now() always being far from 0 — true
-    // for any real clock, but not for one mocked to start at 0. Mock only Date
-    // and spy on (not fake) setTimeout: if the bug were back, the first
-    // acquire() would schedule a ~40ms wait. Checking the timer call instead of
-    // elapsed wall time keeps this deterministic on a loaded machine.
-    t.mock.timers.enable({ apis: ["Date"], now: 0 });
+    // sentinel, which only works while the clock is far from 0 — and the
+    // monotonic clock starts near 0 at process start. Give it a clock at 0 and
+    // spy on (not fake) setTimeout: if the bug were back, the first acquire()
+    // would schedule a ~40ms wait. Checking the timer call instead of elapsed
+    // wall time keeps this deterministic on a loaded machine.
     const setTimeoutSpy = t.mock.method(globalThis, "setTimeout");
-    const limiter = new RateLimiter(40);
+    const limiter = new RateLimiter(40, () => 0);
     await limiter.acquire();
     assert.equal(setTimeoutSpy.mock.callCount(), 0, "first acquisition should not wait");
     // The spy itself must see a real wait, or the zero above proves nothing.

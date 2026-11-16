@@ -48,17 +48,28 @@ export class TtlCache {
   // the second now shares the first's promise instead.
   readonly #pending = new Map<string, Promise<unknown>>();
 
-  constructor(ttlMs: number, max = 500, logger?: Logger) {
-    this.#ttlMs = ttlMs;
-    this.#max = max;
-    this.#logger = logger;
+  readonly #now: () => number;
+
+  constructor(opts: {
+    ttlMs: number;
+    max?: number;
+    logger?: Logger;
+    /** Monotonic clock (ms). Wall-clock time (Date.now) jumps with NTP or a
+     *  resume from sleep, which would expire everything at once or nothing
+     *  for hours; tests pass their own. */
+    now?: () => number;
+  }) {
+    this.#ttlMs = opts.ttlMs;
+    this.#max = opts.max ?? 500;
+    this.#logger = opts.logger;
+    this.#now = opts.now ?? (() => performance.now());
   }
 
   /** Fresh (non-expired) value, or undefined. */
   get<T>(key: string): T | undefined {
     const hit = this.#touch(key);
     if (!hit) return undefined;
-    return hit.expires > Date.now() ? (hit.value as T) : undefined;
+    return hit.expires > this.#now() ? (hit.value as T) : undefined;
   }
 
   /** Any cached value regardless of freshness — used for stale fallback. */
@@ -73,7 +84,7 @@ export class TtlCache {
       const oldest = this.#map.keys().next().value;
       if (oldest !== undefined) this.#map.delete(oldest);
     }
-    this.#map.set(key, { value, expires: Date.now() + this.#ttlMs });
+    this.#map.set(key, { value, expires: this.#now() + this.#ttlMs });
   }
 
   // Map iterates in insertion order, so re-inserting a key on every hit keeps
