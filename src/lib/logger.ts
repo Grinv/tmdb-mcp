@@ -1,5 +1,6 @@
 // Minimal leveled logger. Writes to stderr only (stdout is the MCP stdio
 // protocol) and redacts credentials.
+import { inspect } from "node:util";
 import { redact } from "./errors.ts";
 
 export type LogLevel = "debug" | "info" | "warn" | "error" | "silent";
@@ -37,26 +38,12 @@ export function createLogger(level: LogLevel): Logger {
   };
 }
 
-// `seen` stops a cause chain that loops back on itself (a.cause = b,
-// b.cause = a) from recursing until the logger itself throws.
-function safeString(value: unknown, seen = new Set<unknown>()): string {
+// Node's own inspect prints an error the way it is best diagnosed: its stack,
+// its own fields (an ApiError's code and status, a system error's
+// ECONNRESET), its cause chain and an AggregateError's errors, cycles
+// included. Internal errors are only ever shown here, not to the agent
+// (toProblem in lib/result.ts). emit() redacts the joined text.
+function safeString(value: unknown): string {
   if (typeof value === "string") return value;
-  // The stack (it opens with "Name: message") and cause chain are the only
-  // diagnostics: internal errors are logged, not shown to the agent
-  // (toProblem in lib/result.ts). emit() redacts the joined text.
-  if (value instanceof Error) {
-    seen.add(value);
-    const cause =
-      value.cause === undefined
-        ? ""
-        : seen.has(value.cause)
-          ? "\ncaused by: (cycle)"
-          : `\ncaused by: ${safeString(value.cause, seen)}`;
-    return `${value.stack ?? `${value.name}: ${value.message}`}${cause}`;
-  }
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
+  return inspect(value, { depth: 6, breakLength: Infinity });
 }

@@ -8,7 +8,7 @@
 // their own `compute()`/`value` has.
 
 import { AsyncLocalStorage } from "node:async_hooks";
-import { ApiError, isOutage } from "./errors.ts";
+import { isOutage } from "./errors.ts";
 import type { Logger } from "./logger.ts";
 
 /**
@@ -28,7 +28,6 @@ export function cacheKey(
   return parts.length ? `${resource}:${parts.join(":")}` : resource;
 }
 
-// Stored on both clocks; see TtlCache's #ageMs.
 export interface Clock {
   /** Wall clock (ms): counts sleep, but can be stepped. */
   wall(): number;
@@ -38,6 +37,7 @@ export interface Clock {
 
 const SYSTEM_CLOCK: Clock = { wall: () => Date.now(), mono: () => performance.now() };
 
+// Stored on both clocks; see TtlCache's #ageMs.
 interface Entry {
   value: unknown;
   wallAt: number;
@@ -88,9 +88,6 @@ export class TtlCache {
   readonly #maxStaleMs: number;
   readonly #logger?: Logger;
   readonly #clock: Clock;
-  // Outage errors already logged: waiters on one shared compute get the same
-  // error object, so a failure is logged once, not once per caller.
-  readonly #logged = new WeakSet<ApiError>();
   readonly #map = new Map<string, Entry>();
   // In-flight computes, keyed like #map, so concurrent callers of a cold key
   // share one upstream fetch.
@@ -159,7 +156,7 @@ export class TtlCache {
     if (fresh !== undefined) return fresh;
 
     let partial: Computed<Degraded<T>> | undefined;
-    let outage: ApiError | undefined;
+    let outage: unknown;
     try {
       const computed = await this.#dedupe(key, compute);
       // The shared compute's notes reach every caller it serves, but only
@@ -170,23 +167,16 @@ export class TtlCache {
       }
       partial = { value: computed.value, notes: computed.notes };
     } catch (err) {
-      if (!(err instanceof ApiError && isOutage(err))) throw err;
+      if (!isOutage(err)) throw err;
       outage = err;
     }
 
     const stale = this.#stale(key);
     if (stale) {
-      if (!outage || !this.#logged.has(outage)) {
-        if (outage) this.#logged.add(outage);
-        this.#logger?.warn(
-          `serving stale cached value for "${key}"`,
-          outage ?? "(the fresh result was partial)",
-        );
-      }
       note({ staleAgeMs: stale.ageMs });
       return stale.value as T;
     }
-    if (!partial) throw outage;
+    if (partial === undefined) throw outage;
     note({ ...partial.notes, partial: true });
     return partial.value.value;
   }
@@ -208,18 +198,29 @@ export class TtlCache {
   // One in-flight compute per key, run in its own CallNotes record so what it
   // used is separate from any caller's. A result built from stale or partial
   // input, or degraded itself, is returned but not cached. A rejection reaches
-  // every waiter and frees the slot.
+  // every waiter and frees the slot. An outage or a partial result is logged
+  // here, once per refresh however many callers wait on it, whether or not a
+  // stale copy then stands in.
   #dedupe<T>(key: string, compute: () => Promise<T>): Promise<Computed<T>> {
     const inFlight = this.#pending.get(key) as Promise<Computed<T>> | undefined;
     if (inFlight) return inFlight;
     const notes: CallNotes = {};
     const promise = callNotes
       .run(notes, compute)
-      .then((value) => {
-        const clean = notes.staleAgeMs === undefined && !notes.partial;
-        if (clean && !(value instanceof Degraded)) this.set(key, value);
-        return { value, notes };
-      })
+      .then(
+        (value) => {
+          if (value instanceof Degraded) {
+            this.#logger?.warn(`refresh of "${key}" was partial`);
+          } else if (notes.staleAgeMs === undefined && !notes.partial) {
+            this.set(key, value);
+          }
+          return { value, notes };
+        },
+        (err: unknown) => {
+          if (isOutage(err)) this.#logger?.warn(`refresh of "${key}" failed`, err);
+          throw err;
+        },
+      )
       .finally(() => this.#pending.delete(key));
     this.#pending.set(key, promise);
     return promise;

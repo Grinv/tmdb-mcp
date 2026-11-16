@@ -54,24 +54,30 @@ describe("TtlCache", () => {
     assert.equal(v, 1);
   });
 
-  test("wrapStaleOnError logs a warning when serving stale data", async () => {
+  test("an outage is logged with its error, whether or not a stale copy stands in", async () => {
     const clock = fakeClock();
-    const warnings: string[] = [];
-    const logger = {
-      debug: () => {},
-      info: () => {},
-      warn: (msg: string) => warnings.push(msg),
-      error: () => {},
-    };
+    const warnings: unknown[][] = [];
+    const logger = { ...silentLogger(), warn: (...args: unknown[]) => warnings.push(args) };
     const cache = new TtlCache({ ttlMs: 1, logger, clock });
+    const outage = new ApiError({ code: "server_error", message: "upstream down" });
+    const down = async (): Promise<number> => {
+      throw outage;
+    };
+    await assert.rejects(() => cache.wrapStaleOnError("cold", down)); // no stale copy
     await cache.wrapStaleOnError("k", async () => 1);
     clock.advance(5);
-    await cache.wrapStaleOnError("k", async () => {
-      throw new ApiError({ code: "server_error", message: "upstream down" });
-    });
-    assert.equal(warnings.length, 1);
-    assert.match(warnings[0]!, /stale/);
-    assert.match(warnings[0]!, /"k"/);
+    assert.equal(await cache.wrapStaleOnError("k", down), 1);
+    assert.deepEqual(warnings, [
+      ['refresh of "cold" failed', outage],
+      ['refresh of "k" failed', outage],
+    ]);
+    // A 404 is an answer, not an outage: not logged here.
+    await assert.rejects(() =>
+      cache.wrapStaleOnError("gone", async () => {
+        throw new ApiError({ code: "not_found", message: "404" });
+      }),
+    );
+    assert.equal(warnings.length, 2);
   });
 
   test("records a stale fallback's age in the call's notes, and only then", async () => {
@@ -290,15 +296,17 @@ describe("TtlCache", () => {
     assert.equal(warnings.length, 1);
   });
 
-  test("serving a stale copy over a partial result is logged too", async () => {
+  test("a partial refresh shared by concurrent callers is logged once", async () => {
     const clock = fakeClock();
     const warnings: string[] = [];
     const logger = { ...silentLogger(), warn: (msg: string) => warnings.push(msg) };
     const cache = new TtlCache({ ttlMs: 1, logger, clock });
     await cache.wrapStaleOnError("k", async () => "full");
     clock.advance(5);
-    assert.equal(await cache.wrapStaleOnError("k", async () => degraded("part")), "full");
-    assert.equal(warnings.length, 1);
+    const compute = async () => degraded("part");
+    const served = await Promise.all([1, 2, 3].map(() => cache.wrapStaleOnError("k", compute)));
+    assert.deepEqual(served, ["full", "full", "full"]);
+    assert.deepEqual(warnings, ['refresh of "k" was partial']);
   });
 
   test("a degraded compute's notes are dropped when a complete stale copy wins", async () => {
