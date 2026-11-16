@@ -138,9 +138,12 @@ npm run inspector      # run under the MCP Inspector
   only stands in for an outage — `isOutage()` (`lib/errors.ts`'s `KIND`
   table, a column next to `transient`), since "retrying now helps" and "the
   upstream is down" differ (OMDb's daily quota) — for at most
-  `CACHE_MAX_STALE_MS` past expiry (RFC 5861's stale-if-error window); entry
-  ages use the wall clock, since a monotonic one stops while the machine
-  sleeps.
+  `CACHE_MAX_STALE_MS` past expiry (RFC 5861's stale-if-error window). An
+  entry's age is the larger of its wall-clock and monotonic deltas (`#ageMs`):
+  the wall clock counts sleep but steps, the monotonic one doesn't step but
+  stops during sleep. `wrapStaleOnError` decides what to return, note and
+  log in one sequence (fresh → computed → stale copy → partial); add a case
+  there, not as another branch elsewhere.
 - Every shaper in `format.ts` returns `z.infer<typeof <name>Schema>` (the
   matching schema from `format.schemas.ts`), built via that schema's
   `.parse()` — not `Record<string, unknown>`. Client methods in `clients/*.ts`
