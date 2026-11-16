@@ -764,6 +764,7 @@ describe("summarizeFind", () => {
     const s = summarizeFind({
       tv_episode_results: [
         { show_id: 1396, season_number: 1, name: "No episode number" },
+        { show_id: 1396, season_number: null, episode_number: 3, name: "Null season" },
         { season_number: 1, episode_number: 1, name: "No show" },
         { show_id: 1396, season_number: 1, episode_number: 2, name: "Cat's in the Bag..." },
       ],
@@ -774,24 +775,30 @@ describe("summarizeFind", () => {
     );
   });
 
-  // Live /find/tt0959621?external_source=imdb_id (Breaking Bad's pilot).
+  // Live /find/tt0959621?external_source=imdb_id (Breaking Bad's pilot), verbatim.
   test("maps an IMDb episode id to show_id + season/episode numbers", () => {
+    const pilot = {
+      air_date: "2008-01-20",
+      episode_number: 1,
+      episode_type: "standard",
+      id: 62085,
+      name: "Pilot",
+      overview:
+        "When an unassuming high school chemistry teacher discovers he has a rare form of lung cancer, he decides to team up with a former student and create a top of the line crystal meth in a used RV, to provide for his family once he is gone.",
+      production_code: "",
+      runtime: 59,
+      season_number: 1,
+      show_id: 1396,
+      still_path: "/ydlY3iPfeOAvu8gVqrxPoMvzNCn.jpg",
+      vote_average: 8.509,
+      vote_count: 580,
+      media_type: "tv_episode",
+    };
     const s = summarizeFind({
       movie_results: [],
-      tv_results: [],
       person_results: [],
-      tv_episode_results: [
-        {
-          air_date: "2008-01-20",
-          episode_number: 1,
-          id: 62085,
-          name: "Pilot",
-          season_number: 1,
-          show_id: 1396,
-          vote_average: 8.509,
-          media_type: "tv_episode",
-        } as never,
-      ],
+      tv_results: [],
+      tv_episode_results: [pilot],
       tv_season_results: [],
     });
     assert.deepEqual(s.tv_episode_results, [

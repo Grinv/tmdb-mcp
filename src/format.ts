@@ -1125,7 +1125,14 @@ interface FindResponse {
   movie_results?: TmdbMovie[];
   tv_results?: TmdbTv[];
   person_results?: TmdbMultiItem[];
-  tv_episode_results?: (TmdbEpisodeBrief & { show_id?: number })[];
+  // TMDB sends an unknown number as null as often as it omits it.
+  tv_episode_results?: {
+    show_id?: number | null;
+    season_number?: number | null;
+    episode_number?: number | null;
+    name?: string;
+    air_date?: string | null;
+  }[];
   // Always empty in practice (verified live), so not surfaced.
   tv_season_results?: unknown[];
 }
@@ -1138,7 +1145,7 @@ export function summarizeFind(r: FindResponse): z.infer<typeof findSchema> {
     person_results: (r.person_results ?? []).map((p) => summarizePerson(p)),
     tv_episode_results: (r.tv_episode_results ?? []).flatMap(
       ({ show_id, season_number, episode_number, ...e }) =>
-        show_id === undefined || season_number === undefined || episode_number === undefined
+        show_id == null || season_number == null || episode_number == null
           ? []
           : [{ ...episodeBrief(e)!, show_id, season_number, episode_number }],
     ),
