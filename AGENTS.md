@@ -95,8 +95,10 @@ npm run inspector      # run under the MCP Inspector
   (a test enforces it). Never put `err.message` in front of the agent.
   Rules around it, each with what enforces it:
   - Only the classification layer creates failures, and only as `ApiError`
-    (an upstream's own rule goes in `HttpClient`'s `refineError`, applied
-    before the retry decision) — ESLint bans `new Error`/`extends Error`
+    (an upstream's own rule goes in `HttpClient`'s `refusedBody`, for a
+    success body that is really a refusal, and `refineError`, both applied
+    before the retry decision, so the failure gets retries and logging like
+    any other) — ESLint bans `new Error`/`extends Error`
     outside `lib/errors.ts` and `config.ts`.
   - Clients fetch and cache only; they never catch — ESLint bans `try` and
     `.catch()` in `src/clients/`. Optional data uses `unlessOutage()`
@@ -146,11 +148,12 @@ npm run inspector      # run under the MCP Inspector
   the wall clock counts sleep but steps, the monotonic one doesn't step but
   stops during sleep (a step forward still looks like sleep; see the
   comment there). Tests drive both through `fakeClock()` (`helpers.ts`).
-  An outage is logged once, where every upstream request settles
-  (`HttpClient.getJson`'s final throw); the cache logs only its own
-  decisions (a stale copy served, with its age; a partial refresh). `wrapStaleOnError` decides what to return, note and
-  log in one sequence (fresh → computed → stale copy → partial); add a case
-  there, not as another branch elsewhere.
+  An outage is logged once, where every request's failure leaves
+  `HttpClient.getJson` (its URL without the query, which holds user
+  searches). The cache logs only its own decisions (a stale copy served,
+  with its age; a partial refresh), made once per refresh in `#refresh` for
+  every caller waiting on it: one sequence (computed → stale copy →
+  partial); add a case there, not as another branch elsewhere.
 - Every shaper in `format.ts` returns `z.infer<typeof <name>Schema>` (the
   matching schema from `format.schemas.ts`), built via that schema's
   `.parse()` — not `Record<string, unknown>`. Client methods in `clients/*.ts`
