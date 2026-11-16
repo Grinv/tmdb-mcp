@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-16
+
 ### Changed
 
 - **Breaking:** search `search_watch_providers` in the user's country (`TMDB_REGION`) when `watch_region` is omitted, not the global list ([0107cbb](https://github.com/Grinv/tmdb-mcp/commit/0107cbb), [e124043](https://github.com/Grinv/tmdb-mcp/commit/e124043)).
