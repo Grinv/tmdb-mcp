@@ -24,7 +24,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 
 - Time out a response that stalls after its headers instead of hanging the call for minutes ([7098f20](https://github.com/Grinv/tmdb-mcp/commit/7098f20)).
-- Include the upstream's own reason in tool errors, e.g. OMDb's "Invalid API key!" ([e723377](https://github.com/Grinv/tmdb-mcp/commit/e723377), [a6dbbea](https://github.com/Grinv/tmdb-mcp/commit/a6dbbea), [62750f3](https://github.com/Grinv/tmdb-mcp/commit/62750f3)).
+- Include the upstream's own reason in tool errors, e.g. OMDb's "Invalid API key!", never a raw response body ([e723377](https://github.com/Grinv/tmdb-mcp/commit/e723377), [a6dbbea](https://github.com/Grinv/tmdb-mcp/commit/a6dbbea), [62750f3](https://github.com/Grinv/tmdb-mcp/commit/62750f3), [efbc604](https://github.com/Grinv/tmdb-mcp/commit/efbc604)).
 - Report an OMDb refusal as an error, not a cached "no ratings", and an exhausted quota as a rate limit, not a bad key ([e723377](https://github.com/Grinv/tmdb-mcp/commit/e723377), [44b17a2](https://github.com/Grinv/tmdb-mcp/commit/44b17a2)).
 - Make the `.mcpb` prompt templates match the server and use mcpb's `${arguments.KEY}` placeholders, not `{{arg}}`, declaring only the arguments they use ([da5e2f6](https://github.com/Grinv/tmdb-mcp/commit/da5e2f6), [3ec359a](https://github.com/Grinv/tmdb-mcp/commit/3ec359a)).
 - Never tell the model to fetch more than 20 ids in one `get_tv_shows` call in `top_by_entity` ([3873d5d](https://github.com/Grinv/tmdb-mcp/commit/3873d5d)).
