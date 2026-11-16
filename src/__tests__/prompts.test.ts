@@ -25,6 +25,7 @@ describe("recommend_similar prompt", () => {
     assert.match(text, /Recommend 5/);
     assert.match(text, /search_multi/);
     assert.match(text, /get_similar/);
+    assert.match(text, /distinctive keywords/);
   });
 
   test("honors media_type and a custom count", async (t) => {

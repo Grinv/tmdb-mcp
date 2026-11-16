@@ -89,7 +89,10 @@ export function registerPrompts(server: McpServer): void {
                 `behavioral/co-viewing data), and use get_similar's genre/keyword matches mainly to fill ` +
                 `gaps, discarding any that don't actually fit thematically.\n` +
                 `3. If that pool has fewer than ${n} good candidates, broaden with ${t.discover} ` +
-                `filtered to the same genres.\n` +
+                `filtered to the same genres, or to 2-3 of its most distinctive keywords (ids from ` +
+                `${t.detail}) joined with ',' — every one must match, which keeps results close; if ` +
+                `that finds little beyond the title itself (common for TV, whose keyword lists are ` +
+                `sparser), switch to '|' (any one).\n` +
                 `4. Once you've picked the best ${n} ids, call ${t.batch} with ` +
                 `include_ratings=true (not ${t.detail} per title) to get title, year and ratings ` +
                 `together${Number(n) > MAX_BATCH_IDS ? ` (${batchSplit(t.batch)})` : ""}. ` +

@@ -58,8 +58,10 @@ export function registerDetailsTools(
     {
       title: "Get movie details",
       description:
-        "Get full details for one movie by TMDB id: overview, genres, keywords (`{id, name}`; pass " +
-        "the ids to discover_movies' with_keywords for thematically similar titles), runtime, " +
+        "Get full details for one movie by TMDB id: overview, genres, keywords (`{id, name}`; for " +
+        "thematically similar titles pass 2-3 distinctive ids to discover_movies' with_keywords " +
+        "joined with ',' (all must match — verified live: The Matrix's 'man vs machine', 'artificial " +
+        "intelligence', 'dystopia' give the Terminator films; '|' broadens to any one), runtime, " +
         "budget/revenue, " +
         "vote average, the age/content rating (certification) for `region` — falling back to the " +
         "US rating, then any available country, when `region` has none; check `certification_region` " +
@@ -106,7 +108,10 @@ export function registerDetailsTools(
       title: "Get TV show details",
       description:
         "Get full details for one TV show by TMDB id: overview, genres, keywords (`{id, name}`; " +
-        "pass the ids to discover_tv's with_keywords), seasons/episodes counts, " +
+        "pass 2-3 distinctive ids to discover_tv's with_keywords — a show's keywords are sparser, " +
+        "so ',' (all) often matches only the show itself; '|' (any) is the usual pick, verified " +
+        "live: Breaking Bad's 'drug dealer'|'outlaw' give The Sopranos, Narcos, Peaky Blinders), " +
+        "seasons/episodes counts, " +
         "networks, created_by (the show's creator(s)), status, the age/content rating " +
         "(certification) for `region` — falling back to " +
         "the US rating, then any available country, when `region` has none; check " +
