@@ -25,7 +25,7 @@ real: finding a bug mid-step-2 and immediately jumping to fix it, leaving
 step 3 (docs/metadata consistency) half-done and unreported. Step 3 is not
 optional polish — a real fix from step 2 routinely has stale echoes
 elsewhere (a tool's own `.describe()` text repeating an old constant,
-`manifest.json`'s hand-maintained `tools` list (its prompt `text` is
+`manifest.json`'s hand-maintained `tools` list (its prompts are
 generated — `npm run sync:manifest`), a comment in `docs/*.md`) that step 2 alone will never
 surface. A fix isn't done until every one of its echoes is updated too —
 finish step 3 in full before step 4's report, every single time.

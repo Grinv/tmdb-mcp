@@ -198,36 +198,18 @@ describe("manifest.json/server.json stay in sync with the running server", () =>
     assert.deepEqual(tools.map((tl) => tl.name).sort(), manifest.tools.map((tl) => tl.name).sort());
   });
 
-  test("manifest.json's prompts match every registered prompt", async (t) => {
-    const client = await connectServer(t, DEFAULT_ENV);
-    const { prompts } = await client.listPrompts();
-    // Same name set first (catches an added/removed/renamed prompt regardless
-    // of how many there are), then description + argument names per prompt.
-    assert.deepEqual(prompts.map((p) => p.name).sort(), manifest.prompts.map((p) => p.name).sort());
-    for (const registered of prompts) {
-      const manifestPrompt = manifest.prompts.find((p) => p.name === registered.name)!;
-      assert.equal(
-        registered.description,
-        manifestPrompt.description,
-        `${registered.name} description drifted from manifest.json`,
-      );
+  // manifest.json's prompts are generated from the server's own
+  // registration and render (scripts/sync-manifest.ts); this fails when
+  // src/prompts.ts changes without regenerating them.
+  test("manifest.json's prompts are the server's own, regenerated", async () => {
+    const rendered = await renderManifestPrompts();
+    assert.deepEqual(manifest.prompts.map((p) => p.name).sort(), [...rendered.keys()].sort());
+    for (const [name, entry] of rendered) {
+      const { description, arguments: args, text } = manifest.prompts.find((p) => p.name === name)!;
       assert.deepEqual(
-        (registered.arguments ?? []).map((a) => a.name).sort(),
-        manifestPrompt.arguments.slice().sort(),
-        `${registered.name} arguments drifted from manifest.json`,
-      );
-    }
-  });
-
-  // manifest.json's prompt `text` is generated from the server's own render
-  // (scripts/sync-manifest.ts); this fails when someone edits src/prompts.ts
-  // without regenerating it.
-  test("manifest.json's prompt text is the server's own render", async () => {
-    for (const [name, text] of await renderManifestPrompts()) {
-      assert.equal(
-        manifest.prompts.find((p) => p.name === name)?.text,
-        text,
-        `${name} text in manifest.json is stale — run \`npm run sync:manifest\``,
+        { description, arguments: args, text },
+        entry,
+        `${name} in manifest.json is stale — run \`npm run sync:manifest\``,
       );
     }
   });

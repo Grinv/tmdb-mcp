@@ -1,10 +1,12 @@
-// Generate manifest.json's prompt `text` (the .mcpb's static copy of each
-// prompt) from what the server itself renders, so src/prompts.ts stays the
-// only place a plan is written. Each required argument is left as mcpb's
-// `${arguments.KEY}` placeholder for the host to fill; optional ones take
-// their defaults. version.test.ts fails when the manifest is stale — run
-// `npm run sync:manifest`. Uses targeted replacement, not JSON
-// re-serialization, to keep the file's formatting (see sync-version.ts).
+// Generate manifest.json's prompts (the .mcpb's static copy of each prompt:
+// description, arguments, text) from what the server itself registers and
+// renders, so src/prompts.ts stays the only place a prompt is written. mcpb's
+// static text only substitutes `${arguments.KEY}` — no optional arguments,
+// defaults or branches — so the template carries the required arguments as
+// placeholders and declares just those; optional ones take their defaults
+// here and stay available through the server's own prompts/list. version.test.ts
+// fails when the manifest is stale — run `npm run sync:manifest`. Uses targeted
+// replacement, not JSON re-serialization, to keep the file's formatting.
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -15,14 +17,20 @@ import { createLogger } from "../src/lib/logger.ts";
 
 const root = join(import.meta.dirname, "..");
 
-/** Each prompt's name → its text as the server renders it for the manifest. */
-export async function renderManifestPrompts(): Promise<Map<string, string>> {
+export interface ManifestPrompt {
+  description: string;
+  arguments: string[];
+  text: string;
+}
+
+/** Each prompt's name → its manifest entry, as the server registers/renders it. */
+export async function renderManifestPrompts(): Promise<Map<string, ManifestPrompt>> {
   const server = buildServer(loadConfig({}), createLogger("silent"));
   const client = new Client({ name: "sync-manifest", version: "0" });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
   try {
-    const texts = new Map<string, string>();
+    const prompts = new Map<string, ManifestPrompt>();
     for (const prompt of (await client.listPrompts()).prompts) {
       const required = (prompt.arguments ?? []).filter((a) => a.required).map((a) => a.name);
       const res = await client.getPrompt({
@@ -31,9 +39,13 @@ export async function renderManifestPrompts(): Promise<Map<string, string>> {
       });
       const content = res.messages[0]?.content;
       if (content?.type !== "text") throw new Error(`${prompt.name} rendered no text message`);
-      texts.set(prompt.name, content.text);
+      prompts.set(prompt.name, {
+        description: prompt.description ?? "",
+        arguments: required,
+        text: content.text,
+      });
     }
-    return texts;
+    return prompts;
   } finally {
     await client.close();
     await server.close();
@@ -43,15 +55,20 @@ export async function renderManifestPrompts(): Promise<Map<string, string>> {
 async function main(): Promise<void> {
   const file = join(root, "manifest.json");
   let manifest = readFileSync(file, "utf8");
-  for (const [name, text] of await renderManifestPrompts()) {
-    // The prompt's own "text" field: the first one after its "name".
-    const field = new RegExp(
-      `("name": ${JSON.stringify(name)},[\\s\\S]*?"text": )"(?:[^"\\\\]|\\\\.)*"`,
-    );
-    if (!field.test(manifest)) {
-      throw new Error(`sync-manifest: no "text" for prompt ${name} in manifest.json — add one`);
+  for (const [name, entry] of await renderManifestPrompts()) {
+    for (const [field, value] of Object.entries(entry)) {
+      // This prompt's own field: the first one after its "name". The value is
+      // a JSON string or a one-line array.
+      const pattern = new RegExp(
+        `("name": ${JSON.stringify(name)},[\\s\\S]*?"${field}": )(?:"(?:[^"\\\\]|\\\\.)*"|\\[[^\\]]*\\])`,
+      );
+      if (!pattern.test(manifest)) {
+        throw new Error(
+          `sync-manifest: no "${field}" for prompt ${name} in manifest.json — add one`,
+        );
+      }
+      manifest = manifest.replace(pattern, (_m, head: string) => head + JSON.stringify(value));
     }
-    manifest = manifest.replace(field, (_m, head: string) => head + JSON.stringify(text));
   }
   writeFileSync(file, manifest);
 }
