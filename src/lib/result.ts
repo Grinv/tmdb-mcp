@@ -62,7 +62,9 @@ type ProblemCode = ApiErrorCode | "internal" | "not_configured" | "invalid_argum
 // One entry per problem type — a Record, so the compiler rejects a code
 // without one. `title` is fixed per type (as RFC 9457 requires); toProblem
 // alone composes each occurrence's `detail` from typed fields, never from an
-// error's free-text message.
+// error's free-text message. No `advice` says "retry": that is derived from
+// the occurrence's `retryable`, so the text and the flag can't disagree (an
+// OMDb quota refusal is rate_limited yet not retryable).
 const PROBLEMS: Record<ProblemCode, { title: string; advice?: string }> = {
   unauthorized: {
     title: "The upstream service rejected the credentials",
@@ -73,22 +75,16 @@ const PROBLEMS: Record<ProblemCode, { title: string; advice?: string }> = {
     advice: "The credentials may lack permission.",
   },
   not_found: { title: "No matching resource was found" },
-  rate_limited: {
-    title: "The upstream service is rate-limiting requests",
-    advice: "Please retry later.",
-  },
-  server_error: { title: "The upstream service returned an error", advice: "Please retry later." },
+  rate_limited: { title: "The upstream service is rate-limiting requests" },
+  server_error: { title: "The upstream service returned an error" },
   network: {
     title: "Could not reach the upstream service (network error)",
-    advice: "Check connectivity and retry.",
+    advice: "Check connectivity.",
   },
-  timeout: { title: "The upstream request timed out", advice: "Please retry." },
+  timeout: { title: "The upstream request timed out" },
   cancelled: { title: "The request was cancelled" },
   bad_request: { title: "The request was rejected as invalid" },
-  bad_response: {
-    title: "The upstream service returned an unreadable response",
-    advice: "Please retry later.",
-  },
+  bad_response: { title: "The upstream service returned an unreadable response" },
   unknown: { title: "Unexpected error talking to the upstream service" },
   internal: {
     title: "Internal error in tmdb-mcp",
@@ -97,6 +93,8 @@ const PROBLEMS: Record<ProblemCode, { title: string; advice?: string }> = {
   not_configured: { title: "The upstream service is not configured" },
   invalid_arguments: { title: "Invalid arguments" },
 };
+
+const RETRY = "Please retry later.";
 
 /** Every problem type; each `type` URI's section must exist in docs/errors.md. */
 export const PROBLEM_CODES = Object.keys(PROBLEMS) as ProblemCode[];
@@ -118,7 +116,9 @@ export function toProblem(err: unknown, logger: Logger): Problem {
     return {
       type: TYPE_BASE + err.code,
       title,
-      detail: [`${title}${status}.`, advice, reason].filter(Boolean).join(" "),
+      detail: [`${title}${status}.`, advice, err.retryable ? RETRY : undefined, reason]
+        .filter(Boolean)
+        .join(" "),
       retryable: err.retryable,
       ...(err.status ? { upstream_status: err.status } : {}),
     };

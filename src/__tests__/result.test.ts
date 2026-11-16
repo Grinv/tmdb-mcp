@@ -31,7 +31,7 @@ describe("toProblem: ApiError", () => {
       ["forbidden", /denied access/i],
       ["not_found", /no matching resource/i],
       ["rate_limited", /rate-limiting/i],
-      ["server_error", /retry later/i],
+      ["server_error", /returned an error/i],
       ["network", /network/i],
       ["timeout", /timed out/i],
       ["cancelled", /cancelled/i],
@@ -79,6 +79,26 @@ describe("toProblem: ApiError", () => {
     assert.doesNotMatch(p.detail, /\(\d+\)/);
     assert.equal("upstream_status" in p, false);
   });
+});
+
+test("advises a retry exactly when the problem is retryable", () => {
+  for (const code of [
+    "rate_limited",
+    "server_error",
+    "network",
+    "timeout",
+    "bad_response",
+  ] as const) {
+    for (const retryable of [true, false]) {
+      const p = toProblem(new ApiError({ code, message: "x", retryable }), silentLogger());
+      assert.equal(p.retryable, retryable);
+      assert.equal(
+        /retry/i.test(p.detail),
+        retryable,
+        `${code} retryable=${retryable}: ${p.detail}`,
+      );
+    }
+  }
 });
 
 describe("toProblem: anything else is an internal error", () => {
