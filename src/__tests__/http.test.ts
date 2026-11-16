@@ -46,19 +46,22 @@ describe("error mapping by status/body", () => {
     );
   });
 
-  // bad_response is transient (usually a truncated body), so the client
-  // re-fetches it like a 5xx instead of failing on the first cut-off reply.
-  test("retries an unreadable body and returns the next good one", async (t) => {
+  // A complete body that isn't JSON (a proxy's HTML page) won't change on a
+  // retry — a cut-off body rejects res.text() and is a network error instead.
+  test("does not retry a complete but unreadable body", async (t) => {
     let calls = 0;
     installFetch(
       t,
       mockFetch(() => {
         calls += 1;
-        return calls === 1 ? new Response('{"id":', { status: 200 }) : jsonResponse({ id: 1 });
+        return new Response("<html>maintenance</html>", { status: 200 });
       }),
     );
-    assert.deepEqual(await client({ retries: 1 }).getJson("thing"), { id: 1 });
-    assert.equal(calls, 2);
+    await assert.rejects(
+      () => client({ retries: 2 }).getJson("thing"),
+      (err: unknown) => err instanceof ApiError && err.code === "bad_response" && !err.retryable,
+    );
+    assert.equal(calls, 1);
   });
 
   test("falls back to the raw body when a failing response isn't JSON", async (t) => {
@@ -262,11 +265,18 @@ describe("empty body handling", () => {
     assert.equal(res, undefined);
   });
 
-  test("a 200 with an empty text body resolves to undefined, not a JSON-parse error", async (t) => {
-    const mock = mockFetch(() => new Response("", { status: 200 }));
-    installFetch(t, mock);
-    const res = await client().getJson<{ ok: boolean } | undefined>("thing");
-    assert.equal(res, undefined);
+  // Both upstreams always send JSON on success, so an empty 200 body is an
+  // unreadable response — classified here once, not passed on as undefined
+  // for every shaper (or client) to trip over.
+  test("a 200 with an empty body is a bad_response, not undefined", async (t) => {
+    installFetch(
+      t,
+      mockFetch(() => new Response("", { status: 200 })),
+    );
+    await assert.rejects(
+      () => client({ retries: 0 }).getJson("thing"),
+      (err: unknown) => err instanceof ApiError && err.code === "bad_response",
+    );
   });
 });
 

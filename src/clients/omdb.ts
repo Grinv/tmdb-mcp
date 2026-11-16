@@ -41,6 +41,10 @@ export class OmdbClient {
       minIntervalMs: config.omdbMinIntervalMs,
       cacheTtlMs: config.cacheTtlMs,
       reviver: nullAsAbsent,
+      // OMDb names an exhausted quota in the body whatever the status (an auth
+      // or 429 one): classify it here, before HttpClient decides to retry.
+      refineError: (err) =>
+        err.detail && OMDB_LIMIT.test(err.detail) ? refusal(err.detail, err.status) : err,
     });
     this.#http = http;
     this.#cache = cache;
@@ -77,21 +81,9 @@ export class OmdbClient {
   }
 
   async #get(query: Record<string, string | number | undefined>): Promise<OmdbResponse> {
-    let res: OmdbResponse | undefined;
-    try {
-      res = await this.#http.getJson<OmdbResponse>("", {
-        query: { apikey: this.#apiKey, ...query },
-      });
-    } catch (err) {
-      // An exhausted quota may come with an auth status; OMDb's reason, not
-      // the status, says it isn't a bad key. Other HTTP failures keep theirs.
-      if (err instanceof ApiError && err.detail && OMDB_LIMIT.test(err.detail)) {
-        throw refusal(err.detail, err.status);
-      }
-      throw err;
-    }
-    if (!res)
-      throw new ApiError({ code: "bad_response", message: "OMDb returned an empty response" });
+    const res = await this.#http.getJson<OmdbResponse>("", {
+      query: { apikey: this.#apiKey, ...query },
+    });
     if (res.Response === "False" && res.Error && !OMDB_MISS.test(res.Error)) {
       throw refusal(res.Error);
     }
@@ -111,7 +103,7 @@ function refusal(error: string, status?: number): ApiError {
     status,
     // OMDb's quota is daily: unlike a 429 it won't clear within this session,
     // so it is not transient — retrying would only burn calls.
-    retryable: false,
+    ...(OMDB_LIMIT.test(error) ? { retryable: false } : {}),
     message: `OMDb refused the request: ${redact(error)}`,
     detail: redact(error),
   });

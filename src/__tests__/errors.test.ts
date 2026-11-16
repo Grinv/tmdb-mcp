@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { ApiError, classifyStatus, redact } from "../lib/errors.ts";
+import { ApiError, classifyStatus, redact, type ApiErrorCode } from "../lib/errors.ts";
 
 describe("classifyStatus", () => {
   test("maps HTTP codes to error codes", () => {
@@ -20,21 +20,25 @@ describe("classifyStatus", () => {
 // Transience is a property of the code (errors.ts's TRANSIENT), decided in
 // one place — not by whichever construction site remembers to pass a flag.
 describe("ApiError.retryable", () => {
+  // A Record, so adding an ApiErrorCode fails to compile until its expected
+  // transience is stated here too.
+  const expected: Record<ApiErrorCode, boolean> = {
+    unauthorized: false,
+    forbidden: false,
+    not_found: false,
+    rate_limited: true,
+    server_error: true,
+    network: true,
+    timeout: true,
+    cancelled: false,
+    bad_request: false,
+    bad_response: false,
+    unknown: false,
+  };
+
   test("follows the code's transience unless an occurrence overrides it", () => {
-    const transient = ["rate_limited", "server_error", "network", "timeout", "bad_response"];
-    const permanent = [
-      "unauthorized",
-      "forbidden",
-      "not_found",
-      "cancelled",
-      "bad_request",
-      "unknown",
-    ];
-    for (const code of transient) {
-      assert.equal(new ApiError({ code: code as never, message: "x" }).retryable, true, code);
-    }
-    for (const code of permanent) {
-      assert.equal(new ApiError({ code: code as never, message: "x" }).retryable, false, code);
+    for (const [code, transient] of Object.entries(expected) as [ApiErrorCode, boolean][]) {
+      assert.equal(new ApiError({ code, message: "x" }).retryable, transient, code);
     }
     // e.g. OMDb's daily quota: rate_limited, yet not transient.
     assert.equal(

@@ -67,7 +67,9 @@ const TRANSIENT: Record<ApiErrorCode, boolean> = {
   timeout: true,
   cancelled: false, // the caller's own decision
   bad_request: false,
-  bad_response: true, // usually a truncated body
+  // A complete body that isn't JSON (a proxy's HTML page): retrying won't fix
+  // it. A truncated body never gets here — undici rejects the read itself.
+  bad_response: false,
   unknown: false,
 };
 

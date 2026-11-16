@@ -167,7 +167,28 @@ describe("OmdbClient: HTTP-level refusals", () => {
     );
     await assert.rejects(
       () => client().ratingsByImdbId("tt0133093"),
-      (err: unknown) => err instanceof ApiError && /empty response/.test(err.message),
+      (err: unknown) => err instanceof ApiError && err.code === "bad_response",
     );
+  });
+
+  // The quota is classified before HttpClient's retry decision, so a quota
+  // refusal sent as 429 (normally transient) is not re-sent HTTP_RETRIES times.
+  test("a quota refusal sent as 429 is not retried", async (t) => {
+    let calls = 0;
+    installFetch(
+      t,
+      mockFetch(() => {
+        calls += 1;
+        return jsonResponse(
+          { Response: "False", Error: "Request limit reached!" },
+          { status: 429 },
+        );
+      }),
+    );
+    await assert.rejects(
+      () => client().ratingsByImdbId("tt0133093"),
+      (err: unknown) => err instanceof ApiError && err.code === "rate_limited" && !err.retryable,
+    );
+    assert.equal(calls, 1);
   });
 });

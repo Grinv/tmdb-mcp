@@ -22,6 +22,9 @@ export interface HttpClientOptions {
   beforeRequest?: () => Promise<void> | void;
   /** JSON.parse reviver for success bodies — the upstream's own normalization rule. */
   reviver?: (this: unknown, key: string, value: unknown) => unknown;
+  /** The upstream's own classification rule (e.g. OMDb naming its daily quota
+   *  in the body), applied to every failure before the retry decision. */
+  refineError?: (err: ApiError) => ApiError;
 }
 
 /**
@@ -56,7 +59,8 @@ export class HttpClient {
       try {
         return await this.#once<T>(url, options, timeoutMs);
       } catch (err) {
-        const apiErr = err instanceof ApiError ? err : toNetworkError(err);
+        const classified = err instanceof ApiError ? err : toNetworkError(err);
+        const apiErr = this.#opts.refineError?.(classified) ?? classified;
         // A caller-cancelled request must not be retried even if its code
         // would otherwise be retryable (e.g. it raced a timeout).
         if (!apiErr.retryable || attempt >= retries || options.signal?.aborted) throw apiErr;
@@ -103,7 +107,12 @@ export class HttpClient {
       if (!res.ok) throw await toHttpError(res);
       if (res.status === 204) return undefined as T;
       const text = await res.text();
-      if (text.length === 0) return undefined as T;
+      // Both upstreams always send JSON on success, so an empty body is as
+      // unreadable as invalid JSON (a body cut off mid-read rejects res.text()
+      // instead — that is a transient network error).
+      if (text.length === 0) {
+        throw new ApiError({ code: "bad_response", message: "Upstream returned an empty body" });
+      }
       try {
         return JSON.parse(text, this.#opts.reviver) as T;
       } catch (err) {

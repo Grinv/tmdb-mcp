@@ -15,6 +15,7 @@ export interface UpstreamOptions {
   cacheTtlMs: number;
   defaultHeaders?: Record<string, string>;
   reviver?: HttpClientOptions["reviver"];
+  refineError?: HttpClientOptions["refineError"];
 }
 
 export interface Upstream {
@@ -31,6 +32,7 @@ export function createUpstream(opts: UpstreamOptions): Upstream {
     retries: opts.retries,
     defaultHeaders: opts.defaultHeaders,
     reviver: opts.reviver,
+    refineError: opts.refineError,
     beforeRequest: () => limiter.acquire(),
   });
   const cache = new TtlCache(opts.cacheTtlMs, undefined, opts.logger);

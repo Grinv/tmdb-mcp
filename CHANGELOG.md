@@ -26,7 +26,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 
 - Report an internal bug as a stable error and log it in full, not as raw internals or silently dropped ratings ([28a2d3b](https://github.com/Grinv/tmdb-mcp/commit/28a2d3b)).
-- Call a cancelled request "cancelled" and an unreadable upstream body "unreadable" (now retried like a 5xx), not a network or unknown error ([28a2d3b](https://github.com/Grinv/tmdb-mcp/commit/28a2d3b), [1bf06ac](https://github.com/Grinv/tmdb-mcp/commit/1bf06ac)).
+- Call a cancelled request "cancelled" and an unreadable or empty upstream body "unreadable", not a network or unknown error ([28a2d3b](https://github.com/Grinv/tmdb-mcp/commit/28a2d3b)).
 - Time out a response that stalls after its headers instead of hanging the call for minutes ([7098f20](https://github.com/Grinv/tmdb-mcp/commit/7098f20)).
 - Include the upstream's own reason in tool errors, e.g. OMDb's "Invalid API key!", never a raw response body ([e723377](https://github.com/Grinv/tmdb-mcp/commit/e723377), [a6dbbea](https://github.com/Grinv/tmdb-mcp/commit/a6dbbea), [62750f3](https://github.com/Grinv/tmdb-mcp/commit/62750f3), [efbc604](https://github.com/Grinv/tmdb-mcp/commit/efbc604)).
 - Report an OMDb refusal as an error, not a cached "no ratings", and an exhausted quota as a rate limit, not a bad key ([e723377](https://github.com/Grinv/tmdb-mcp/commit/e723377), [44b17a2](https://github.com/Grinv/tmdb-mcp/commit/44b17a2)).
