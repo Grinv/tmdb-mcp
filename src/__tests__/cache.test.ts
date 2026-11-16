@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { TtlCache, cacheKey, staleness, type Staleness } from "../lib/cache.ts";
+import { TtlCache, cacheKey, degraded, staleness, type Staleness } from "../lib/cache.ts";
 
 const tick = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -108,6 +108,22 @@ describe("TtlCache", () => {
     assert.deepEqual(await Promise.all([pa, pb, pc]), [1, 1, 1]);
     assert.equal(a.ageMs, 5);
     assert.equal(b.ageMs, 5);
+  });
+
+  // A degraded (partial) result is used but never cached; a complete stale
+  // copy within the window wins over it.
+  test("a degraded result is not cached, and a complete stale copy beats it", async () => {
+    let now = 0;
+    const cache = new TtlCache({ ttlMs: 1, now: () => now });
+    assert.equal(await cache.wrapStaleOnError("k", async () => degraded("partial")), "partial");
+    assert.equal(await cache.wrapStaleOnError("k", async () => "full"), "full", "not cached");
+    now += 5;
+    const record: Staleness = {};
+    const v = await staleness.run(record, () =>
+      cache.wrapStaleOnError("k", async () => degraded("partial")),
+    );
+    assert.equal(v, "full");
+    assert.equal(record.ageMs, 5);
   });
 
   // RFC 5861's stale-if-error is a window: past it, the failure surfaces.

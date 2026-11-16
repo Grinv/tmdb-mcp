@@ -55,6 +55,20 @@ export interface Staleness {
  */
 export const staleness = new AsyncLocalStorage<Staleness>();
 
+/** A usable but incomplete result (some upstream parts failed): returned to
+ *  this caller, never cached — a complete stale copy within the stale window
+ *  is preferred over it. Wrap one with `degraded()` from a compute(). */
+export class Degraded<T> {
+  readonly value: T;
+  constructor(value: T) {
+    this.value = value;
+  }
+}
+
+export function degraded<T>(value: T): Degraded<T> {
+  return new Degraded(value);
+}
+
 export class TtlCache {
   readonly #ttlMs: number;
   readonly #max: number;
@@ -122,26 +136,33 @@ export class TtlCache {
    * failing, so reads degrade gracefully while the upstream is down — and
    * record its age in the current `staleness` record for the tool result.
    */
-  async wrapStaleOnError<T>(key: string, compute: () => Promise<T>): Promise<T> {
+  async wrapStaleOnError<T>(key: string, compute: () => Promise<T | Degraded<T>>): Promise<T> {
     const fresh = this.get<T>(key);
     if (fresh !== undefined) return fresh;
+    let result: T | Degraded<T>;
     try {
-      return await this.#dedupe(key, compute);
+      result = await this.#dedupe(key, compute);
     } catch (err) {
-      const hit = this.#touch(key);
-      const ageMs = hit && this.#now() - hit.storedAt;
-      if (hit && ageMs !== undefined && ageMs <= this.#ttlMs + this.#maxStaleMs) {
-        // The logger formats the error (stack, cause chain, redaction).
-        this.#logger?.warn(
-          `serving stale cached value for "${key}" — upstream refresh failed`,
-          err,
-        );
-        const record = staleness.getStore();
-        if (record) record.ageMs = Math.max(record.ageMs ?? 0, ageMs);
-        return hit.value as T;
-      }
-      throw err;
+      const stale = this.#usableStale<T>(key);
+      if (stale === undefined) throw err;
+      // The logger formats the error (stack, cause chain, redaction).
+      this.#logger?.warn(`serving stale cached value for "${key}" — upstream refresh failed`, err);
+      return stale;
     }
+    if (!(result instanceof Degraded)) return result;
+    return this.#usableStale<T>(key) ?? result.value;
+  }
+
+  // A cached value no older than the stale window, with its age recorded in
+  // the current staleness record (if any) for the tool result.
+  #usableStale<T>(key: string): T | undefined {
+    const hit = this.#touch(key);
+    if (hit === undefined) return undefined;
+    const ageMs = this.#now() - hit.storedAt;
+    if (ageMs > this.#ttlMs + this.#maxStaleMs) return undefined;
+    const record = staleness.getStore();
+    if (record) record.ageMs = Math.max(record.ageMs ?? 0, ageMs);
+    return hit.value as T;
   }
 
   // Share one in-flight compute() promise across concurrent callers of the
@@ -154,7 +175,7 @@ export class TtlCache {
     if (inFlight) return inFlight;
     const promise = compute()
       .then((value) => {
-        this.set(key, value);
+        if (!(value instanceof Degraded)) this.set(key, value);
         return value;
       })
       .finally(() => this.#pending.delete(key));

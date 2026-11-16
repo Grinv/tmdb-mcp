@@ -1,6 +1,12 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { ApiError, classifyStatus, redact, type ApiErrorCode } from "../lib/errors.ts";
+import {
+  ApiError,
+  classifyStatus,
+  redact,
+  unlessUpstreamFails,
+  type ApiErrorCode,
+} from "../lib/errors.ts";
 
 describe("classifyStatus", () => {
   test("maps HTTP codes to error codes", () => {
@@ -59,6 +65,18 @@ describe("redact", () => {
     // stripped too or OMDB_API_KEY leaks into stderr under LOG_LEVEL=debug.
     assert.ok(
       !redact("https://www.omdbapi.com/?apikey=SECRETKEY&i=tt0111161").includes("SECRETKEY"),
+    );
+  });
+});
+
+describe("unlessUpstreamFails", () => {
+  test("tolerates an upstream failure, but never a bug", async () => {
+    assert.equal(await unlessUpstreamFails(Promise.resolve(1)), 1);
+    const outage = new ApiError({ code: "server_error", message: "x" });
+    assert.equal(await unlessUpstreamFails(Promise.reject(outage)), undefined);
+    await assert.rejects(
+      () => unlessUpstreamFails(Promise.reject(new TypeError("bug"))),
+      TypeError,
     );
   });
 });

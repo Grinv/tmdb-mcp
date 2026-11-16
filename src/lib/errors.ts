@@ -93,3 +93,17 @@ export function redact(input: string): string {
       "$1=***",
     );
 }
+
+/**
+ * For optional data a caller can do without: resolves to undefined when the
+ * upstream fails (any ApiError), but lets anything else — a bug — propagate,
+ * so tolerating an outage never hides one.
+ */
+export async function unlessUpstreamFails<T>(promise: Promise<T>): Promise<T | undefined> {
+  try {
+    return await promise;
+  } catch (err) {
+    if (err instanceof ApiError) return undefined;
+    throw err;
+  }
+}

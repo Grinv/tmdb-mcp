@@ -7,7 +7,8 @@
 // Localization: a default `language` (e.g. "ru-RU") and `region` come from
 // config and are applied to every request; callers may override per call.
 import { HttpClient, nullAsAbsent } from "../lib/http.ts";
-import { TtlCache, cacheKey } from "../lib/cache.ts";
+import { TtlCache, cacheKey, degraded } from "../lib/cache.ts";
+import { unlessUpstreamFails } from "../lib/errors.ts";
 import { createUpstream } from "../lib/upstream.ts";
 import {
   detailMovie,
@@ -146,16 +147,6 @@ function capTotalEpisodesBySize(
     }
     return episodes.length === s.episodes.length ? s : { ...s, episodes };
   });
-}
-
-// Carries a partially-fetched expand_episodes result out of the cache's
-// compute() without caching it — see #getTvSeasonsBulk.
-class PartialSeasons extends Error {
-  readonly result: { seasons: ReturnType<typeof summarizeSeason>[] };
-  constructor(result: PartialSeasons["result"]) {
-    super("some expand_episodes chunks failed");
-    this.result = result;
-  }
 }
 
 // "de-DE" + original "ja" → "de,en,ja,null": the configured language,
@@ -449,98 +440,90 @@ export class TmdbClient {
       seasons: seasons.map((s) => s.season_number).join(","),
       language: this.#lang(language),
     });
-    // A result with a failed chunk's seasons emptied is returned to this one
-    // caller but never cached: it travels out of compute as a thrown
-    // PartialSeasons, so wrapStaleOnError prefers a complete stale copy when it
-    // has one (flagging it stale) and otherwise rethrows it to the catch below.
-    let bulk: { seasons: ReturnType<typeof summarizeSeason>[] };
-    try {
-      bulk = await this.#cache.wrapStaleOnError(key, async () => {
-        // A season whose true episode_count (already known from getTv's own
-        // season list — no extra request needed) is guaranteed to fall
-        // entirely beyond the aggregate budget doesn't need fetching at all:
-        // pulling its full episode list over the wire just to discard it in
-        // capTotalEpisodes is wasted work. Only fetch up through the season
-        // that actually crosses the budget boundary (to get its partial
-        // truncation). An unknown count (null) is fetched while budget
-        // remains (charged 0, since there's nothing to charge) and skipped
-        // once it's spent, like any other season.
-        let remaining = MAX_EXPANDED_EPISODES;
-        const toFetch: number[] = []; // indices into `seasons`
-        seasons.forEach((s, i) => {
-          if (remaining <= 0) return;
-          toFetch.push(i);
-          // Charge what this season can actually contribute, not its raw
-          // episode_count — summarizeSeason below trims it to
-          // MAX_SEASON_EPISODES, so charging more evicts later seasons that
-          // would have fit (season 0's 80+ specials being the usual culprit).
-          remaining -= Math.min(s.episode_count ?? 0, MAX_SEASON_EPISODES);
-        });
-
-        // A season that wasn't fetched (beyond the budget, in a failed chunk,
-        // or missing from its chunk's response) is reported from the show's
-        // own season metadata, with no episodes.
-        const skippedEntry = (s: (typeof seasons)[number]): ReturnType<typeof summarizeSeason> => ({
-          season_number: s.season_number,
-          name: s.name,
-          air_date: s.air_date,
-          overview: null,
-          poster_url: null,
-          episode_count: s.episode_count ?? 0,
-          episodes: [],
-        });
-
-        // allSettled, not all: a long-running show needs 2+ chunked requests
-        // (e.g. General Hospital, Top Gear), and one failed chunk shouldn't
-        // sink the seasons the other chunks did return. Only when every chunk
-        // fails is it a real upstream failure — rethrow so wrapStaleOnError
-        // can still fall back to a stale cached value.
-        const chunks = chunk(toFetch, MAX_APPEND_TO_RESPONSE);
-        const settled = await Promise.allSettled(
-          chunks.map((indices) =>
-            this.#get<Record<string, TmdbSeason | undefined>>(
-              `tv/${id}`,
-              {
-                append_to_response: indices
-                  .map((i) => `season/${seasons[i]!.season_number}`)
-                  .join(","),
-              },
-              language,
-            ),
-          ),
-        );
-        const firstFailure = settled.find((r) => r.status === "rejected");
-        if (firstFailure && settled.every((r) => r.status === "rejected")) {
-          throw firstFailure.reason;
-        }
-
-        const out = seasons.map(skippedEntry);
-        settled.forEach((result, c) => {
-          if (result.status !== "fulfilled") return;
-          for (const i of chunks[c]!) {
-            const raw = result.value[`season/${seasons[i]!.season_number}`];
-            if (raw) out[i] = summarizeSeason(raw, MAX_SEASON_EPISODES, false);
-          }
-        });
-        // parseSeasons re-validates the fetched/capped/skipped merge through
-        // seasonSchema, so this aggregate path gets the same drift/degrade
-        // guarantee the direct shapers have (the skipped entries above are
-        // hand-built and would otherwise skip validation entirely).
-        const result = {
-          seasons: parseSeasons(
-            capTotalEpisodesBySize(
-              capTotalEpisodes(out, MAX_EXPANDED_EPISODES),
-              MAX_EXPANDED_EPISODES_CHARS,
-            ),
-          ),
-        };
-        if (firstFailure) throw new PartialSeasons(result);
-        return result;
+    // A result with a failed chunk's seasons emptied is degraded(): returned
+    // to this one caller but never cached, and a complete stale copy within
+    // the stale window wins over it (flagged stale).
+    const bulk = await this.#cache.wrapStaleOnError(key, async () => {
+      // A season whose true episode_count (already known from getTv's own
+      // season list — no extra request needed) is guaranteed to fall
+      // entirely beyond the aggregate budget doesn't need fetching at all:
+      // pulling its full episode list over the wire just to discard it in
+      // capTotalEpisodes is wasted work. Only fetch up through the season
+      // that actually crosses the budget boundary (to get its partial
+      // truncation). An unknown count (null) is fetched while budget
+      // remains (charged 0, since there's nothing to charge) and skipped
+      // once it's spent, like any other season.
+      let remaining = MAX_EXPANDED_EPISODES;
+      const toFetch: number[] = []; // indices into `seasons`
+      seasons.forEach((s, i) => {
+        if (remaining <= 0) return;
+        toFetch.push(i);
+        // Charge what this season can actually contribute, not its raw
+        // episode_count — summarizeSeason below trims it to
+        // MAX_SEASON_EPISODES, so charging more evicts later seasons that
+        // would have fit (season 0's 80+ specials being the usual culprit).
+        remaining -= Math.min(s.episode_count ?? 0, MAX_SEASON_EPISODES);
       });
-    } catch (err) {
-      if (err instanceof PartialSeasons) return err.result.seasons;
-      throw err;
-    }
+
+      // A season that wasn't fetched (beyond the budget, in a failed chunk,
+      // or missing from its chunk's response) is reported from the show's
+      // own season metadata, with no episodes.
+      const skippedEntry = (s: (typeof seasons)[number]): ReturnType<typeof summarizeSeason> => ({
+        season_number: s.season_number,
+        name: s.name,
+        air_date: s.air_date,
+        overview: null,
+        poster_url: null,
+        episode_count: s.episode_count ?? 0,
+        episodes: [],
+      });
+
+      // allSettled, not all: a long-running show needs 2+ chunked requests
+      // (e.g. General Hospital, Top Gear), and one failed chunk shouldn't
+      // sink the seasons the other chunks did return. Only when every chunk
+      // fails is it a real upstream failure — rethrow so wrapStaleOnError
+      // can still fall back to a stale cached value.
+      const chunks = chunk(toFetch, MAX_APPEND_TO_RESPONSE);
+      const settled = await Promise.allSettled(
+        chunks.map((indices) =>
+          this.#get<Record<string, TmdbSeason | undefined>>(
+            `tv/${id}`,
+            {
+              append_to_response: indices
+                .map((i) => `season/${seasons[i]!.season_number}`)
+                .join(","),
+            },
+            language,
+          ),
+        ),
+      );
+      const firstFailure = settled.find((r) => r.status === "rejected");
+      if (firstFailure && settled.every((r) => r.status === "rejected")) {
+        throw firstFailure.reason;
+      }
+
+      const out = seasons.map(skippedEntry);
+      settled.forEach((result, c) => {
+        if (result.status !== "fulfilled") return;
+        for (const i of chunks[c]!) {
+          const raw = result.value[`season/${seasons[i]!.season_number}`];
+          if (raw) out[i] = summarizeSeason(raw, MAX_SEASON_EPISODES, false);
+        }
+      });
+      // parseSeasons re-validates the fetched/capped/skipped merge through
+      // seasonSchema, so this aggregate path gets the same drift/degrade
+      // guarantee the direct shapers have (the skipped entries above are
+      // hand-built and would otherwise skip validation entirely).
+      const result = {
+        seasons: parseSeasons(
+          capTotalEpisodesBySize(
+            capTotalEpisodes(out, MAX_EXPANDED_EPISODES),
+            MAX_EXPANDED_EPISODES_CHARS,
+          ),
+        ),
+      };
+      return firstFailure ? degraded(result) : result;
+    });
     return bulk.seasons;
   }
 
@@ -814,10 +797,12 @@ export class TmdbClient {
       async () => {
         // The original language comes from the cached raw detail (shared with
         // get_movie/get_tv); without it a non-English film's native trailers
-        // are dropped (Spirited Away: no ja trailer under en). Best effort.
-        const detail = await (
-          mediaType === "tv" ? this.#tvRaw(id, language) : this.#movieRaw(id, language)
-        ).catch(() => undefined);
+        // are dropped (Spirited Away: no ja trailer under en). Optional: an
+        // upstream failure there degrades the list (not cached) instead of
+        // failing the call; a bug still propagates.
+        const detail = await unlessUpstreamFails(
+          mediaType === "tv" ? this.#tvRaw(id, language) : this.#movieRaw(id, language),
+        );
         // `language` alone filters videos down to that one language (29 → 2
         // for a title under de-DE); also include English and untagged ones.
         const res = await this.#get<VideosResponse>(
@@ -827,7 +812,8 @@ export class TmdbClient {
           },
           language,
         );
-        return summarizeVideos(res);
+        const videos = summarizeVideos(res);
+        return detail === undefined ? degraded(videos) : videos;
       },
     );
   }

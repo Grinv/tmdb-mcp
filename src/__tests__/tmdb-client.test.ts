@@ -210,6 +210,53 @@ describe("TmdbClient: region/language resolve from config when not overridden pe
   });
 });
 
+// Real /movie/129/videos row shape (Spirited Away), trimmed to one entry.
+const VIDEO = {
+  iso_639_1: "ja",
+  iso_3166_1: "JP",
+  name: "Official Trailer",
+  key: "ByXuk9QqQkk",
+  site: "YouTube",
+  size: 1080,
+  type: "Trailer",
+  official: true,
+  published_at: "2023-11-23T22:00:09.000Z",
+  id: "65605c163679a10976465e74",
+};
+
+describe("TmdbClient: getVideos when the optional detail fetch fails", () => {
+  // The detail only supplies the original language; when TMDB fails it, the
+  // list still comes back, but degraded — it must not be cached, or the
+  // native-language trailers stay missing for the whole TTL after recovery.
+  test("returns the list but does not cache it, so the next call is complete", async (t) => {
+    let detailFails = true;
+    const videoQueries: string[] = [];
+    installFetch(
+      t,
+      mockFetch((url) => {
+        if (url.includes("/movie/129/videos")) {
+          videoQueries.push(new URL(url).searchParams.get("include_video_language") ?? "");
+          return jsonResponse({ id: 129, results: [VIDEO] });
+        }
+        if (url.includes("/movie/129")) {
+          return detailFails
+            ? jsonResponse({ status_code: 11, status_message: "Internal error." }, { status: 500 })
+            : jsonResponse({ id: 129, original_language: "ja", title: "Spirited Away" });
+        }
+        return jsonResponse({});
+      }),
+    );
+    const c = client({ HTTP_RETRIES: "0" });
+    const first = await c.getVideos("movie", 129);
+    assert.equal(first.results.length, 1);
+    assert.doesNotMatch(videoQueries[0]!, /\bja\b/);
+    detailFails = false;
+    await c.getVideos("movie", 129);
+    assert.equal(videoQueries.length, 2, "the degraded list must not be served from cache");
+    assert.match(videoQueries[1]!, /\bja\b/);
+  });
+});
+
 describe("TmdbClient: non-cached methods honor a caller AbortSignal", () => {
   // Aborting mid-flight is the only thing that can end a hangingFetch()
   // request. The caller's abort() may fire before the mock even sees the
