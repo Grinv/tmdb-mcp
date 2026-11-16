@@ -41,7 +41,8 @@ export function registerSearchTools(server: McpServer, { tmdb, requireTmdb }: Tm
         "Search TMDB movies by title; returns compact summaries with the TMDB id that the other " +
         "movie tools (get_movie, get_movie_credits, …) require, plus pagination info. Use this over " +
         "search_multi when you already know the result is a movie. `year`/`release_date` are the " +
-        "original (primary) release, as in every other tool.",
+        "original (primary) release, as everywhere except get_movie_releases (which shows the " +
+        "chosen country's date).",
       inputSchema: z
         .strictObject({
           query: z.string().min(1).describe("Movie title to search for."),

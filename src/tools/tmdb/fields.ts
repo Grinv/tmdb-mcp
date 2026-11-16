@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { TmdbClient } from "../../clients/tmdb.ts";
 import type { OmdbClient } from "../../clients/omdb.ts";
 import { LANGUAGE_REGEX } from "../../config.ts";
-import { TMDB_MAX_PAGE } from "../../format.ts";
+import { PERSON_CREDITS_LIMIT, TMDB_MAX_PAGE } from "../../format.ts";
 import type { ToolResult } from "../../lib/result.ts";
 
 // Shape of the closure index.ts builds over the tmdb client. `signal` is the
@@ -35,6 +35,17 @@ export const filteredPage = page.describe(
     "shorter, even empty, while total_pages/total_results stay TMDB's own — keep paging up to total_pages.",
 );
 export const tmdbId = z.int().positive().describe("TMDB numeric id.");
+// The same id, named for what it identifies, so the caller knows which search
+// yields it.
+export const movieId = tmdbId.describe("TMDB movie id (from search_movies).");
+export const tvId = tmdbId.describe("TMDB TV show id (from search_tv).");
+export const personId = tmdbId.describe("TMDB person id (from search_people).");
+export const collectionId = tmdbId.describe(
+  "TMDB collection id (from search_collections, or a movie's `collection` in get_movie).",
+);
+export const mediaId = tmdbId.describe(
+  "TMDB id of the movie or TV show (as media_type says; from search_movies/search_tv).",
+);
 export const mediaKind = z.enum(["movie", "tv"]).describe("Media type: 'movie' or 'tv'.");
 // Shared by get_tv_season/get_tv_episode.
 export const seasonNumber = z.int().min(0).describe("Season number (0 = specials).");
@@ -68,19 +79,19 @@ export const personDepartment = z
   .describe(
     "Restrict crew credits to this department (e.g. 'Directing' for a director's filmography). " +
       "Without it, a multi-hyphenate's OTHER departments (writing, producing, …) compete for the " +
-      "same 25-credit cap and can crowd out titles in the department you actually want.",
+      `same ${PERSON_CREDITS_LIMIT}-credit cap and can crowd out titles in the department you actually want.`,
   )
   .optional();
 export const personCreditsLimit = z
   .int()
   .min(1)
   .max(100)
+  .default(PERSON_CREDITS_LIMIT)
   .describe(
-    "Max cast entries and max crew entries to return (each capped separately; default 25). Raise " +
+    "Max cast entries and max crew entries to return (each capped separately, 1-100). Raise " +
       "this for an exceptionally prolific person — e.g. a director with 50+ films — where even a " +
       "department filter still leaves more titles than the default cap keeps.",
-  )
-  .optional();
+  );
 export const includeAdult = z.boolean().default(false).describe("Include adult (NSFW) results.");
 export const includeRatings = z
   .boolean()
@@ -126,7 +137,7 @@ export const expandEpisodes = z
   .describe(
     "Also fetch every season's full episode list (name, air date, runtime, and TMDB " +
       "`vote_average` — TMDB's own 0-10 user score, not this tool's IMDb/RT/Metacritic `ratings`) as " +
-      "`seasons_detail`, in one extra request — use this instead of calling get_tv_season once per " +
+      "`seasons_detail`, in one extra request (more only past 20 seasons) — use this instead of calling get_tv_season once per " +
       "season when you need all episodes of a multi-season show. Episode overviews are omitted " +
       "here to keep that aggregate response usable — call get_tv_season for one season's full " +
       "detail including overview. Each season's episode list is capped at 50 (season 0 'Specials' " +

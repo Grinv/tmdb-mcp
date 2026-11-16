@@ -19,7 +19,8 @@ export function registerOmdbTools(server: McpServer, omdb: OmdbClient): void {
         "by IMDb id (preferred, e.g. 'tt0133093') or by title (+ optional year/type). Prefer " +
         "get_movie/get_tv when you have a TMDB id — they already include this. Requires " +
         "OMDB_API_KEY. One of imdb_id or title is required; omitting both returns an error. A " +
-        "no-match lookup is not an error: it returns `{found:false, reason}`. " +
+        "no-match lookup is not an error: it returns `{found:false, reason}`; a refusal (bad key, " +
+        "exhausted daily quota) is. " +
         "A title lookup resolves to whichever single entry OMDb picks, reports no runner-up, and " +
         "cannot be validated against anything — so it can silently return a different work of the " +
         "same name. Verified live: `title:'Halloween'` with no year returns the 1978 original " +

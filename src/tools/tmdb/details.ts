@@ -6,6 +6,7 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import type { TmdbClient } from "../../clients/tmdb.ts";
 import type { OmdbClient } from "../../clients/omdb.ts";
 import {
+  PERSON_CREDITS_LIMIT,
   movieCard,
   notFoundCard,
   ratingsNotFound,
@@ -42,11 +43,21 @@ import {
   filteredPage,
   personCreditsLimit,
   personDepartment,
-  tmdbId,
+  collectionId,
+  mediaId,
+  movieId,
+  personId,
+  tvId,
   tvIdsBatch,
   expandEpisodes,
   type TmdbToolDeps,
 } from "./fields.ts";
+
+// get_movies/get_tv_shows: what getCards does with an id that fails.
+const CARD_FAILURE =
+  "An id that fails to load — unknown, or hit by an upstream error such as a rate limit — " +
+  "never fails the whole call: that entry comes back `{id, found:false, reason}` instead, in the " +
+  "same order as `ids`; read `reason` before concluding the id doesn't exist.";
 
 export function registerDetailsTools(
   server: McpServer,
@@ -67,14 +78,15 @@ export function registerDetailsTools(
         "(`ratings.rated` — separate from this tool's own `certification` above; the two can differ) " +
         "from OMDb (set include_ratings=false to skip); if unavailable (no OMDB_API_KEY, no imdb_id, or the " +
         "OMDb lookup fails), `ratings` degrades to `{found:false, reason}` instead of failing the " +
-        "call. For thematically similar titles, pass 2-3 distinctive keyword ids to discover_movies' " +
+        "call. For titles like this one, get_movie_recommendations is the first stop; to match its " +
+        "themes instead, pass 2-3 distinctive keyword ids to discover_movies' " +
         "with_keywords joined with ',' — all must match (verified live: The Matrix's 'man vs " +
         "machine', 'artificial intelligence', 'dystopia' give the Terminator films); '|' broadens " +
         "to any one. If you only need the headline info (title/year/genres/vote average) — for one id or " +
         "several — use get_movies instead; it's trimmed on purpose and skips the rest of this " +
         "payload. Get the id from search_movies.",
       inputSchema: z.strictObject({
-        id: tmdbId,
+        id: movieId,
         region,
         language,
         include_ratings: includeRatings,
@@ -106,17 +118,18 @@ export function registerDetailsTools(
         "(`ratings.rated` — separate from this tool's own `certification` above; the two can differ) " +
         "from OMDb (set include_ratings=false to skip); if unavailable (no OMDB_API_KEY, no imdb_id, or the " +
         "OMDb lookup fails), `ratings` degrades to `{found:false, reason}` instead of failing the " +
-        "call. For similar shows, pass 2-3 distinctive keyword ids to discover_tv's with_keywords: " +
+        "call. For shows like this one, get_tv_recommendations is the first stop; to match its " +
+        "themes instead, pass 2-3 distinctive keyword ids to discover_tv's with_keywords: " +
         "a show's keywords are sparser, so ',' (all) often matches only the show itself and '|' " +
         "(any) is the usual pick (verified live: Breaking Bad's 'drug dealer'|'outlaw' give The " +
         "Sopranos, Narcos, Peaky Blinders). " +
-        "Set expand_episodes=true to also pull every season's episode list in one extra " +
-        "request instead of calling get_tv_season per season. If you only need the headline info " +
+        "Set expand_episodes=true to also pull the seasons' episode lists (up to 250 episodes, " +
+        "50 per season; see that field) instead of calling get_tv_season per season. If you only need the headline info " +
         "(name/year/genres/vote average, season/episode counts) — for one id or several — use " +
         "get_tv_shows instead; it's trimmed on purpose and skips the rest of this payload. Get the " +
         "id from search_tv.",
       inputSchema: z.strictObject({
-        id: tmdbId,
+        id: tvId,
         region,
         language,
         include_ratings: includeRatings,
@@ -143,9 +156,8 @@ export function registerDetailsTools(
         "certifications, production companies, etc.): use this for a single id too when you only " +
         "need that headline info and not the full get_movie payload, not just for checking many at " +
         "once. Call get_movie instead when you need the full details for a title (including " +
-        "region-specific certification). A bad/unknown id " +
-        "never fails the whole call — that entry comes back `{id, found:false, reason}` instead, in " +
-        "the same order as `ids`.",
+        "region-specific certification). " +
+        CARD_FAILURE,
       inputSchema: z.strictObject({
         ids: movieIdsBatch,
         language,
@@ -180,9 +192,8 @@ export function registerDetailsTools(
         "Deliberately trimmed otherwise (no overview, the actual episode list, networks, " +
         "certifications, etc.): use this for a single id too when you only need that headline info " +
         "and not the full get_tv payload, not just for checking many at once. Call get_tv instead " +
-        "when you need the full details for a title (including region-specific certification). A " +
-        "bad/unknown id never fails the whole call — " +
-        "that entry comes back `{id, found:false, reason}` instead, in the same order as `ids`.",
+        "when you need the full details for a title (including region-specific certification). " +
+        CARD_FAILURE,
       inputSchema: z.strictObject({
         ids: tvIdsBatch,
         language,
@@ -214,7 +225,7 @@ export function registerDetailsTools(
         "Get full details for one person by TMDB id: biography, birthday/deathday, department, and " +
         "links (TMDB + IMDb). Does not include filmography — use get_person_credits for that. Get " +
         "the id from search_people or a credits list.",
-      inputSchema: z.strictObject({ id: tmdbId, language }),
+      inputSchema: z.strictObject({ id: personId, language }),
       outputSchema: personDetailSchema,
       annotations: READ_ONLY,
     },
@@ -230,7 +241,7 @@ export function registerDetailsTools(
       description:
         "List the top-billed cast (up to 20) and the headline crew (director, writers, composer, " +
         "DoP, …) of a movie by TMDB id. Get the id from search_movies.",
-      inputSchema: z.strictObject({ id: tmdbId }),
+      inputSchema: z.strictObject({ id: movieId }),
       outputSchema: creditsSchema,
       annotations: READ_ONLY,
     },
@@ -251,7 +262,7 @@ export function registerDetailsTools(
         "ranked by episode_count, so 'who directed most of it' is the first Director listed. " +
         "Creators aren't listed here; use get_tv's `created_by`. For one specific episode's " +
         "director/writer, use get_tv_episode. Get the id from search_tv.",
-      inputSchema: z.strictObject({ id: tmdbId }),
+      inputSchema: z.strictObject({ id: tvId }),
       outputSchema: tvCreditsSchema,
       annotations: READ_ONLY,
     },
@@ -270,7 +281,7 @@ export function registerDetailsTools(
         "list. Prefer this over get_similar as the default choice; get_similar matches on shared " +
         "genres/keywords, a blunter heuristic that can surface tonally unrelated titles. Get the " +
         "id from search_movies.",
-      inputSchema: z.strictObject({ id: tmdbId, page: filteredPage.optional() }),
+      inputSchema: z.strictObject({ id: movieId, page: filteredPage.optional() }),
       outputSchema: pageSchema(movieSummarySchema),
       annotations: READ_ONLY,
     },
@@ -291,7 +302,7 @@ export function registerDetailsTools(
         "list. Prefer this over get_similar as the default choice; get_similar matches on shared " +
         "genres/keywords, a blunter heuristic that can surface tonally unrelated titles. Get the " +
         "id from search_tv.",
-      inputSchema: z.strictObject({ id: tmdbId, page: filteredPage.optional() }),
+      inputSchema: z.strictObject({ id: tvId, page: filteredPage.optional() }),
       outputSchema: pageSchema(tvSummarySchema),
       annotations: READ_ONLY,
     },
@@ -318,7 +329,7 @@ export function registerDetailsTools(
         "want genre/keyword-adjacent titles. Get the id from search_movies/search_tv.",
       inputSchema: z.strictObject({
         media_type: mediaKind,
-        id: tmdbId,
+        id: mediaId,
         page: filteredPage.optional(),
       }),
       outputSchema: pageSchema(movieOrTvSchema),
@@ -341,7 +352,7 @@ export function registerDetailsTools(
         "IMDb/RT/Metacritic value; it can be null, and the review text, clipped to ~1500 " +
         "characters). Get the id from " +
         "search_movies/search_tv.",
-      inputSchema: z.strictObject({ media_type: mediaKind, id: tmdbId, page: page.optional() }),
+      inputSchema: z.strictObject({ media_type: mediaKind, id: mediaId, page: page.optional() }),
       outputSchema: pageSchema(reviewSchema),
       annotations: READ_ONLY,
     },
@@ -359,8 +370,9 @@ export function registerDetailsTools(
       description:
         "Get a movie collection/franchise and all its parts in release order (e.g. the whole " +
         "'The Dark Knight Collection'). Get the collection id from search_collections (by " +
-        "franchise name) or from a movie's `collection` field in get_movie.",
-      inputSchema: z.strictObject({ id: tmdbId, language }),
+        "franchise name) or from a movie's `collection` field in get_movie. Adult/softcore parts " +
+        "are left out.",
+      inputSchema: z.strictObject({ id: collectionId, language }),
       outputSchema: collectionSchema,
       annotations: READ_ONLY,
     },
@@ -374,8 +386,9 @@ export function registerDetailsTools(
     {
       title: "Get person filmography",
       description:
-        "List the movies and TV shows a person is known for (cast roles and crew jobs), most " +
-        "popular first, capped to the top 25 of each by default; talk-show/awards-show guest " +
+        "List the movies and TV shows a person is known for (cast roles and crew jobs; adult/softcore " +
+        "titles left out), most " +
+        `popular first, capped to the top ${PERSON_CREDITS_LIMIT} of each by default; talk-show/awards-show guest ` +
         "appearances ('Self'/'Himself'/'Herself', plus any cast credit on a TV talk or news show) " +
         "and repeat entries for the same title are excluded " +
         "so the list stays about actual roles. A cameo credited under the person's own name is " +
@@ -395,7 +408,7 @@ export function registerDetailsTools(
         "media_type 'tv' entries' genres yourself, e.g. via get_tv_shows). Get the id from " +
         "search_people.",
       inputSchema: z.strictObject({
-        id: tmdbId,
+        id: personId,
         department: personDepartment,
         limit: personCreditsLimit,
       }),

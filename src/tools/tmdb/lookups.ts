@@ -10,7 +10,7 @@ import {
   watchProvidersSchema,
 } from "../../format.schemas.ts";
 import { READ_ONLY } from "../shared.ts";
-import { mediaKind, seasonNumber, tmdbId, type TmdbToolDeps } from "./fields.ts";
+import { mediaId, mediaKind, seasonNumber, tvId, type TmdbToolDeps } from "./fields.ts";
 
 export function registerLookupTools(
   server: McpServer,
@@ -27,7 +27,7 @@ export function registerLookupTools(
         "from search_movies/search_tv.",
       inputSchema: z.strictObject({
         media_type: mediaKind,
-        id: tmdbId,
+        id: mediaId,
         region,
       }),
       outputSchema: watchProvidersSchema,
@@ -48,7 +48,7 @@ export function registerLookupTools(
         "configured TMDB_LANGUAGE (default 'en-US') plus English, the title's original language " +
         "(e.g. Spirited Away's Japanese trailer) and untagged ones; each entry's `language` " +
         "(ISO-639-1) says which. No per-call language override.",
-      inputSchema: z.strictObject({ media_type: mediaKind, id: tmdbId }),
+      inputSchema: z.strictObject({ media_type: mediaKind, id: mediaId }),
       outputSchema: videosSchema,
       annotations: READ_ONLY,
     },
@@ -97,7 +97,7 @@ export function registerLookupTools(
         "long-running show. Use get_tv with expand_episodes=true instead if you need every " +
         "season's episodes in one call. Get the show id from search_tv.",
       inputSchema: z.strictObject({
-        id: tmdbId,
+        id: tvId,
         season_number: seasonNumber,
       }),
       outputSchema: seasonSchema,
@@ -121,7 +121,7 @@ export function registerLookupTools(
         "IMDb rating, the only way to get a per-episode IMDb score here. Get the show id from " +
         "search_tv.",
       inputSchema: z.strictObject({
-        id: tmdbId,
+        id: tvId,
         season_number: seasonNumber,
         episode_number: z.int().min(1).describe("Episode number within the season."),
       }),

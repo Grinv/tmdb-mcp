@@ -180,7 +180,7 @@ const discoverShared = {
         "with_watch_providers, TMDB checks the two independently, not per provider: " +
         "with_watch_providers=2 (Apple TV, rent/buy only) + 'flatrate' still matches titles " +
         "rentable on Apple TV that some OTHER service streams — check get_watch_providers to " +
-        "confirm which service offers which access model.",
+        "confirm which service offers which access model (it reports 'flatrate' as `streaming`).",
     )
     .optional(),
   watch_region: watchRegion
@@ -375,8 +375,8 @@ const discoverTvSchema = {
   with_status: z
     .enum(TV_STATUSES)
     .describe(
-      "Restrict to this production status, e.g. 'Ended' to exclude shows still airing (a still-" +
-        "airing show's later seasons could still be mediocre or unfinished).",
+      "Restrict to this production status, e.g. 'Ended' to exclude shows still airing ('Cancelled' " +
+        "is a separate status, so 'Ended' alone leaves cancelled shows out).",
     )
     .optional(),
 };

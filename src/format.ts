@@ -1037,10 +1037,12 @@ function capByUniqueTitle<T>(entries: T[], limit: number, idOf: (e: T) => string
 // PERSON_DEPARTMENTS enum in tools/tmdb/fields.ts lists them all) before
 // capping, which is how to get a complete filmography for one role when other
 // departments would crowd it out.
+export const PERSON_CREDITS_LIMIT = 25;
+
 export function summarizePersonCredits(
   c: CombinedCredits,
   department?: string,
-  limit = 25,
+  limit = PERSON_CREDITS_LIMIT,
 ): z.infer<typeof personCreditsSchema> {
   const byPopularity = (a: CombinedCreditEntry, b: CombinedCreditEntry): number =>
     (b.popularity ?? 0) - (a.popularity ?? 0);
