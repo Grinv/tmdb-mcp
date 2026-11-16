@@ -34,7 +34,26 @@ const EMPTY_PAGE = pageOf([]);
 // The raw types say "a value or absent" — never null — because TmdbClient's
 // reviver (nullAsAbsent) drops TMDB's nulls at the boundary.
 describe("TmdbClient: TMDB's nulls never reach the shapers", () => {
+  // Live /find/tt0959621 rows verbatim; a copy with season_number: null
+  // stands in for TMDB's unknown-value null.
   test("a null episode number from /find drops that row instead of failing", async (t) => {
+    const pilot = {
+      air_date: "2008-01-20",
+      episode_number: 1,
+      episode_type: "standard",
+      id: 62085,
+      name: "Pilot",
+      overview:
+        "When an unassuming high school chemistry teacher discovers he has a rare form of lung cancer, he decides to team up with a former student and create a top of the line crystal meth in a used RV, to provide for his family once he is gone.",
+      production_code: "",
+      runtime: 59,
+      season_number: 1,
+      show_id: 1396,
+      still_path: "/ydlY3iPfeOAvu8gVqrxPoMvzNCn.jpg",
+      vote_average: 8.509,
+      vote_count: 580,
+      media_type: "tv_episode",
+    };
     installFetch(
       t,
       mockFetch(() =>
@@ -43,8 +62,24 @@ describe("TmdbClient: TMDB's nulls never reach the shapers", () => {
           person_results: [],
           tv_results: [],
           tv_episode_results: [
-            { show_id: 1396, season_number: null, episode_number: 1, name: "Null season" },
-            { show_id: 1396, season_number: 1, episode_number: 1, name: "Pilot", air_date: null },
+            {
+              air_date: "2008-01-20",
+              episode_number: 1,
+              episode_type: "standard",
+              id: 1,
+              name: "Null season",
+              overview:
+                "When an unassuming high school chemistry teacher discovers he has a rare form of lung cancer, he decides to team up with a former student and create a top of the line crystal meth in a used RV, to provide for his family once he is gone.",
+              production_code: "",
+              runtime: 59,
+              season_number: null,
+              show_id: 1396,
+              still_path: "/ydlY3iPfeOAvu8gVqrxPoMvzNCn.jpg",
+              vote_average: 8.509,
+              vote_count: 580,
+              media_type: "tv_episode",
+            },
+            pilot,
           ],
           tv_season_results: [],
         }),
@@ -52,8 +87,74 @@ describe("TmdbClient: TMDB's nulls never reach the shapers", () => {
     );
     const s = await client().findByExternalId("tt0959621", "imdb_id");
     assert.deepEqual(s.tv_episode_results, [
-      { show_id: 1396, season_number: 1, episode_number: 1, name: "Pilot", air_date: null },
+      { show_id: 1396, season_number: 1, episode_number: 1, name: "Pilot", air_date: "2008-01-20" },
     ]);
+  });
+
+  // Live /tv/1396/season/1/episode/1?append_to_response=external_ids (credit
+  // lists cut to one entry), with external_ids.imdb_id set to null.
+  test("a null episode imdb_id leaves imdb_id/imdb_url null, not a broken URL", async (t) => {
+    installFetch(
+      t,
+      mockFetch(() =>
+        jsonResponse({
+          id: 62085,
+          air_date: "2008-01-20",
+          crew: [
+            {
+              department: "Directing",
+              job: "Director",
+              credit_id: "52542275760ee313280006e8",
+              adult: false,
+              gender: 2,
+              id: 66633,
+              known_for_department: "Writing",
+              name: "Vince Gilligan",
+              original_name: "Vince Gilligan",
+              popularity: 1.7649,
+              profile_path: "/wJIxATESjzsjSgvRhVavOmdamXc.jpg",
+            },
+          ],
+          episode_number: 1,
+          episode_type: "standard",
+          guest_stars: [
+            {
+              character: "Steven Gomez",
+              credit_id: "5271b489760ee35b3e0881a7",
+              order: 8,
+              adult: false,
+              gender: 2,
+              id: 61535,
+              known_for_department: "Acting",
+              name: "Steven Michael Quezada",
+              original_name: "Steven Michael Quezada",
+              popularity: 1.0213,
+              profile_path: "/pVYrDkwI6GWvCNL2kJhpDJfBFyd.jpg",
+            },
+          ],
+          name: "Pilot",
+          overview:
+            "When an unassuming high school chemistry teacher discovers he has a rare form of lung cancer, he decides to team up with a former student and create a top of the line crystal meth in a used RV, to provide for his family once he is gone.",
+          production_code: "",
+          runtime: 59,
+          season_number: 1,
+          still_path: "/ydlY3iPfeOAvu8gVqrxPoMvzNCn.jpg",
+          vote_average: 8.509,
+          vote_count: 580,
+          external_ids: {
+            imdb_id: null,
+            freebase_mid: "/m/03mb620",
+            freebase_id: null,
+            tvdb_id: 349232,
+            tvrage_id: 637041,
+            wikidata_id: "Q14625947",
+          },
+        }),
+      ),
+    );
+    const s = await client().getTvEpisode(1396, 1, 1);
+    assert.equal(s.imdb_id, null);
+    assert.equal(s.imdb_url, null);
   });
 });
 

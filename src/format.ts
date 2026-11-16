@@ -98,9 +98,7 @@ function clip(text: string | null | undefined, max: number): string | null {
 // worth surfacing ("when does the next episode air", which one was last). Built
 // through episodeBriefSchema.parse() like every other shaper, so a schema/shaper
 // drift throws here rather than only inside the enclosing tvDetailSchema.parse().
-function episodeBrief(
-  e: TmdbEpisodeBrief | null | undefined,
-): z.infer<typeof episodeBriefSchema> | null {
+function episodeBrief(e: TmdbEpisodeBrief | undefined): z.infer<typeof episodeBriefSchema> | null {
   if (!e) return null;
   return episodeBriefSchema.parse({
     season_number: e.season_number ?? null,
