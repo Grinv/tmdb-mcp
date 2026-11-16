@@ -32,6 +32,9 @@ src/
                   # ToolResult)
   __tests__/      # node:test (*.test.ts) + helpers.ts
 scripts/          # run-tests.ts (generic), check-api.ts (domain),
+                  # decode-stack.ts (maps a user's logged stack to source lines:
+                  # rebuild the release tag with `npm ci && npx tsdown
+                  # --sourcemap`, then pipe the log through it),
                   # sync-version.ts (npm version hook), sync-manifest.ts (manifest.json
                   # prompts from the server's own render; `npm run sync:manifest`),
                   # preversion-check.ts (npm version gate — see .agents/skills/release/SKILL.md)
