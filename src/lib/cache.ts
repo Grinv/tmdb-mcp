@@ -173,6 +173,11 @@ export class TtlCache {
 
     const stale = this.#stale(key);
     if (stale) {
+      // The failure itself was logged where it happened (lib/http.ts); this
+      // records what the caller got instead.
+      this.#logger?.warn(
+        `serving stale cached value for "${key}" (${Math.round(stale.ageMs / 1000)} s old)`,
+      );
       note({ staleAgeMs: stale.ageMs });
       return stale.value as T;
     }
@@ -198,29 +203,23 @@ export class TtlCache {
   // One in-flight compute per key, run in its own CallNotes record so what it
   // used is separate from any caller's. A result built from stale or partial
   // input, or degraded itself, is returned but not cached. A rejection reaches
-  // every waiter and frees the slot. An outage or a partial result is logged
-  // here, once per refresh however many callers wait on it, whether or not a
-  // stale copy then stands in.
+  // every waiter and frees the slot. A partial result is logged here, once
+  // per refresh however many callers wait on it; what failed in it was logged
+  // by lib/http.ts.
   #dedupe<T>(key: string, compute: () => Promise<T>): Promise<Computed<T>> {
     const inFlight = this.#pending.get(key) as Promise<Computed<T>> | undefined;
     if (inFlight) return inFlight;
     const notes: CallNotes = {};
     const promise = callNotes
       .run(notes, compute)
-      .then(
-        (value) => {
-          if (value instanceof Degraded) {
-            this.#logger?.warn(`refresh of "${key}" was partial`);
-          } else if (notes.staleAgeMs === undefined && !notes.partial) {
-            this.set(key, value);
-          }
-          return { value, notes };
-        },
-        (err: unknown) => {
-          if (isOutage(err)) this.#logger?.warn(`refresh of "${key}" failed`, err);
-          throw err;
-        },
-      )
+      .then((value) => {
+        if (value instanceof Degraded) {
+          this.#logger?.warn(`refresh of "${key}" was partial`);
+        } else if (notes.staleAgeMs === undefined && !notes.partial) {
+          this.set(key, value);
+        }
+        return { value, notes };
+      })
       .finally(() => this.#pending.delete(key));
     this.#pending.set(key, promise);
     return promise;

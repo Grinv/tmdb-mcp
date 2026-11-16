@@ -11,6 +11,24 @@ function client(
   return new HttpClient({ baseUrl: "https://example.test/api", logger: silentLogger(), ...extra });
 }
 
+test("an outage is logged once, after the last retry; an authoritative failure isn't", async (t) => {
+  const warnings: unknown[][] = [];
+  const logger = { ...silentLogger(), warn: (...args: unknown[]) => warnings.push(args) };
+  let status = 503;
+  installFetch(
+    t,
+    mockFetch(() => jsonResponse({ status_message: "down" }, { status })),
+  );
+  const http = new HttpClient({ baseUrl: "https://example.test/api", logger, retries: 2 });
+  await assert.rejects(() => http.getJson("thing"));
+  assert.equal(warnings.length, 1);
+  assert.match(String(warnings[0]![0]), /GET https:\/\/example\.test\/api\/thing failed/);
+  assert.ok(warnings[0]![1] instanceof ApiError);
+  status = 404;
+  await assert.rejects(() => http.getJson("thing"));
+  assert.equal(warnings.length, 1);
+});
+
 test("getJson parses the body and sends a User-Agent + query params", async (t) => {
   const mock = mockFetch((_url) => jsonResponse({ ok: true }));
   installFetch(t, mock);

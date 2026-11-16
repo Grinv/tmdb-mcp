@@ -112,10 +112,21 @@ describe("createLogger", () => {
       cause: new TypeError("fetch failed", { cause: agg }),
     });
     const { lines } = captureStderr(() => createLogger("info").warn("refresh failed", err));
-    assert.match(lines[0]!, /ApiError: Network error\n\s+at /);
+    // Unminified "ApiError: …"; the minified bundle prints "i [ApiError]: …".
+    assert.match(lines[0]!, /ApiError\]?: Network error\n\s+at /);
     assert.match(lines[0]!, /code: 'network'/);
     assert.match(lines[0]!, /status: 502/);
     assert.match(lines[0]!, /\[cause\]: TypeError: fetch failed/);
     assert.match(lines[0]!, /code: 'ECONNREFUSED'/);
+  });
+
+  test("a value whose own inspect throws is still logged, without throwing", () => {
+    const hostile = {
+      [Symbol.for("nodejs.util.inspect.custom")]() {
+        throw new Error("inspect boom");
+      },
+    };
+    const { lines } = captureStderr(() => createLogger("info").error("bad", hostile));
+    assert.match(lines[0]!, /bad \[object Object\]/);
   });
 });

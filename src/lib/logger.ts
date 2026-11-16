@@ -45,5 +45,11 @@ export function createLogger(level: LogLevel): Logger {
 // (toProblem in lib/result.ts). emit() redacts the joined text.
 function safeString(value: unknown): string {
   if (typeof value === "string") return value;
-  return inspect(value, { depth: 6, breakLength: Infinity });
+  // A value's own [inspect.custom] may throw; the logger must not (it runs
+  // inside the process's last-resort error handlers).
+  try {
+    return inspect(value, { depth: 6, breakLength: Infinity });
+  } catch {
+    return String(value);
+  }
 }

@@ -2,7 +2,7 @@
 // with exponential backoff (honoring Retry-After), a default User-Agent, and
 // uniform mapping of failures to ApiError.
 import { setTimeout as sleep } from "node:timers/promises";
-import { ApiError, classifyStatus, redact } from "./errors.ts";
+import { ApiError, classifyStatus, isOutage, redact } from "./errors.ts";
 import type { Logger } from "./logger.ts";
 import { USER_AGENT } from "../version.ts";
 
@@ -64,7 +64,12 @@ export class HttpClient {
         const apiErr = this.#opts.refineError?.(classified) ?? classified;
         // Never retry a caller-cancelled request, even if its code is retryable
         // (e.g. it raced a timeout).
-        if (!apiErr.retryable || attempt >= retries || options.signal?.aborted) throw apiErr;
+        if (!apiErr.retryable || attempt >= retries || options.signal?.aborted) {
+          // Every upstream request ends here exactly once, cached or not, so
+          // this is where an outage is logged (a 404 is an answer, not one).
+          if (isOutage(apiErr)) this.#opts.logger.warn(`GET ${url} failed`, apiErr);
+          throw apiErr;
+        }
         const backoff = backoffMs(attempt, apiErr);
         this.#opts.logger.debug(
           `retrying ${url} after ${backoff}ms (attempt ${attempt + 1}/${retries}, ${apiErr.code})`,
