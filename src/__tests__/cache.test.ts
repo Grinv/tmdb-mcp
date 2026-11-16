@@ -251,17 +251,18 @@ describe("TtlCache", () => {
     }
   });
 
-  test("a clock stepped back leaves an entry of unknown age: neither fresh nor a fallback", async () => {
+  test("a clock stepped back leaves an entry of unknown age: neither fresh nor a fallback, until it catches up", async () => {
     let now = 10_000_000;
     const cache = new TtlCache({ ttlMs: 1_000, maxStaleMs: 1_000, now: () => now });
     cache.set("k", 1);
+    const down = async (): Promise<number> => {
+      throw new ApiError({ code: "network", message: "down" });
+    };
     now -= 3_600_000;
     assert.equal(cache.get("k"), undefined);
-    await assert.rejects(() =>
-      cache.wrapStaleOnError("k", async () => {
-        throw new ApiError({ code: "network", message: "down" });
-      }),
-    );
+    await assert.rejects(() => cache.wrapStaleOnError("k", down));
+    now = 10_000_000 + 1_500; // caught up, past the TTL, inside the stale window
+    assert.equal(await cache.wrapStaleOnError("k", down), 1, "kept, not dropped");
   });
 
   test("serving a stale copy over a partial result is logged too", async () => {

@@ -15,7 +15,7 @@
  * request's response into another's cache slot.
  */
 import { AsyncLocalStorage } from "node:async_hooks";
-import { isOutage } from "./errors.ts";
+import { ApiError, isOutage } from "./errors.ts";
 import type { Logger } from "./logger.ts";
 
 export function cacheKey(
@@ -105,12 +105,18 @@ export class TtlCache {
   get<T>(key: string): T | undefined {
     const hit = this.#map.get(key);
     if (!hit) return undefined;
-    // A negative age means the clock stepped back since the entry was stored;
-    // its true age is unknown, so it isn't fresh.
-    const ageMs = this.#now() - hit.storedAt;
-    if (ageMs < 0 || ageMs >= this.#ttlMs) return undefined;
+    const ageMs = this.#ageMs(hit);
+    if (ageMs === undefined || ageMs >= this.#ttlMs) return undefined;
     this.#touch(key, hit);
     return hit.value as T;
+  }
+
+  // Undefined when the clock stepped back since the entry was stored: its
+  // true age is unknown, so it counts as neither fresh nor a fallback until
+  // the clock catches up (it isn't dropped; LRU eviction bounds it).
+  #ageMs(hit: Entry): number | undefined {
+    const ageMs = this.#now() - hit.storedAt;
+    return ageMs < 0 ? undefined : ageMs;
   }
 
   set<T>(key: string, value: T): void {
@@ -143,7 +149,10 @@ export class TtlCache {
     try {
       computed = await this.#dedupe(key, compute);
     } catch (err) {
-      const stale = isOutage(err) ? this.#usableStale<T>(key, err) : undefined;
+      const stale =
+        err instanceof ApiError && isOutage(err)
+          ? this.#usableStale<T>(key, `upstream ${err.code}`)
+          : undefined;
       if (stale === undefined) throw err;
       return stale;
     }
@@ -160,18 +169,19 @@ export class TtlCache {
   }
 
   // A cached value still inside the stale window, noted with its age and
-  // logged with `why`. One past the window, or of unknown age (the clock
-  // stepped back), is dropped for good.
-  #usableStale<T>(key: string, why: unknown): T | undefined {
+  // logged in one line (an expected outage needs no stack). One past the
+  // window is dropped for good.
+  #usableStale<T>(key: string, why: string): T | undefined {
     const hit = this.#map.get(key);
     if (hit === undefined) return undefined;
-    const ageMs = this.#now() - hit.storedAt;
-    if (ageMs < 0 || ageMs > this.#ttlMs + this.#maxStaleMs) {
+    const ageMs = this.#ageMs(hit);
+    if (ageMs === undefined) return undefined;
+    if (ageMs > this.#ttlMs + this.#maxStaleMs) {
       this.#map.delete(key);
       return undefined;
     }
     this.#touch(key, hit);
-    this.#logger?.warn(`serving stale cached value for "${key}"`, why);
+    this.#logger?.warn(`serving stale cached value for "${key}": ${why}`);
     note({ staleAgeMs: ageMs });
     return hit.value as T;
   }
