@@ -79,6 +79,14 @@ describe("createLogger", () => {
     assert.match(lines[2]!, /circular payload \[object Object\]/);
   });
 
+  test("a cause chain that loops back on itself is logged, not recursed forever", () => {
+    const a = new Error("a");
+    const b = new Error("b", { cause: a });
+    (a as { cause?: unknown }).cause = b;
+    const { lines } = captureStderr(() => createLogger("info").error("loop", a));
+    assert.match(lines[0]!, /Error: a[\s\S]*caused by: Error: b[\s\S]*caused by: \(cycle\)/);
+  });
+
   test("an Error's cause chain is logged and redacted", () => {
     const { lines } = captureStderr(() => {
       const log = createLogger("info");

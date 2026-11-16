@@ -37,14 +37,22 @@ export function createLogger(level: LogLevel): Logger {
   };
 }
 
-function safeString(value: unknown): string {
+// `seen` stops a cause chain that loops back on itself (a.cause = b,
+// b.cause = a) from recursing until the logger itself throws.
+function safeString(value: unknown, seen = new Set<unknown>()): string {
   if (typeof value === "string") return value;
   // An error's stack (it opens with "Name: message") and its cause chain are
   // the diagnostics: internal errors are logged rather than shown to the agent
   // (lib/result.ts's toProblem), so the log is the only place they surface.
   // The joined text is still redacted by emit().
   if (value instanceof Error) {
-    const cause = value.cause === undefined ? "" : `\ncaused by: ${safeString(value.cause)}`;
+    seen.add(value);
+    const cause =
+      value.cause === undefined
+        ? ""
+        : seen.has(value.cause)
+          ? "\ncaused by: (cycle)"
+          : `\ncaused by: ${safeString(value.cause, seen)}`;
     return `${value.stack ?? `${value.name}: ${value.message}`}${cause}`;
   }
   try {
