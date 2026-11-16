@@ -19,7 +19,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - Return keywords with their ids from `get_movie` and `get_tv`, ready for `discover_*`'s `with_keywords` ([8e8da62](https://github.com/Grinv/tmdb-mcp/commit/8e8da62)).
-- Resolve IMDb episode ids in `find_by_imdb_id` to show id plus season and episode numbers ([7fb25db](https://github.com/Grinv/tmdb-mcp/commit/7fb25db), [dbcee71](https://github.com/Grinv/tmdb-mcp/commit/dbcee71), [0a8b790](https://github.com/Grinv/tmdb-mcp/commit/0a8b790)).
+- Resolve IMDb episode ids in `find_by_imdb_id` to show id plus season and episode numbers ([7fb25db](https://github.com/Grinv/tmdb-mcp/commit/7fb25db), [dbcee71](https://github.com/Grinv/tmdb-mcp/commit/dbcee71), [0a8b790](https://github.com/Grinv/tmdb-mcp/commit/0a8b790), [5700e51](https://github.com/Grinv/tmdb-mcp/commit/5700e51)).
 
 ### Fixed
 
