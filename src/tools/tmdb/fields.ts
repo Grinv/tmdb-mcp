@@ -4,7 +4,7 @@
 import { z } from "zod";
 import type { TmdbClient } from "../../clients/tmdb.ts";
 import type { OmdbClient } from "../../clients/omdb.ts";
-import { LANGUAGE_REGEX } from "../../config.ts";
+import { COUNTRY_REGEX, LANGUAGE_REGEX } from "../../config.ts";
 import { PERSON_CREDITS_LIMIT, TMDB_MAX_PAGE } from "../../format.ts";
 import type { ToolResult } from "../../lib/result.ts";
 
@@ -24,6 +24,7 @@ export interface TmdbToolDeps {
   omdb: OmdbClient;
   requireTmdb: RequireTmdb;
   region: ReturnType<typeof regionSchema>;
+  language: ReturnType<typeof languageSchema>;
 }
 
 const PAGE = `1-based page number for pagination (TMDB returns up to 20 results per page, max ${TMDB_MAX_PAGE}).`;
@@ -52,12 +53,13 @@ export const seasonNumber = z.int().min(0).describe("Season number (0 = specials
 // Year filter for discover_* and search_movies/search_tv: same TMDB range,
 // wording varies per call site.
 export const yearFilter = (what: string) => z.int().min(1870).max(2100).describe(what).optional();
-// Used by discover_*'s with_watch_providers and search_watch_providers:
-// availability, and even a provider's id, is region-specific.
-export const watchRegion = z
+// Every country-code field; each use describes what the country selects there.
+export const country = z
   .string()
-  .regex(/^[A-Z]{2}$/, "Two-letter ISO-3166-1 country code.")
-  .describe("Two-letter ISO-3166-1 country code, e.g. 'US'.");
+  .regex(COUNTRY_REGEX, "Use a two-letter ISO-3166-1 country code, e.g. 'US'.");
+// Used by discover_*'s watch filters and search_watch_providers: availability,
+// and even a provider's id, is region-specific.
+export const watchRegion = country.describe("Two-letter ISO-3166-1 country code, e.g. 'US'.");
 // TMDB's fixed department list for crew jobs (from /configuration/jobs).
 // Used by get_person_credits' department filter.
 export const PERSON_DEPARTMENTS = [
@@ -151,25 +153,24 @@ export const expandEpisodes = z
       "get_tv_season for that season's full detail.",
   );
 
-// Built from config because the description names the server's TMDB_REGION default.
+// The user's country: every country a tool can't answer without (age rating,
+// cinemas, where to watch) defaults to the server's TMDB_REGION. Each tool
+// overrides the description with what the country selects there.
 export const regionSchema = (defaultRegion: string) =>
-  z
-    .string()
-    .regex(/^[A-Z]{2}$/, "Use a two-letter ISO-3166-1 country code, e.g. 'US'.")
-    .describe(`ISO-3166-1 country code for region-specific results (default '${defaultRegion}').`)
-    .optional();
+  country.default(defaultRegion).describe("The user's country (ISO-3166-1); pass it when known.");
 
-export const language = z
+export const languageCode = z
   .string()
   .regex(
     LANGUAGE_REGEX,
     "Use an ISO-639-1 language code, optionally with a region, e.g. 'en' or 'en-US'.",
   )
   .describe(
-    "Override the response language (ISO-639-1, optionally with a region), e.g. 'ru-RU' or 'en-US'. " +
-      "Localizes titles/overviews/genre names. Defaults to the server's TMDB_LANGUAGE. A " +
+    "Response language (ISO-639-1, optionally with a region), e.g. 'ru-RU' or 'en-US'; pass the " +
+      "user's language when it isn't the default. Localizes titles/overviews/genre names. A " +
       "well-formed code TMDB has no translation for (e.g. 'xx') is not an error: overviews come " +
       "back null, movies/shows keep their original-language title, and episodes get a generic " +
       "'Episode N' name.",
-  )
-  .optional();
+  );
+// The user's language: the server's TMDB_LANGUAGE unless the call gives one.
+export const languageSchema = (defaultLanguage: string) => languageCode.default(defaultLanguage);

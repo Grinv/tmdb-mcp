@@ -581,13 +581,29 @@ describe("server / auth", () => {
     }
   });
 
-  test("the region parameter's description names the server's actual TMDB_REGION default", async (t) => {
+  test("the user's country and language publish the server's TMDB_REGION/TMDB_LANGUAGE as defaults", async (t) => {
     const client = await connectServer(t, { ...ENV, TMDB_REGION: "RU" });
     const { tools } = await client.listTools();
-    const getMovie = tools.find((tool) => tool.name === "get_movie")!;
-    const desc = (getMovie.inputSchema.properties as Record<string, { description?: string }>)
-      .region?.description;
-    assert.match(desc ?? "", /default 'RU'/);
+    for (const name of ["get_movie", "get_tv", "get_watch_providers", "get_movie_releases"]) {
+      const region = tools.find((tool) => tool.name === name)!.inputSchema.properties!.region as {
+        default?: unknown;
+        description?: string;
+      };
+      assert.equal(region.default, "RU", name);
+      assert.doesNotMatch(region.description ?? "", /default/i, name);
+    }
+    // language too, on every tool that takes it.
+    const fresh = await connectServer(t, { ...ENV, TMDB_LANGUAGE: "de-DE" });
+    for (const tool of (await fresh.listTools()).tools) {
+      const lang = tool.inputSchema.properties?.language as { default?: unknown } | undefined;
+      if (lang) assert.equal(lang.default, "de-DE", tool.name);
+    }
+    // discover_movies' region narrows a release window: no default.
+    const discover = tools.find((tool) => tool.name === "discover_movies")!;
+    assert.equal(
+      (discover.inputSchema.properties!.region as { default?: unknown }).default,
+      undefined,
+    );
   });
 
   test("TMDB tools report a clear error when no token is configured", async (t) => {
@@ -1657,36 +1673,31 @@ describe("discover_movies/discover_tv reject incomplete filter pairs", () => {
     assert.match(toolText(res), /certification_country/);
   });
 
-  test("with_watch_providers without watch_region is rejected before hitting TMDB (discover_tv)", async (t) => {
-    installFetch(t, mockFetch(router));
-    const client = await connectServer(t, ENV);
-    const res = await client.callTool({
-      name: "discover_tv",
-      arguments: { with_watch_providers: "8" },
-    });
-    assert.equal(res.isError, true);
-    assert.match(toolText(res), /watch_region/);
-  });
-
-  test("without_watch_providers is rejected without watch_region, and satisfies watch_region alone", async (t) => {
-    // Verified live: without watch_region TMDB ignores it (unfiltered total_results).
+  // A watch filter's country is the user's: without watch_region the server's
+  // TMDB_REGION is sent (TMDB would otherwise silently ignore the filter).
+  test("a watch filter without watch_region gets the server's TMDB_REGION; an explicit one wins", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    const client = await connectServer(t, ENV);
-    for (const name of ["discover_movies", "discover_tv"]) {
-      const res = await client.callTool({ name, arguments: { without_watch_providers: "8" } });
-      assert.equal(res.isError, true, name);
-      assert.match(toolText(res), /without_watch_providers requires watch_region/, name);
+    const client = await connectServer(t, { ...ENV, TMDB_REGION: "DE" });
+    const sent = () => new URL(mock.calls.at(-1)!.url).searchParams;
+    for (const [name, args] of [
+      ["discover_tv", { with_watch_providers: "8" }],
+      ["discover_movies", { without_watch_providers: "8,337" }],
+      ["discover_movies", { with_watch_monetization_types: ["flatrate"] }],
+    ] as const) {
+      const res = await client.callTool({ name, arguments: args });
+      assert.notEqual(res.isError, true, JSON.stringify(args));
+      assert.equal(sent().get("watch_region"), "DE", JSON.stringify(args));
     }
-    assert.ok(!mock.calls.some((c) => c.url.includes("/discover/")));
-    const ok = await client.callTool({
+    await client.callTool({
       name: "discover_tv",
       arguments: { without_watch_providers: "8,337", watch_region: "US" },
     });
-    assert.notEqual(ok.isError, true);
-    const u = new URL(mock.calls.find((c) => c.url.includes("/discover/tv"))!.url);
-    assert.equal(u.searchParams.get("without_watch_providers"), "8,337");
-    assert.equal(u.searchParams.get("watch_region"), "US");
+    assert.equal(sent().get("without_watch_providers"), "8,337");
+    assert.equal(sent().get("watch_region"), "US");
+    // No watch filter: no watch_region at all.
+    await client.callTool({ name: "discover_movies", arguments: { with_genres: "18" } });
+    assert.equal(sent().get("watch_region"), null);
   });
 
   test("with_origin_country is pipe-joined; lowercase or empty is rejected", async (t) => {
@@ -1810,23 +1821,10 @@ describe("discover_movies/discover_tv reject incomplete filter pairs", () => {
     assert.equal(new URL(movie).searchParams.get("with_watch_providers"), "2");
   });
 
-  test("with_watch_monetization_types is rejected without watch_region, and empty/unknown values too", async (t) => {
-    // Verified live: without watch_region TMDB ignores it (unfiltered total_results).
+  test("with_watch_monetization_types rejects empty and unknown values", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
     const client = await connectServer(t, ENV);
-    for (const name of ["discover_movies", "discover_tv"]) {
-      const res = await client.callTool({
-        name,
-        arguments: { with_watch_monetization_types: ["flatrate"] },
-      });
-      assert.equal(res.isError, true, name);
-      assert.match(
-        toolText(res),
-        /with_watch_monetization_types requires watch_region to also be set/,
-        name,
-      );
-    }
     for (const bad of [[], ["subscription"]]) {
       const res = await client.callTool({
         name: "discover_movies",

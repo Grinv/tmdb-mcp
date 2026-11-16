@@ -673,21 +673,21 @@ export class TmdbClient {
     p: DiscoverParams,
     signal?: AbortSignal,
   ): Promise<MovieOrTvPage> {
+    // A watch filter's country is the user's: TMDB_REGION unless given
+    // (without one TMDB silently ignores the filter).
+    const watching =
+      p.with_watch_providers !== undefined ||
+      p.without_watch_providers !== undefined ||
+      p.with_watch_monetization_types !== undefined;
+    const query = discoverQuery(
+      { ...p, watch_region: p.watch_region ?? (watching ? this.#region : undefined) },
+      kind,
+    );
     if (kind === "tv") {
-      const res = await this.#get<TmdbPage<TmdbTv>>(
-        "discover/tv",
-        discoverQuery(p, "tv"),
-        p.language,
-        signal,
-      );
+      const res = await this.#get<TmdbPage<TmdbTv>>("discover/tv", query, p.language, signal);
       return page(res, summarizeTv);
     }
-    const res = await this.#get<TmdbPage<TmdbMovie>>(
-      "discover/movie",
-      discoverQuery(p, "movie"),
-      p.language,
-      signal,
-    );
+    const res = await this.#get<TmdbPage<TmdbMovie>>("discover/movie", query, p.language, signal);
     return page(res, summarizeMovie);
   }
 

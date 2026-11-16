@@ -202,9 +202,22 @@ npm run inspector      # run under the MCP Inspector
   title/name to one via `search_movies`/`search_tv`/`search_people` first).
   A field that takes an external identifier in another format says so in its
   name (`imdb_id`, not `id`). Use the same field name and Zod builder for the
-  same concept in every tool that takes it (e.g. `tmdbId`, `page`, `language`,
-  `region` in `tools/tmdb/fields.ts`); grep sibling tools before naming a new
-  field for an existing concept.
+  same concept in every tool that takes it (e.g. `tmdbId`, `page`,
+  `languageSchema`, `regionSchema`, `country` in `tools/tmdb/fields.ts`); grep
+  sibling tools before naming a new field for an existing concept.
+- **The user's country and language.** A country a tool can't answer without
+  (age rating, cinemas, where to watch) is the user's: `regionSchema`, whose
+  `.default()` is the server's `TMDB_REGION`, with a per-tool description of
+  what it selects; the response language likewise (`languageSchema`,
+  `TMDB_LANGUAGE`). Both are schema defaults, so the caller sees them and can
+  pass the user's own. A country that only narrows an optional filter
+  (`with_origin_country`, discover's release-window `region`) has no default,
+  and a certification's country is the rating system's own ('PG-13' is
+  American), so `certification` still requires `certification_country`.
+  discover's watch filters get `watch_region` from `TmdbClient.discover`, not
+  from a schema default, which would hide a `watch_region` sent alone (a
+  silent no-op upstream the schema rejects). Every country code uses
+  `COUNTRY_REGEX` (`config.ts`).
 - Keep dependencies minimal; a new one needs a clear justification (supply
   chain). In particular, do **not** pull in a third-party TMDB SDK: the `lib/`
   carcass already covers retries/cache/rate-limiting, and `format.ts` shapes

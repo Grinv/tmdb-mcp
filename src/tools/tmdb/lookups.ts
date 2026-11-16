@@ -28,7 +28,9 @@ export function registerLookupTools(
       inputSchema: z.strictObject({
         media_type: mediaKind,
         id: mediaId,
-        region,
+        region: region.describe(
+          "The user's country (pass it when known), whose streaming/rental/purchase providers to list.",
+        ),
       }),
       outputSchema: watchProvidersSchema,
       annotations: READ_ONLY,

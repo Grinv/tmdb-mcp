@@ -10,6 +10,8 @@ import type { LogLevel } from "./lib/logger.ts";
 // Shared with tools/tmdb/fields.ts's per-call `language` param: same
 // ISO-639-1[-ISO-3166-1] shape, so the regex lives once, here.
 export const LANGUAGE_REGEX = /^[a-z]{2}(-[A-Z]{2})?$/;
+// Every country-code field (tools/tmdb/fields.ts's `country`) and TMDB_REGION.
+export const COUNTRY_REGEX = /^[A-Z]{2}$/;
 
 const EnvSchema = z.object({
   // --- TMDB: v4 "Read Access Token" (a long JWT), sent as
@@ -30,7 +32,7 @@ const EnvSchema = z.object({
   // watch providers). Tools that need a region also accept one.
   TMDB_REGION: z
     .string()
-    .regex(/^[A-Z]{2}$/, "TMDB_REGION must be a two-letter ISO-3166-1 code, e.g. US")
+    .regex(COUNTRY_REGEX, "TMDB_REGION must be a two-letter ISO-3166-1 code, e.g. US")
     .default("US"),
 
   // --- OMDb: optional IMDb/RT/Metacritic ratings, keyed by the imdb_id TMDB

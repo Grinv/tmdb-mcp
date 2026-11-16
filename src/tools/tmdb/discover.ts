@@ -16,10 +16,11 @@ import {
 import { READ_ONLY } from "../shared.ts";
 import {
   includeAdult,
-  language,
+  languageCode,
   page,
   filteredPage,
   watchRegion,
+  country,
   yearFilter,
   type TmdbToolDeps,
 } from "./fields.ts";
@@ -123,7 +124,7 @@ const discoverShared = {
   // only), hence the "|" join in discoverQuery. Lowercase "kr" works too; an
   // unknown code ("ZZ") → 0. /discover/tv behaves the same.
   with_origin_country: z
-    .array(z.string().regex(/^[A-Z]{2}$/, "Use a two-letter ISO-3166-1 country code, e.g. 'KR'."))
+    .array(country)
     .min(1)
     .describe(
       "Only titles whose country of origin (where they were produced, not where they can be " +
@@ -150,7 +151,7 @@ const discoverShared = {
   ),
   with_watch_providers: idMatch(
     "TMDB watch-provider ids (use search_watch_providers to resolve a " +
-      "service name, e.g. 'Netflix', to its numeric id); requires watch_region to also be set.",
+      "service name, e.g. 'Netflix', to its numeric id), offered in watch_region.",
   ),
   // Checked on /discover/movie (primary_release_year=2019&vote_count.gte=1000
   // → 186): without_watch_providers=8 + watch_region=US → 132, "8,337" → 118
@@ -159,7 +160,7 @@ const discoverShared = {
   without_watch_providers: idList(
     "Comma-separated TMDB watch-provider ids to exclude: titles that ANY of them offers in " +
       "watch_region are dropped, e.g. 'not on Netflix' (use search_watch_providers to resolve a " +
-      "service name to its id); requires watch_region to also be set.",
+      "service name to its id).",
   ),
   // Checked on /discover/movie (primary_release_year=2019, watch_region=US):
   // with_watch_providers=2 alone → 2888; +flatrate → 1811; +rent → 2841;
@@ -176,7 +177,7 @@ const discoverShared = {
       "Only titles available in watch_region through at least one of these access models: " +
         "'flatrate' = included in a subscription (e.g. Netflix), 'free' = free to watch, 'ads' = " +
         "free with ads, 'rent' = paid rental, 'buy' = paid purchase. Several values match ANY " +
-        "of them. Requires watch_region; works alone (any provider). Combined with " +
+        "of them. Works alone (any provider). Combined with " +
         "with_watch_providers, TMDB checks the two independently, not per provider: " +
         "with_watch_providers=2 (Apple TV, rent/buy only) + 'flatrate' still matches titles " +
         "rentable on Apple TV that some OTHER service streams. Check get_watch_providers to " +
@@ -185,9 +186,10 @@ const discoverShared = {
     .optional(),
   watch_region: watchRegion
     .describe(
-      "Two-letter ISO-3166-1 country code, e.g. 'US', whose streaming catalog " +
-        "with_watch_providers / without_watch_providers / with_watch_monetization_types filter " +
-        "on. Only valid together with at least one of them.",
+      "The user's country (pass it when known), whose streaming catalog with_watch_providers / " +
+        "without_watch_providers / with_watch_monetization_types filter on; the server's " +
+        "TMDB_REGION when one of them is set without it. Only valid together with at least one " +
+        "of them.",
     )
     .optional(),
   // Applies to /discover/tv as well: a nonsense certification value returns
@@ -223,15 +225,15 @@ const discoverShared = {
         "coverage if completeness matters more than exact local ratings.",
     )
     .optional(),
-  certification_country: z
-    .string()
-    .regex(/^[A-Z]{2}$/, "Two-letter ISO-3166-1 country code.")
+  certification_country: country
     .describe(
       "Country whose certification system the `certification` filter uses, e.g. 'US'. Only " +
         "valid together with certification.",
     )
     .optional(),
-  language,
+  // Typing only (discoverParamsSchema); registerDiscoverTools swaps in the
+  // user's-language field with the server's default.
+  language: languageCode.optional(),
   // Unlike region below, this measurably changes the result set on both
   // endpoints (a five/six-figure swing in total_results with no other filters).
   include_adult: includeAdult,
@@ -295,12 +297,9 @@ const discoverMovieSchema = {
   // neither set it is a silent no-op, also alongside year or
   // release_date_gte/lte, so it is rejected then. Movie-only: /discover/tv
   // ignores it too.
-  // Not built via regionSchema(defaultRegion): that description promises a
-  // "(default 'XXX')", but discoverQuery (clients/tmdb.ts) passes this through
-  // and omits it when not given.
-  region: z
-    .string()
-    .regex(/^[A-Z]{2}$/, "Use a two-letter ISO-3166-1 country code, e.g. 'US'.")
+  // Not regionSchema: this narrows an optional release window, it is not the
+  // user's country, so it has no default and is omitted when not given.
+  region: country
     .describe(
       "ISO-3166-1 country code: limits any_release_date_gte/lte (and with_release_type) to " +
         "releases in this country, e.g. 'DE'. Requires any_release_date_gte or " +
@@ -389,7 +388,8 @@ const discoverTvSchema = {
 //
 // Non-strict `z.object` on purpose: this schema is only the z.infer source and
 // never .parse()s untrusted input. Per-tool validation is the strict
-// discoverMovieInputSchema/discoverTvInputSchema (strictObject + superRefine).
+// discover_movies/discover_tv input schema built in registerDiscoverTools
+// (strictObject + superRefine).
 export const discoverParamsSchema = z.object({
   ...discoverMovieSchema,
   ...discoverTvSchema,
@@ -473,27 +473,9 @@ function checkDiscoverFilterPairs(
       });
     }
   }
-  if (val.with_watch_providers !== undefined && val.watch_region === undefined) {
-    ctx.addIssue({
-      code: "custom",
-      message: "with_watch_providers requires watch_region to also be set.",
-      path: ["with_watch_providers"],
-    });
-  }
-  if (val.without_watch_providers !== undefined && val.watch_region === undefined) {
-    ctx.addIssue({
-      code: "custom",
-      message: "without_watch_providers requires watch_region to also be set.",
-      path: ["without_watch_providers"],
-    });
-  }
-  if (val.with_watch_monetization_types !== undefined && val.watch_region === undefined) {
-    ctx.addIssue({
-      code: "custom",
-      message: "with_watch_monetization_types requires watch_region to also be set.",
-      path: ["with_watch_monetization_types"],
-    });
-  }
+  // The watch filters need no such check: their country is the user's, which
+  // the client fills in (TmdbClient.discover). A certification's country is
+  // the rating system's own ('PG-13' is American), so it has to be given.
   if (val.certification !== undefined && val.certification_country === undefined) {
     ctx.addIssue({
       code: "custom",
@@ -527,16 +509,9 @@ function checkDiscoverFilterPairs(
   }
 }
 
-const discoverMovieInputSchema = z
-  .strictObject(discoverMovieSchema)
-  .superRefine(checkDiscoverFilterPairs);
-const discoverTvInputSchema = z
-  .strictObject(discoverTvSchema)
-  .superRefine(checkDiscoverFilterPairs);
-
 export function registerDiscoverTools(
   server: McpServer,
-  { tmdb, requireTmdb, region }: TmdbToolDeps,
+  { tmdb, requireTmdb, region, language }: TmdbToolDeps,
 ): void {
   server.registerTool(
     "get_trending",
@@ -592,7 +567,7 @@ export function registerDiscoverTools(
         list: z
           .enum(["now_playing", "upcoming"])
           .describe("'now_playing' = in cinemas now; 'upcoming' = opening soon."),
-        region,
+        region: region.describe("The user's country (pass it when known), whose cinemas to list."),
         language,
         page: filteredPage.optional(),
       }),
@@ -656,7 +631,9 @@ export function registerDiscoverTools(
         "get_person_credits has no genre filter, so this combination is the right tool for that " +
         "question. Resolve ids with get_movie_genres, search_people, search_keywords, " +
         "search_companies, search_watch_providers.",
-      inputSchema: discoverMovieInputSchema,
+      inputSchema: z
+        .strictObject({ ...discoverMovieSchema, language })
+        .superRefine(checkDiscoverFilterPairs),
       outputSchema: pageSchema(movieSummarySchema),
       annotations: READ_ONLY,
     },
@@ -686,7 +663,9 @@ export function registerDiscoverTools(
         "certification='TV-Y7' + certification_country='US' for 'shows appropriate for a young " +
         "kid'. Resolve ids with get_tv_genres, search_companies, search_keywords, " +
         "search_watch_providers.",
-      inputSchema: discoverTvInputSchema,
+      inputSchema: z
+        .strictObject({ ...discoverTvSchema, language })
+        .superRefine(checkDiscoverFilterPairs),
       outputSchema: pageSchema(tvSummarySchema),
       annotations: READ_ONLY,
     },

@@ -36,7 +36,6 @@ import { READ_ONLY } from "../shared.ts";
 import {
   includeRatings,
   includeRatingsBatch,
-  language,
   mediaKind,
   movieIdsBatch,
   page,
@@ -61,7 +60,7 @@ const CARD_FAILURE =
 
 export function registerDetailsTools(
   server: McpServer,
-  { tmdb, omdb, requireTmdb, region }: TmdbToolDeps,
+  { tmdb, omdb, requireTmdb, region, language }: TmdbToolDeps,
 ): void {
   server.registerTool(
     "get_movie",
@@ -86,7 +85,10 @@ export function registerDetailsTools(
         "search_movies.",
       inputSchema: z.strictObject({
         id: movieId,
-        region,
+        region: region.describe(
+          "The user's country (pass it when known), whose age rating `certification` shows (falling back to the US " +
+            "rating, then any country's).",
+        ),
         language,
         include_ratings: includeRatings,
       }),
@@ -127,7 +129,10 @@ export function registerDetailsTools(
         "trimmed and skips the rest of this payload. Get the id from search_tv.",
       inputSchema: z.strictObject({
         id: tvId,
-        region,
+        region: region.describe(
+          "The user's country (pass it when known), whose age rating `certification` shows (falling back to the US " +
+            "rating, then any country's).",
+        ),
         language,
         include_ratings: includeRatings,
         expand_episodes: expandEpisodes,

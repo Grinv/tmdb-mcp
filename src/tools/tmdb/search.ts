@@ -18,7 +18,6 @@ import {
 import { READ_ONLY } from "../shared.ts";
 import {
   includeAdult,
-  language,
   mediaKind,
   page,
   watchRegion,
@@ -32,7 +31,10 @@ const includeAdultPeople = includeAdult.describe(
   "Include adult (NSFW) results, and keep such titles in each person's known_for.",
 );
 
-export function registerSearchTools(server: McpServer, { tmdb, requireTmdb }: TmdbToolDeps): void {
+export function registerSearchTools(
+  server: McpServer,
+  { tmdb, requireTmdb, language }: TmdbToolDeps,
+): void {
   server.registerTool(
     "search_movies",
     {
