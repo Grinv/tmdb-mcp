@@ -47,7 +47,7 @@ import {
 // segment make them usable URLs. w500 is a good poster/profile default.
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
 
-function imageUrl(path: string | null | undefined): string | null {
+function imageUrl(path: string | undefined): string | null {
   return path ? `${TMDB_IMAGE_BASE}${path}` : null;
 }
 
@@ -66,7 +66,7 @@ function score(avg: number | undefined, count: number | undefined): number | nul
 }
 
 // TMDB encodes gender as an int; expose the human label instead.
-function genderLabel(g: number | null | undefined): string | null {
+function genderLabel(g: number | undefined): string | null {
   switch (g) {
     case 1:
       return "female";
@@ -89,7 +89,7 @@ function idNames(list: NamedRef[] | undefined): { id: number; name: string }[] {
 }
 
 // Truncate free text (e.g. a review body) to `max` chars with an ellipsis.
-function clip(text: string | null | undefined, max: number): string | null {
+function clip(text: string | undefined, max: number): string | null {
   if (!text) return null;
   return text.length <= max ? text : text.slice(0, max).trimEnd() + "…";
 }
@@ -1270,7 +1270,7 @@ export interface OmdbResponse {
 }
 
 // OMDb fills every missing string field with the literal "N/A".
-function na(s: string | null | undefined): string | null {
+function na(s: string | undefined): string | null {
   return s && s !== "N/A" ? s : null;
 }
 
