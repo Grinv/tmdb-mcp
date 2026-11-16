@@ -169,8 +169,8 @@ interface NamedRef {
 // recommendations, similar, theatrical lists, a collection's parts, a
 // person's credits and known_for — returns them as-is, and ignores
 // include_adult/include_softcore there (verified live). So this one rule is
-// applied to all of those lists; a detail lookup of one explicit id is left
-// alone, since the caller asked for that title.
+// applied to all of those lists, including one looked-up person's known_for;
+// only the title a detail/find lookup was asked for by id is left alone.
 interface ExplicitFlags {
   adult?: boolean;
   softcore?: boolean;

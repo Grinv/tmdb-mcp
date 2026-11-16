@@ -58,11 +58,8 @@ export function registerDetailsTools(
     {
       title: "Get movie details",
       description:
-        "Get full details for one movie by TMDB id: overview, genres, keywords (`{id, name}`; for " +
-        "thematically similar titles pass 2-3 distinctive ids to discover_movies' with_keywords " +
-        "joined with ',' (all must match — verified live: The Matrix's 'man vs machine', 'artificial " +
-        "intelligence', 'dystopia' give the Terminator films; '|' broadens to any one), runtime, " +
-        "budget/revenue, " +
+        "Get full details for one movie by TMDB id: overview, genres, keywords (`{id, name}`), " +
+        "runtime, budget/revenue, " +
         "vote average, the age/content rating (certification) for `region` — falling back to the " +
         "US rating, then any available country, when `region` has none; check `certification_region` " +
         "to see which one was used — and links (TMDB + IMDb). " +
@@ -71,7 +68,10 @@ export function registerDetailsTools(
         "(`ratings.rated` — separate from this tool's own `certification` above; the two can differ) " +
         "from OMDb (set include_ratings=false to skip); if unavailable (no OMDB_API_KEY, no imdb_id, or the " +
         "OMDb lookup fails), `ratings` degrades to `{found:false, reason}` instead of failing the " +
-        "call. If you only need the headline info (title/year/genres/vote average) — for one id or " +
+        "call. For thematically similar titles, pass 2-3 distinctive keyword ids to discover_movies' " +
+        "with_keywords joined with ',' — all must match (verified live: The Matrix's 'man vs " +
+        "machine', 'artificial intelligence', 'dystopia' give the Terminator films); '|' broadens " +
+        "to any one. If you only need the headline info (title/year/genres/vote average) — for one id or " +
         "several — use get_movies instead; it's trimmed on purpose and skips the rest of this " +
         "payload. Get the id from search_movies.",
       inputSchema: z.strictObject({
@@ -97,10 +97,7 @@ export function registerDetailsTools(
     {
       title: "Get TV show details",
       description:
-        "Get full details for one TV show by TMDB id: overview, genres, keywords (`{id, name}`; " +
-        "pass 2-3 distinctive ids to discover_tv's with_keywords — a show's keywords are sparser, " +
-        "so ',' (all) often matches only the show itself; '|' (any) is the usual pick, verified " +
-        "live: Breaking Bad's 'drug dealer'|'outlaw' give The Sopranos, Narcos, Peaky Blinders), " +
+        "Get full details for one TV show by TMDB id: overview, genres, keywords (`{id, name}`), " +
         "seasons/episodes counts, " +
         "networks, created_by (the show's creator(s)), status, the age/content rating " +
         "(certification) for `region` — falling back to " +
@@ -111,7 +108,11 @@ export function registerDetailsTools(
         "(`ratings.rated` — separate from this tool's own `certification` above; the two can differ) " +
         "from OMDb (set include_ratings=false to skip); if unavailable (no OMDB_API_KEY, no imdb_id, or the " +
         "OMDb lookup fails), `ratings` degrades to `{found:false, reason}` instead of failing the " +
-        "call. Set expand_episodes=true to also pull every season's episode list in one extra " +
+        "call. For similar shows, pass 2-3 distinctive keyword ids to discover_tv's with_keywords: " +
+        "a show's keywords are sparser, so ',' (all) often matches only the show itself and '|' " +
+        "(any) is the usual pick (verified live: Breaking Bad's 'drug dealer'|'outlaw' give The " +
+        "Sopranos, Narcos, Peaky Blinders). " +
+        "Set expand_episodes=true to also pull every season's episode list in one extra " +
         "request instead of calling get_tv_season per season. If you only need the headline info " +
         "(name/year/genres/vote average, season/episode counts) — for one id or several — use " +
         "get_tv_shows instead; it's trimmed on purpose and skips the rest of this payload. Get the " +

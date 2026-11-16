@@ -595,8 +595,9 @@ export class TmdbClient {
 
   // Paged movie/tv title list under a per-title sub-resource. `recommendations`
   // (co-viewing data) and `similar` (genre/keyword match) share this shape; the endpoint
-  // segment differs and the summarizer follows the media type. Both are
-  // returned as TMDB ranks them, unfiltered, so paging stays TMDB's own.
+  // segment differs and the summarizer follows the media type. Both keep
+  // TMDB's order and paging; only explicit rows are dropped (withoutExplicit),
+  // so a page can be shorter than TMDB's 20 while its totals stay TMDB's.
   async #pagedTitles(
     mediaType: "movie" | "tv",
     id: number,
