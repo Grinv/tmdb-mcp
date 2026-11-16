@@ -66,7 +66,8 @@ The upstream could not be reached. Check connectivity.
 
 ## timeout
 
-The upstream did not answer within `HTTP_TIMEOUT_MS` (headers and body).
+The upstream did not answer within `HTTP_TIMEOUT_MS` (headers and body), or
+a proxy in front of it gave up (HTTP 408).
 
 ## cancelled
 
@@ -78,9 +79,12 @@ The upstream rejected the request as invalid (HTTP 400/405/422).
 
 ## bad_response
 
-The upstream answered with a success status but an unreadable body (invalid
-JSON, or empty) — a complete reply such as a proxy's HTML page, so retrying
-won't help. (A reply cut off mid-body is a [network](#network) error.)
+The upstream answered with a success status but an unreadable body: invalid
+JSON, no body at all, or JSON that isn't an object or array. That is a
+complete reply such as a proxy's or captive portal's page, so `retryable` is
+false. The API itself wasn't reached, though, so like a 5xx it counts as an
+outage: a cached copy may be served instead, flagged stale in `_meta`. (A
+reply cut off mid-body is a [network](#network) error.)
 
 ## unknown
 
