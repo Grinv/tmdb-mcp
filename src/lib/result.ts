@@ -1,7 +1,7 @@
 // Helpers that build MCP tool results. Tool handlers return these objects;
 // failures become { isError: true } results (never thrown) so the agent
 // receives an actionable message instead of a protocol error.
-import type { ApiError } from "./errors.ts";
+import type { ApiError, ApiErrorCode } from "./errors.ts";
 
 export interface ToolResult {
   content: { type: "text"; text: string }[];
@@ -51,40 +51,43 @@ export function apiErrorMessage(err: ApiError): string {
   return messageFor(err);
 }
 
+// One entry per code — a Record, so the compiler rejects a code without one —
+// and one composition rule in messageFor, so the status, the upstream's
+// reason and the advice can't be forgotten or repeated branch by branch.
+const MESSAGES: Record<ApiErrorCode, { what: string; advice?: string; ownMessage?: true }> = {
+  unauthorized: {
+    what: "The upstream service rejected the credentials",
+    advice: "They may be missing, invalid or expired — check the configured API key / token.",
+  },
+  forbidden: {
+    what: "The upstream service denied access",
+    advice: "The credentials may lack permission.",
+  },
+  not_found: { what: "No matching resource was found" },
+  rate_limited: {
+    what: "The upstream service is rate-limiting requests",
+    advice: "Please retry later.",
+  },
+  server_error: { what: "The upstream service returned an error", advice: "Please retry later." },
+  network: {
+    what: "Could not reach the upstream service (network error)",
+    advice: "Check connectivity and retry.",
+  },
+  timeout: { what: "The upstream request timed out", advice: "Please retry." },
+  // No fixed text explains these, so our own message does — unless the
+  // upstream's reason is there, which it would only repeat.
+  bad_request: { what: "The request was rejected as invalid", ownMessage: true },
+  unknown: { what: "Unexpected error talking to the upstream service", ownMessage: true },
+};
+
 function messageFor(err: ApiError): string {
+  const { what, advice, ownMessage } = MESSAGES[err.code];
   // The status is shown only when there was one: OMDb also reports failures
   // in a 200 body (see clients/omdb.ts), so the code alone can't name it.
   const status = err.status ? ` (${err.status})` : "";
-  const base = baseMessage(err, status);
+  const own = ownMessage && !err.detail ? `: ${err.message}` : "";
   // Never drop the upstream's own reason: one status can mean several things
   // (OMDb reports both a bad key and an exhausted quota as refusals).
-  return err.detail ? `${base} The upstream said: "${err.detail}"` : base;
-}
-
-function baseMessage(err: ApiError, status: string): string {
-  switch (err.code) {
-    case "unauthorized":
-      return (
-        `The upstream service rejected the credentials${status}. They may be missing, invalid ` +
-        "or expired — check the configured API key / token."
-      );
-    case "forbidden":
-      return `The upstream service denied access${status}. The credentials may lack permission.`;
-    case "not_found":
-      return `No matching resource was found${status}.`;
-    case "rate_limited":
-      return `The upstream service is rate-limiting requests${status}. Please retry later.`;
-    case "server_error":
-      return `The upstream service returned an error${status}. Please retry later.`;
-    case "network":
-      return "Could not reach the upstream service (network error). Check connectivity and retry.";
-    case "timeout":
-      return "The upstream request timed out. Please retry.";
-    // Without an upstream reason (detail), our own message is all there is;
-    // with one, messageFor appends it and repeating err.message would say it twice.
-    case "bad_request":
-      return `The request was rejected as invalid${status}${err.detail ? "." : `: ${err.message}`}`;
-    default:
-      return `Unexpected error talking to the upstream service${status}${err.detail ? "." : `: ${err.message}`}`;
-  }
+  const reason = err.detail ? `The upstream said: "${err.detail}"` : undefined;
+  return [`${what}${status}${own}.`, advice, reason].filter(Boolean).join(" ");
 }
