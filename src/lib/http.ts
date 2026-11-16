@@ -23,10 +23,10 @@ export interface HttpClientOptions {
   beforeRequest?: () => Promise<void> | void;
   /** JSON.parse reviver for success bodies: the upstream's own normalization rule. */
   reviver?: (this: unknown, key: string, value: unknown) => unknown;
-  /** The upstream's reason when a success body is really a refusal (OMDb
-   *  answers 200 with `Response: "False"`); it then fails like an error
-   *  status, through refineError, the retry decision and the outage log. */
-  refusedBody?: (body: object) => string | undefined;
+  /** The upstream's own failure for a success body that is really a refusal
+   *  (OMDb answers 200 with `Response: "False"`), classified by it; it then
+   *  goes through the retry decision and the outage log like an error status. */
+  refusedBody?: (body: object) => ApiError | undefined;
   /** The upstream's own classification rule (e.g. OMDb naming its daily quota
    *  in the body), applied to every failure before the retry decision. */
   refineError?: (err: ApiError) => ApiError;
@@ -59,10 +59,8 @@ export class HttpClient {
       return await this.#withRetries<T>(url, options);
     } catch (err) {
       // Every request's failure leaves here once, cached or not, so this is
-      // where an outage is logged (a 404 is an answer, not one). Without the
-      // query: it holds what the user searched for.
-      const { origin, pathname } = new URL(url);
-      if (isOutage(err)) this.#opts.logger.warn(`GET ${origin}${pathname} failed`, err);
+      // where an outage is logged (a 404 is an answer, not one).
+      if (isOutage(err)) this.#opts.logger.warn(`GET ${loggable(url)} failed`, err);
       throw err;
     }
   }
@@ -74,35 +72,39 @@ export class HttpClient {
     let attempt = 0;
     for (;;) {
       if (this.#opts.beforeRequest) await this.#opts.beforeRequest();
+      const { body, err: apiErr } = await this.#once(url, options, timeoutMs).then(
+        // The upstream's refusal rule runs outside the classification below
+        // (onRejected doesn't catch onFulfilled), so a bug in it stays a bug.
+        (body) => ({ body, err: this.#opts.refusedBody?.(body) }),
+        (err: unknown) => {
+          const classified = err instanceof ApiError ? err : toNetworkError(err);
+          return { body: undefined, err: this.#opts.refineError?.(classified) ?? classified };
+        },
+      );
+      if (apiErr === undefined) return body as T;
+      // Never retry a caller-cancelled request, even if its code is retryable
+      // (e.g. it raced a timeout).
+      if (!apiErr.retryable || attempt >= retries || options.signal?.aborted) throw apiErr;
+      const backoff = backoffMs(attempt, apiErr);
+      this.#opts.logger.debug(
+        `retrying ${loggable(url)} after ${backoff}ms (attempt ${attempt + 1}/${retries}, ${apiErr.code})`,
+      );
+      // Node's promisified timer, so a caller's cancel interrupts the wait
+      // instead of sitting out up to MAX_BACKOFF_MS.
       try {
-        return await this.#once<T>(url, options, timeoutMs);
-      } catch (err) {
-        const classified = err instanceof ApiError ? err : toNetworkError(err);
-        const apiErr = this.#opts.refineError?.(classified) ?? classified;
-        // Never retry a caller-cancelled request, even if its code is retryable
-        // (e.g. it raced a timeout).
-        if (!apiErr.retryable || attempt >= retries || options.signal?.aborted) throw apiErr;
-        const backoff = backoffMs(attempt, apiErr);
-        this.#opts.logger.debug(
-          `retrying ${url} after ${backoff}ms (attempt ${attempt + 1}/${retries}, ${apiErr.code})`,
-        );
-        // Node's promisified timer, so a caller's cancel interrupts the wait
-        // instead of sitting out up to MAX_BACKOFF_MS.
-        try {
-          await sleep(backoff, undefined, { signal: options.signal });
-        } catch (abort) {
-          throw new ApiError({
-            code: "cancelled",
-            message: "Request aborted by caller",
-            cause: abort,
-          });
-        }
-        attempt += 1;
+        await sleep(backoff, undefined, { signal: options.signal });
+      } catch (abort) {
+        throw new ApiError({
+          code: "cancelled",
+          message: "Request aborted by caller",
+          cause: abort,
+        });
       }
+      attempt += 1;
     }
   }
 
-  async #once<T>(url: string, options: RequestOptions, timeoutMs: number): Promise<T> {
+  async #once(url: string, options: RequestOptions, timeoutMs: number): Promise<object> {
     // Not AbortSignal.timeout(): its timer is unref'd, so with a mocked fetch
     // (no socket keeping the loop alive) the process can exit before it fires.
     const timeoutController = new AbortController();
@@ -154,16 +156,7 @@ export class HttpClient {
           message: "Upstream returned a non-object JSON body",
         });
       }
-      const reason = this.#opts.refusedBody?.(body);
-      if (reason !== undefined) {
-        throw new ApiError({
-          code: "unknown",
-          status: res.status,
-          message: `Upstream refused the request: ${redact(reason)}`,
-          detail: redact(reason),
-        });
-      }
-      return body as T;
+      return body;
     } catch (err) {
       if (err instanceof ApiError) throw err;
       if (options.signal?.aborted) {
@@ -246,6 +239,12 @@ function toNetworkError(err: unknown): ApiError {
     message: err instanceof Error ? `Network error: ${redact(err.message)}` : "Network error",
     cause: err,
   });
+}
+
+// A URL for the log, without its query: that holds what the user searched for.
+function loggable(url: string): string {
+  const { origin, pathname } = new URL(url);
+  return `${origin}${pathname}`;
 }
 
 function backoffMs(attempt: number, err: ApiError): number {

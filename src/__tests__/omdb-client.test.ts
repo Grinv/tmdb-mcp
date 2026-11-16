@@ -112,6 +112,7 @@ describe("OmdbClient: body errors", () => {
         err instanceof ApiError &&
         err.code === "rate_limited" &&
         !err.retryable &&
+        err.status === undefined && // not "(200)": a 200 isn't the failure's status
         err.detail === "Request limit reached!",
     );
     // Classified in the transport, so it is logged like any other outage.
@@ -123,6 +124,21 @@ describe("OmdbClient: body errors", () => {
 });
 
 describe("OmdbClient: HTTP-level refusals", () => {
+  test("an unclassified status stays what the transport made it, not an OMDb refusal", async (t) => {
+    installFetch(
+      t,
+      mockFetch(() => jsonResponse({ Error: "I'm a teapot" }, { status: 418 })),
+    );
+    await assert.rejects(
+      () => client().ratingsByImdbId("tt0133093"),
+      (err: unknown) =>
+        err instanceof ApiError &&
+        err.code === "unknown" &&
+        err.status === 418 &&
+        !err.message.startsWith("OMDb refused"),
+    );
+  });
+
   test("a quota message on an auth status is rate_limited, not a bad key", async (t) => {
     installFetch(
       t,

@@ -13,12 +13,17 @@ function client(
 
 test("an outage is logged once, after the last retry; an authoritative failure isn't", async (t) => {
   const warnings: unknown[][] = [];
-  const logger = { ...silentLogger(), warn: (...args: unknown[]) => warnings.push(args) };
+  const debug: string[] = [];
+  const logger = {
+    ...silentLogger(),
+    warn: (...args: unknown[]) => warnings.push(args),
+    debug: (msg: string) => debug.push(msg),
+  };
   let status = 503;
   installFetch(
     t,
     mockFetch(() =>
-      jsonResponse({ status_message: "down" }, { status, headers: { "Retry-After": "0" } }),
+      jsonResponse({ status_message: "down" }, { status, headers: { "Retry-After": "0.001" } }),
     ),
   );
   const http = new HttpClient({ baseUrl: "https://example.test/api", logger, retries: 1 });
@@ -26,10 +31,37 @@ test("an outage is logged once, after the last retry; an authoritative failure i
   assert.equal(warnings.length, 1, "after the last attempt, not per attempt");
   // Without the query string: it holds what the user searched for.
   assert.equal(warnings[0]![0], "GET https://example.test/api/thing failed");
+  assert.equal(debug.length, 1);
+  assert.doesNotMatch(debug[0]!, /user/);
   assert.ok(warnings[0]![1] instanceof ApiError);
   status = 404;
   await assert.rejects(() => http.getJson("thing"));
   assert.equal(warnings.length, 1);
+});
+
+test("refusedBody fails a success body with the upstream's own error; a bug in it stays a bug", async (t) => {
+  installFetch(
+    t,
+    mockFetch(() => jsonResponse({ refused: true })),
+  );
+  const refusal = new ApiError({ code: "unauthorized", message: "refused" });
+  const refusing = new HttpClient({
+    baseUrl: "https://example.test/api",
+    logger: silentLogger(),
+    refusedBody: () => refusal,
+  });
+  await assert.rejects(
+    () => refusing.getJson("thing"),
+    (err) => err === refusal,
+  );
+  const buggy = new HttpClient({
+    baseUrl: "https://example.test/api",
+    logger: silentLogger(),
+    refusedBody: () => {
+      throw new TypeError("bug in the rule");
+    },
+  });
+  await assert.rejects(() => buggy.getJson("thing"), TypeError);
 });
 
 test("getJson parses the body and sends a User-Agent + query params", async (t) => {

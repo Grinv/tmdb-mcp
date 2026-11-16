@@ -4,10 +4,10 @@
 // sent as `?apikey=`.
 //
 // OMDb reports failures in the body as { Response: "False", Error }: "not
-// found" comes with a 200, a bad key with a 401. #get() keeps only a miss as
-// data (summarizeRatings turns it into { found: false }). Any other body error
-// is a refusal: it throws like an HTTP failure and is never cached as "no
-// ratings".
+// found" comes with a 200, a bad key with a 401. Only a miss is data
+// (summarizeRatings turns it into { found: false }). Any other body error is
+// a refusal: the transport fails it (refusedBody below) like an HTTP failure,
+// so it is retried, logged and never cached as "no ratings".
 import { HttpClient, nullAsAbsent } from "../lib/http.ts";
 import { ApiError, redact } from "../lib/errors.ts";
 import { TtlCache, cacheKey } from "../lib/cache.ts";
@@ -46,14 +46,12 @@ export class OmdbClient {
       // not found!") is an answer, not a refusal.
       refusedBody: (body: OmdbResponse) =>
         body.Response === "False" && body.Error && !OMDB_MISS.test(body.Error)
-          ? body.Error
+          ? refusal(body.Error)
           : undefined,
-      // OMDb names an exhausted quota or a bad key in the body whatever the
-      // status; classify it here, before HttpClient decides to retry.
+      // On an error status, OMDb still names an exhausted quota in the body
+      // (even with a 401); classify it before HttpClient decides to retry.
       refineError: (err) =>
-        err.detail && (OMDB_LIMIT.test(err.detail) || err.code === "unknown")
-          ? refusal(err.detail, err.status, err)
-          : err,
+        err.detail && OMDB_LIMIT.test(err.detail) ? refusal(err.detail, err.status, err) : err,
     });
     this.#http = http;
     this.#cache = cache;
