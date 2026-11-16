@@ -75,15 +75,8 @@ export class TtlCache {
     this.#map.set(key, { value, expires: Date.now() + this.#ttlMs });
   }
 
-  /** Get-or-compute, caching the resolved value. */
-  async wrap<T>(key: string, compute: () => Promise<T>): Promise<T> {
-    const cached = this.get<T>(key);
-    if (cached !== undefined) return cached;
-    return this.#dedupe(key, compute);
-  }
-
   /**
-   * Like wrap, but if `compute` throws and a previously-cached (possibly stale)
+   * Get-or-compute, caching the resolved value. If `compute` throws and a previously-cached (possibly stale)
    * value exists, serve that instead of failing. Lets reads degrade gracefully
    * when the upstream is temporarily down. `onStale`, if given, fires
    * synchronously right before a stale value is returned — callers use it to

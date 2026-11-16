@@ -7,9 +7,6 @@ import { USER_AGENT } from "../version.ts";
 
 export interface RequestOptions {
   query?: Record<string, string | number | boolean | undefined>;
-  timeoutMs?: number;
-  /** Max retry attempts for retryable failures (network/timeout/5xx/429). */
-  retries?: number;
   /** Caller-supplied cancellation (e.g. an MCP tool call's abort signal). */
   signal?: AbortSignal;
 }
@@ -19,6 +16,7 @@ export interface HttpClientOptions {
   logger: Logger;
   defaultHeaders?: Record<string, string>;
   timeoutMs?: number;
+  /** Max retry attempts for retryable failures (network/timeout/5xx/429). */
   retries?: number;
   /** Called before each request; lets callers throttle (rate limiting). */
   beforeRequest?: () => Promise<void> | void;
@@ -36,8 +34,8 @@ export class HttpClient {
   /** GET a JSON resource. This server is read-only, so GET is the only verb. */
   async getJson<T>(path: string, options: RequestOptions = {}): Promise<T> {
     const url = this.#buildUrl(path, options.query);
-    const retries = options.retries ?? this.#opts.retries ?? 2;
-    const timeoutMs = options.timeoutMs ?? this.#opts.timeoutMs ?? 15000;
+    const retries = this.#opts.retries ?? 2;
+    const timeoutMs = this.#opts.timeoutMs ?? 15000;
 
     let attempt = 0;
     for (;;) {

@@ -40,8 +40,8 @@ describe("createUpstream", () => {
       calls += 1;
       return { n: calls };
     };
-    const first = await cache.wrap("key", compute);
-    const second = await cache.wrap("key", compute);
+    const first = await cache.wrapStaleOnError("key", compute);
+    const second = await cache.wrapStaleOnError("key", compute);
     assert.equal(calls, 1);
     assert.deepEqual(first, second);
   });

@@ -29,15 +29,15 @@ describe("cacheKey", () => {
 });
 
 describe("TtlCache", () => {
-  test("wrap caches and reuses the fresh value", async () => {
+  test("wrapStaleOnError caches and reuses the fresh value", async () => {
     const cache = new TtlCache(60_000);
     let calls = 0;
     const compute = async () => {
       calls += 1;
       return 42;
     };
-    assert.equal(await cache.wrap("k", compute), 42);
-    assert.equal(await cache.wrap("k", compute), 42);
+    assert.equal(await cache.wrapStaleOnError("k", compute), 42);
+    assert.equal(await cache.wrapStaleOnError("k", compute), 42);
     assert.equal(calls, 1);
   });
 
@@ -108,12 +108,12 @@ describe("TtlCache", () => {
       calls += 1;
       return 1;
     };
-    await cache.wrap("k", compute);
-    await cache.wrap("k", compute);
+    await cache.wrapStaleOnError("k", compute);
+    await cache.wrapStaleOnError("k", compute);
     assert.equal(calls, 2);
   });
 
-  test("wrap: concurrent calls on a cold key share one in-flight compute()", async () => {
+  test("wrapStaleOnError: concurrent calls on a cold key share one in-flight compute()", async () => {
     const cache = new TtlCache(60_000);
     let calls = 0;
     const compute = async () => {
@@ -122,24 +122,27 @@ describe("TtlCache", () => {
       return 7;
     };
     // Two callers race on the same key before either resolves.
-    const [a, b] = await Promise.all([cache.wrap("k", compute), cache.wrap("k", compute)]);
+    const [a, b] = await Promise.all([
+      cache.wrapStaleOnError("k", compute),
+      cache.wrapStaleOnError("k", compute),
+    ]);
     assert.equal(a, 7);
     assert.equal(b, 7);
     assert.equal(calls, 1); // only one real compute(), not two
     // A later, non-concurrent call still gets the (now cached) value without recomputing.
-    assert.equal(await cache.wrap("k", compute), 7);
+    assert.equal(await cache.wrapStaleOnError("k", compute), 7);
     assert.equal(calls, 1);
   });
 
-  test("wrap: a failed in-flight compute() clears the slot so the next call retries", async () => {
+  test("wrapStaleOnError: a failed in-flight compute() clears the slot so the next call retries", async () => {
     const cache = new TtlCache(60_000);
     let calls = 0;
     const failing = async () => {
       calls += 1;
       throw new Error("boom");
     };
-    await assert.rejects(() => cache.wrap("k", failing));
-    await assert.rejects(() => cache.wrap("k", failing));
+    await assert.rejects(() => cache.wrapStaleOnError("k", failing));
+    await assert.rejects(() => cache.wrapStaleOnError("k", failing));
     assert.equal(calls, 2); // second call retried, not stuck on a resolved rejection
   });
 
