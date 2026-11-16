@@ -8,7 +8,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- **Breaking:** move the stale-cache flag to `_meta["io.github.Grinv.tmdb-mcp/stale"]`, a reverse-DNS key as the MCP spec asks ([04f2285](https://github.com/Grinv/tmdb-mcp/commit/04f2285)).
+- **Breaking:** report stale data as `_meta["io.github.Grinv.tmdb-mcp/stale"]: {"age_seconds": N}`, not `"tmdb-mcp/stale": true` ([04f2285](https://github.com/Grinv/tmdb-mcp/commit/04f2285), [d27aec1](https://github.com/Grinv/tmdb-mcp/commit/d27aec1)).
 - **Breaking:** remove `search_movies`' `region`; it only swapped in one country's release date, so `year` disagreed with every other tool ([15358f2](https://github.com/Grinv/tmdb-mcp/commit/15358f2)).
 - Drop adult/softcore titles from lists TMDB doesn't filter itself: trending, recommendations, similar, credits, collections, `known_for` ([400a8f0](https://github.com/Grinv/tmdb-mcp/commit/400a8f0)).
 - Suggest 2-3 distinctive keywords via `with_keywords` for similar titles in `recommend_similar` and `get_movie`/`get_tv` ([726f841](https://github.com/Grinv/tmdb-mcp/commit/726f841)).
@@ -19,12 +19,17 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Serve stale cached data during an outage for at most `CACHE_MAX_STALE_MS` (default a day) past expiry ([d27aec1](https://github.com/Grinv/tmdb-mcp/commit/d27aec1)).
 - Attach an RFC 9457 problem (`type`, `retryable`, upstream status) in `_meta` to errors raised while a tool runs; see `docs/errors.md` ([28a2d3b](https://github.com/Grinv/tmdb-mcp/commit/28a2d3b), [442c6ad](https://github.com/Grinv/tmdb-mcp/commit/442c6ad)).
 - Return keywords with their ids from `get_movie` and `get_tv`, ready for `discover_*`'s `with_keywords` ([8e8da62](https://github.com/Grinv/tmdb-mcp/commit/8e8da62)).
 - Resolve IMDb episode ids in `find_by_imdb_id` to show id plus season and episode numbers ([7fb25db](https://github.com/Grinv/tmdb-mcp/commit/7fb25db), [dbcee71](https://github.com/Grinv/tmdb-mcp/commit/dbcee71), [0a8b790](https://github.com/Grinv/tmdb-mcp/commit/0a8b790)).
 
 ### Fixed
 
+- Stop caching a video list built while the title's details failed to load, which hid native-language trailers for the cache's lifetime ([0ae100f](https://github.com/Grinv/tmdb-mcp/commit/0ae100f)).
+- Time cache expiry and rate limiting on a monotonic clock, so a system clock change no longer expires or keeps every entry at once ([0aae2b8](https://github.com/Grinv/tmdb-mcp/commit/0aae2b8)).
+- Stop waiting out a retry backoff after the caller cancels ([ee68772](https://github.com/Grinv/tmdb-mcp/commit/ee68772)).
+- Log a fatal startup error with its stack trace ([9fc68ff](https://github.com/Grinv/tmdb-mcp/commit/9fc68ff)).
 - Report an internal bug as a stable error and log it in full, not as raw internals or silently dropped ratings ([28a2d3b](https://github.com/Grinv/tmdb-mcp/commit/28a2d3b)).
 - Call a cancelled request "cancelled" and an unreadable or empty upstream body "unreadable", not a network or unknown error ([28a2d3b](https://github.com/Grinv/tmdb-mcp/commit/28a2d3b)).
 - Time out a response that stalls after its headers instead of hanging the call for minutes ([7098f20](https://github.com/Grinv/tmdb-mcp/commit/7098f20)).
