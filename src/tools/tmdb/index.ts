@@ -22,7 +22,7 @@ export function registerTmdbTools(
   config: Pick<Config, "tmdbRegion">,
 ): void {
   // Every TMDB tool needs the token; short-circuit with one clear message
-  // instead of letting each call round-trip to a 401. Staleness needs no
+  // instead of letting each call round-trip to a 401. Stale/partial notes need no
   // wiring: requireConfigured reads it from the call's own context.
   const requireTmdb: TmdbToolDeps["requireTmdb"] = (fn, signal) =>
     requireConfigured(tmdb, fn, undefined, signal);

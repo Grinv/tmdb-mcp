@@ -118,16 +118,22 @@ npm run inspector      # run under the MCP Inspector
   upstream: don't use it where null carries meaning (e.g. GraphQL).
 - Keep clients fetch+cache only; all raw→agent-facing shaping lives in
   `src/format.ts`. Trim responses for token efficiency.
-- A stale-cache fallback reports itself through Node's `AsyncLocalStorage`,
-  not through parameters: `requireConfigured` (`tools/shared.ts`) runs each
-  tool call inside a fresh `staleness` record (`lib/cache.ts`), and
-  `TtlCache.wrapStaleOnError` writes the served value's age into whatever
-  record is current. The tool result then carries
-  `_meta: {"io.github.Grinv.tmdb-mcp/stale": {"age_seconds": N}}` (never
-  inside `structuredContent`, which stays pure domain shape). Nothing in a
-  client method or handler has to pass a callback, so a new cached method
-  can't forget to. Stale values are served for at most `CACHE_MAX_STALE_MS`
-  past expiry (RFC 5861's stale-if-error window).
+- Stale and partial data report themselves through Node's
+  `AsyncLocalStorage`, not through parameters: `requireConfigured`
+  (`tools/shared.ts`) runs each tool call inside a fresh `callNotes` record
+  (`lib/cache.ts`), and `TtlCache` notes in it the age of any stale value it
+  served and whether a result was partial (`degraded()` with no complete
+  stale copy). The tool result then carries
+  `_meta: {"io.github.Grinv.tmdb-mcp/stale": {"age_seconds": N}}` and/or
+  `"io.github.Grinv.tmdb-mcp/partial": true` (never inside
+  `structuredContent`). Nothing in a client method or handler passes a
+  callback, so a new cached method can't forget to. A shared (deduplicated)
+  compute runs in its own record, so every caller it serves gets its notes,
+  and a result built from stale or partial input is not cached. Stale data
+  only stands in for a transient upstream failure, for at most
+  `CACHE_MAX_STALE_MS` past expiry (RFC 5861's stale-if-error window); entry
+  ages use the wall clock, since a monotonic one stops while the machine
+  sleeps.
 - Every shaper in `format.ts` returns `z.infer<typeof <name>Schema>` (the
   matching schema from `format.schemas.ts`), built via that schema's
   `.parse()` — not `Record<string, unknown>`. Client methods in `clients/*.ts`

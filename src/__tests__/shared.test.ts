@@ -119,7 +119,7 @@ describe("requireConfigured", () => {
   });
 });
 
-// Staleness travels in the call's async context (lib/cache.ts's staleness),
+// Stale/partial notes travel in the call's async context (lib/cache.ts's callNotes),
 // so nothing between fn and the cache has to wire a callback through.
 describe("requireConfigured: stale-cache signal", () => {
   test("a stale fallback anywhere inside fn surfaces as _meta with its age", async () => {
@@ -130,7 +130,7 @@ describe("requireConfigured: stale-cache signal", () => {
     const client = { configured: true, notConfiguredMessage: "unused", logger: silentLogger() };
     const res = await requireConfigured(client, () =>
       cache.wrapStaleOnError("k", async () => {
-        throw new Error("upstream down");
+        throw new ApiError({ code: "server_error", message: "upstream down" });
       }),
     );
     assert.deepEqual(res.structuredContent, { a: 1 });

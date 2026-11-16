@@ -179,7 +179,7 @@ exposed in Claude Desktop's install form, so CLI/Docker users set them directly.
 
 If TMDB/OMDb is briefly down and a tool falls back to a cached-but-expired
 response rather than failing, the result carries
-`_meta: {"io.github.Grinv.tmdb-mcp/stale": {"age_seconds": N}}` (how old the data is) alongside the normal data, so a client can
+`_meta: {"io.github.Grinv.tmdb-mcp/stale": {"age_seconds": N}}` (how old the data is; `"io.github.Grinv.tmdb-mcp/partial": true` likewise flags a result with a part missing) alongside the normal data, so a client can
 tell a degraded answer from a fresh one.
 
 ## Develop

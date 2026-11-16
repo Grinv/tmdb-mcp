@@ -22,6 +22,7 @@
  * into another's cache slot.
  */
 import { AsyncLocalStorage } from "node:async_hooks";
+import { ApiError } from "./errors.ts";
 import type { Logger } from "./logger.ts";
 
 export function cacheKey(
@@ -39,32 +40,40 @@ interface Entry {
   storedAt: number;
 }
 
-/** What one tool call's cache reads reported: the age (ms since it was
- *  fetched) of the oldest stale value served, if any. */
-export interface Staleness {
-  ageMs?: number;
+/** What one tool call learned about the data it returned, for the result's
+ *  `_meta`: the age (ms since fetched) of the oldest stale value it used, and
+ *  whether any part of it is incomplete. */
+export interface CallNotes {
+  staleAgeMs?: number;
+  partial?: boolean;
 }
 
 /**
- * Carries a Staleness record through one tool call's async work (tools/
- * shared.ts runs each call inside it), so a stale fallback anywhere below is
- * reported without every client method threading a callback — a method can't
- * forget to. The record is read in each caller's own catch, so with
- * deduplicated in-flight fetches only the callers actually served stale data
- * are flagged.
+ * Carries a CallNotes record through one tool call's async work
+ * (tools/shared.ts runs each call inside one), so the cache reports a stale or
+ * partial result without any client method threading a callback.
  */
-export const staleness = new AsyncLocalStorage<Staleness>();
+export const callNotes = new AsyncLocalStorage<CallNotes>();
 
-/** A usable but incomplete result (some upstream parts failed): returned to
- *  this caller, never cached — a complete stale copy within the stale window
- *  is preferred over it. Wrap one with `degraded()` from a compute(). */
-export class Degraded<T> {
+function note(n: CallNotes): void {
+  const record = callNotes.getStore();
+  if (!record) return;
+  if (n.staleAgeMs !== undefined) {
+    record.staleAgeMs = Math.max(record.staleAgeMs ?? 0, n.staleAgeMs);
+  }
+  if (n.partial) record.partial = true;
+}
+
+class Degraded<T> {
   readonly value: T;
   constructor(value: T) {
     this.value = value;
   }
 }
 
+/** Marks a compute() result as usable but incomplete (some upstream part
+ *  failed): it is never cached, a complete stale copy wins over it, and
+ *  otherwise the caller gets it noted as partial. */
 export function degraded<T>(value: T): Degraded<T> {
   return new Degraded(value);
 }
@@ -72,41 +81,40 @@ export function degraded<T>(value: T): Degraded<T> {
 export class TtlCache {
   readonly #ttlMs: number;
   readonly #max: number;
-  readonly #logger?: Logger;
-  readonly #map = new Map<string, Entry>();
-  // In-flight compute() promises, keyed like #map. Without this, two callers
-  // racing on the same cold/expired key (e.g. two tools reading the same
-  // cached dictionary at once) would each fire their own upstream request;
-  // the second now shares the first's promise instead.
-  readonly #pending = new Map<string, Promise<unknown>>();
-
-  readonly #now: () => number;
   readonly #maxStaleMs: number;
+  readonly #logger?: Logger;
+  readonly #now: () => number;
+  readonly #map = new Map<string, Entry>();
+  // In-flight computes, keyed like #map, so concurrent callers of a cold key
+  // share one upstream fetch.
+  readonly #pending = new Map<string, Promise<Computed<unknown>>>();
 
   constructor(opts: {
     ttlMs: number;
     max?: number;
-    /** How long past expiry a value may still be served when the upstream
-     *  fails (RFC 5861's stale-if-error window); unbounded by default. */
+    /** How long past expiry a value may still stand in for an upstream
+     *  outage (RFC 5861's stale-if-error window); unbounded by default. */
     maxStaleMs?: number;
     logger?: Logger;
-    /** Monotonic clock (ms). Wall-clock time (Date.now) jumps with NTP or a
-     *  resume from sleep, which would expire everything at once or nothing
-     *  for hours; tests pass their own. */
+    /** Clock (ms), injectable for tests. Wall-clock by default: an entry's
+     *  age is real elapsed time, including while the machine slept — a
+     *  monotonic clock stops during suspend and would keep yesterday's data
+     *  "fresh" after a laptop wakes up. */
     now?: () => number;
   }) {
     this.#ttlMs = opts.ttlMs;
     this.#max = opts.max ?? 500;
-    this.#logger = opts.logger;
-    this.#now = opts.now ?? (() => performance.now());
     this.#maxStaleMs = opts.maxStaleMs ?? Infinity;
+    this.#logger = opts.logger;
+    this.#now = opts.now ?? (() => Date.now());
   }
 
   /** Fresh (non-expired) value, or undefined. */
   get<T>(key: string): T | undefined {
-    const hit = this.#touch(key);
-    if (!hit) return undefined;
-    return this.#now() < hit.storedAt + this.#ttlMs ? (hit.value as T) : undefined;
+    const hit = this.#map.get(key);
+    if (!hit || this.#now() >= hit.storedAt + this.#ttlMs) return undefined;
+    this.#touch(key, hit);
+    return hit.value as T;
   }
 
   set<T>(key: string, value: T): void {
@@ -121,65 +129,77 @@ export class TtlCache {
 
   // Map iterates in insertion order, so re-inserting a key on every hit keeps
   // the first key the least recently used one — the one set() evicts.
-  #touch(key: string): Entry | undefined {
-    const hit = this.#map.get(key);
-    if (hit) {
-      this.#map.delete(key);
-      this.#map.set(key, hit);
-    }
-    return hit;
+  #touch(key: string, hit: Entry): void {
+    this.#map.delete(key);
+    this.#map.set(key, hit);
   }
 
   /**
-   * Get-or-compute, caching the resolved value. If `compute` throws and a
-   * cached value no older than the stale window exists, serve that instead of
-   * failing, so reads degrade gracefully while the upstream is down — and
-   * record its age in the current `staleness` record for the tool result.
+   * Get-or-compute, caching the resolved value. When the upstream is down (a
+   * transient ApiError) and a value no older than the stale window exists,
+   * that is served instead and noted as stale. Anything else — a bug, a 404,
+   * a rejected key — propagates: stale data must not hide it.
    */
   async wrapStaleOnError<T>(key: string, compute: () => Promise<T | Degraded<T>>): Promise<T> {
     const fresh = this.get<T>(key);
     if (fresh !== undefined) return fresh;
-    let result: T | Degraded<T>;
+    let computed: Computed<T | Degraded<T>>;
     try {
-      result = await this.#dedupe(key, compute);
+      computed = await this.#dedupe(key, compute);
     } catch (err) {
-      const stale = this.#usableStale<T>(key);
+      const stale =
+        err instanceof ApiError && err.retryable ? this.#usableStale<T>(key) : undefined;
       if (stale === undefined) throw err;
-      // The logger formats the error (stack, cause chain, redaction).
       this.#logger?.warn(`serving stale cached value for "${key}" — upstream refresh failed`, err);
       return stale;
     }
-    if (!(result instanceof Degraded)) return result;
-    return this.#usableStale<T>(key) ?? result.value;
+    // What the shared compute itself used (a stale or partial input) applies
+    // to every caller it serves, not only the one whose context ran it.
+    note(computed.notes);
+    if (!(computed.value instanceof Degraded)) return computed.value;
+    const stale = this.#usableStale<T>(key);
+    if (stale !== undefined) return stale;
+    note({ partial: true });
+    return computed.value.value;
   }
 
-  // A cached value no older than the stale window, with its age recorded in
-  // the current staleness record (if any) for the tool result.
+  // A cached value still inside the stale window, noted with its age; one
+  // past the window is dropped for good.
   #usableStale<T>(key: string): T | undefined {
-    const hit = this.#touch(key);
+    const hit = this.#map.get(key);
     if (hit === undefined) return undefined;
     const ageMs = this.#now() - hit.storedAt;
-    if (ageMs > this.#ttlMs + this.#maxStaleMs) return undefined;
-    const record = staleness.getStore();
-    if (record) record.ageMs = Math.max(record.ageMs ?? 0, ageMs);
+    if (ageMs > this.#ttlMs + this.#maxStaleMs) {
+      this.#map.delete(key);
+      return undefined;
+    }
+    this.#touch(key, hit);
+    note({ staleAgeMs: ageMs });
     return hit.value as T;
   }
 
-  // Share one in-flight compute() promise across concurrent callers of the
-  // same key, so a cold/expired key triggers exactly one upstream fetch no
-  // matter how many callers race on it. The resolved value is cached exactly
-  // once (by the shared promise's own .then, not per-caller); a rejection
-  // propagates to every waiter and clears the slot so the next call retries.
-  #dedupe<T>(key: string, compute: () => Promise<T>): Promise<T> {
-    const inFlight = this.#pending.get(key) as Promise<T> | undefined;
+  // One in-flight compute per key, run in its own CallNotes record so what it
+  // used is known apart from any caller. A result built from stale or partial
+  // input, or degraded itself, is returned but not cached. A rejection reaches
+  // every waiter and frees the slot for the next call.
+  #dedupe<T>(key: string, compute: () => Promise<T>): Promise<Computed<T>> {
+    const inFlight = this.#pending.get(key) as Promise<Computed<T>> | undefined;
     if (inFlight) return inFlight;
-    const promise = compute()
+    const notes: CallNotes = {};
+    const promise = callNotes
+      .run(notes, compute)
       .then((value) => {
-        if (!(value instanceof Degraded)) this.set(key, value);
-        return value;
+        const clean = notes.staleAgeMs === undefined && !notes.partial;
+        if (clean && !(value instanceof Degraded)) this.set(key, value);
+        return { value, notes };
       })
       .finally(() => this.#pending.delete(key));
     this.#pending.set(key, promise);
     return promise;
   }
+}
+
+interface Computed<T> {
+  value: T;
+  notes: CallNotes;
 }

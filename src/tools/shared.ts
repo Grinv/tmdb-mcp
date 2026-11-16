@@ -11,13 +11,16 @@ import {
 } from "../lib/result.ts";
 import type { Logger } from "../lib/logger.ts";
 import { META_PREFIX } from "../version.ts";
-import { staleness, type Staleness } from "../lib/cache.ts";
+import { callNotes, type CallNotes } from "../lib/cache.ts";
 
 export const READ_ONLY = { readOnlyHint: true, openWorldHint: true } as const;
 
 // Under this server's reverse-DNS _meta prefix (version.ts), so it can't
 // collide with another server's or an MCP-reserved key.
 export const STALE_META_KEY = `${META_PREFIX}stale`;
+// Set when part of the result is missing because an upstream part failed
+// (e.g. a season's episodes, or native-language trailers).
+export const PARTIAL_META_KEY = `${META_PREFIX}partial`;
 
 /** A client that can report whether it has credentials, and what to tell the
  *  caller when it doesn't — the pairing lives on the client so a tool file
@@ -37,9 +40,9 @@ export interface ConfigurableClient {
  *  itself just to get the ordering right); otherwise runs `fn`, wraps its
  *  result via jsonResult, and converts any thrown error into a tool result
  *  instead of letting it propagate — the common shape of every tool handler
- *  here. `fn` runs inside a fresh `staleness` record (lib/cache.ts): if any
- *  cache read below it served a stale fallback, the result's `_meta` reports
- *  the oldest one's age, with nothing for the handler or client to wire. */
+ *  here. `fn` runs inside a fresh CallNotes record (lib/cache.ts): if the
+ *  data below it was stale or partial, the result's `_meta` says so, with
+ *  nothing for the handler or client to wire. */
 export async function requireConfigured(
   client: ConfigurableClient,
   fn: () => Promise<Record<string, unknown>>,
@@ -51,15 +54,16 @@ export async function requireConfigured(
   }
   const validationError = validate?.();
   if (validationError) return problemResult(ownProblem("invalid_arguments", validationError));
-  const record: Staleness = {};
+  const notes: CallNotes = {};
   try {
-    const data = await staleness.run(record, () => raceAbort(fn(), signal));
-    return jsonResult(
-      data,
-      record.ageMs === undefined
-        ? undefined
-        : { [STALE_META_KEY]: { age_seconds: Math.round(record.ageMs / 1000) } },
-    );
+    const data = await callNotes.run(notes, () => raceAbort(fn(), signal));
+    const meta = {
+      ...(notes.staleAgeMs === undefined
+        ? {}
+        : { [STALE_META_KEY]: { age_seconds: Math.round(notes.staleAgeMs / 1000) } }),
+      ...(notes.partial ? { [PARTIAL_META_KEY]: true } : {}),
+    };
+    return jsonResult(data, Object.keys(meta).length ? meta : undefined);
   } catch (err) {
     return problemResult(toProblem(err, client.logger));
   }

@@ -27,7 +27,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 
 - Stop caching a video list built while the title's details failed to load, which hid native-language trailers for the cache's lifetime ([0ae100f](https://github.com/Grinv/tmdb-mcp/commit/0ae100f)).
-- Time cache expiry and rate limiting on a monotonic clock, so a system clock change no longer expires or keeps every entry at once ([0aae2b8](https://github.com/Grinv/tmdb-mcp/commit/0aae2b8)).
+- Space rate-limited requests on a monotonic clock, so a system clock change no longer stalls or skips the spacing ([0aae2b8](https://github.com/Grinv/tmdb-mcp/commit/0aae2b8)).
 - Stop waiting out a retry backoff after the caller cancels ([ee68772](https://github.com/Grinv/tmdb-mcp/commit/ee68772)).
 - Log a fatal startup error with its stack trace ([9fc68ff](https://github.com/Grinv/tmdb-mcp/commit/9fc68ff)).
 - Report an internal bug as a stable error and log it in full, not as raw internals or silently dropped ratings ([28a2d3b](https://github.com/Grinv/tmdb-mcp/commit/28a2d3b)).
