@@ -7,8 +7,8 @@
 // found" comes with a 200, a bad key with a 401. Only a miss is data
 // (summarizeRatings turns it into { found: false }). Any other body error is
 // a refusal: the transport fails it (refusedBody below) like an HTTP failure,
-// through the same retry decision and outage log, and it is never cached as
-// "no ratings".
+// so it is never cached as "no ratings", and the quota is logged as an outage.
+// None of OMDb's refusals is retried (see refusal()).
 import { HttpClient, nullAsAbsent } from "../lib/http.ts";
 import { ApiError, redact } from "../lib/errors.ts";
 import { TtlCache, cacheKey } from "../lib/cache.ts";

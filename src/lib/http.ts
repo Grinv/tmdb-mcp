@@ -81,13 +81,22 @@ export class HttpClient {
         const classified = err instanceof ApiError ? err : toNetworkError(err);
         apiErr = this.#opts.refineError?.(classified) ?? classified;
       }
-      // After the catch, so a bug in the upstream's rule stays a bug.
-      apiErr ??= body && this.#opts.refusedBody?.(body);
-      if (apiErr === undefined) return body as T;
+      if (apiErr === undefined) {
+        // After the catch, so a bug in the upstream's rule stays a bug.
+        apiErr = this.#opts.refusedBody?.(body!);
+        if (apiErr === undefined) return body as T;
+      }
+      const backoff = backoffMs(attempt, apiErr);
       // Never retry a caller-cancelled request, even if its code is retryable
       // (e.g. it raced a timeout).
-      if (!apiErr.retryable || attempt >= retries || options.signal?.aborted) throw apiErr;
-      const backoff = backoffMs(attempt, apiErr);
+      if (
+        !apiErr.retryable ||
+        attempt >= retries ||
+        options.signal?.aborted ||
+        backoff === undefined
+      ) {
+        throw apiErr;
+      }
       this.#opts.logger.debug(
         `retrying ${loggable(url)} after ${backoff}ms (attempt ${attempt + 1}/${retries}, ${apiErr.code})`,
       );
@@ -249,11 +258,14 @@ function loggable(url: string): string {
   return `${origin}${pathname}`;
 }
 
-function backoffMs(attempt: number, err: ApiError): number {
-  const hinted = err.retryAfterMs;
-  // 0 is a hint too: "retry now".
-  if (typeof hinted === "number" && hinted >= 0) return Math.min(hinted, MAX_BACKOFF_MS);
-  return Math.min(MAX_BACKOFF_MS, 500 * 2 ** attempt);
+// Our exponential backoff, or longer if the upstream's Retry-After asks: a
+// hint never shortens it (a "0" or a date already past, perhaps from clock
+// skew, would otherwise retry back to back). Undefined when the upstream asks
+// for longer than MAX_BACKOFF_MS: a retry before then is sure to be refused.
+function backoffMs(attempt: number, err: ApiError): number | undefined {
+  const hinted = err.retryAfterMs ?? 0;
+  if (hinted > MAX_BACKOFF_MS) return undefined;
+  return Math.max(hinted, Math.min(MAX_BACKOFF_MS, 500 * 2 ** attempt));
 }
 
 function parseRetryAfter(header: string | null): number | undefined {

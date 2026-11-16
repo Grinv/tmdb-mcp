@@ -1,4 +1,4 @@
-import { test, describe } from "node:test";
+import { test, describe, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { HttpClient, nullAsAbsent, type HttpClientOptions } from "../lib/http.ts";
 import { ApiError } from "../lib/errors.ts";
@@ -22,9 +22,7 @@ test("an outage is logged once, after the last retry; an authoritative failure i
   let status = 503;
   installFetch(
     t,
-    mockFetch(() =>
-      jsonResponse({ status_message: "down" }, { status, headers: { "Retry-After": "0" } }),
-    ),
+    mockFetch(() => jsonResponse({ status_message: "down" }, { status })),
   );
   const http = new HttpClient({ baseUrl: "https://example.test/api", logger, retries: 1 });
   await assert.rejects(() => http.getJson("thing", { query: { query: "what the user typed" } }));
@@ -267,37 +265,40 @@ describe("retries", () => {
 });
 
 describe("Retry-After handling", () => {
-  test("honors Retry-After on 429", async (t) => {
-    let n = 0;
-    const mock = mockFetch(() => {
-      n += 1;
-      return n === 1
-        ? jsonResponse({}, { status: 429, headers: { "retry-after": "0" } })
-        : jsonResponse({ ok: true });
-    });
-    installFetch(t, mock);
-    const started = performance.now();
-    const res = await client({ retries: 1 }).getJson<{ ok: boolean }>("limited");
-    assert.equal(res.ok, true);
-    assert.equal(mock.calls.length, 2);
-    // "0" means retry now, not "no hint" (the default backoff is 500 ms).
-    assert.ok(performance.now() - started < 250);
+  // The delay a retry waits, read off the debug line; the wait itself is cut
+  // short by aborting the call, so the test doesn't sleep through it.
+  async function backoffFor(t: TestContext, retryAfter: string): Promise<string | undefined> {
+    installFetch(
+      t,
+      mockFetch(() => jsonResponse({}, { status: 429, headers: { "retry-after": retryAfter } })),
+    );
+    const controller = new AbortController();
+    let line: string | undefined;
+    const logger = {
+      ...silentLogger(),
+      debug: (msg: string) => {
+        line = msg;
+        controller.abort();
+      },
+    };
+    const http = new HttpClient({ baseUrl: "https://example.test/api", logger, retries: 1 });
+    await assert.rejects(() => http.getJson("thing", { signal: controller.signal }));
+    return line && /after (\d+)ms/.exec(line)![1];
+  }
+
+  test("a Retry-After of 0 or a past date never shortens our backoff", async (t) => {
+    assert.equal(await backoffFor(t, "0"), "500");
+    assert.equal(await backoffFor(t, new Date(Date.now() - 60_000).toUTCString()), "500");
   });
 
-  test("honors Retry-After as an HTTP-date, not just a plain seconds count", async (t) => {
-    let n = 0;
-    const mock = mockFetch(() => {
-      n += 1;
-      if (n === 1) {
-        const soon = new Date(Date.now() + 10).toUTCString();
-        return jsonResponse({}, { status: 429, headers: { "retry-after": soon } });
-      }
-      return jsonResponse({ ok: true });
-    });
-    installFetch(t, mock);
-    const res = await client({ retries: 1 }).getJson<{ ok: boolean }>("thing");
-    assert.equal(res.ok, true);
-    assert.equal(mock.calls.length, 2);
+  test("a longer Retry-After, in seconds or as an HTTP-date, is waited out", async (t) => {
+    assert.equal(await backoffFor(t, "3"), "3000");
+    const ms = Number(await backoffFor(t, new Date(Date.now() + 5_000).toUTCString()));
+    assert.ok(ms > 3_000 && ms <= 5_000, String(ms));
+  });
+
+  test("a Retry-After past our cap isn't retried at all", async (t) => {
+    assert.equal(await backoffFor(t, "3600"), undefined);
   });
 
   test("falls back to the default backoff when Retry-After is neither a number nor a date", async (t) => {
