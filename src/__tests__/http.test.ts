@@ -341,6 +341,22 @@ describe("abort/timeout", () => {
     );
   });
 
+  test("a cancel during a retry backoff ends the wait at once", async (t) => {
+    installFetch(
+      t,
+      mockFetch(() => jsonResponse({ error: "down" }, { status: 503 })),
+    );
+    const controller = new AbortController();
+    const started = performance.now();
+    const call = client({ retries: 2 }).getJson("thing", { signal: controller.signal });
+    setTimeout(() => controller.abort(), 20); // inside the first 500ms backoff
+    await assert.rejects(
+      () => call,
+      (err: unknown) => err instanceof ApiError && err.code === "cancelled",
+    );
+    assert.ok(performance.now() - started < 300, "should not sit out the 500ms backoff");
+  });
+
   test("a caller-aborted request maps to a non-retryable abort error, not a timeout", async (t) => {
     const mock = hangingFetch();
     installFetch(t, mock);

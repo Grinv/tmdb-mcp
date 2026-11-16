@@ -1,6 +1,7 @@
 // Thin fetch wrapper shared by both API clients: timeouts, bounded retries
 // with exponential backoff (honoring Retry-After), a default User-Agent, and
 // uniform mapping of failures to ApiError.
+import { setTimeout as sleep } from "node:timers/promises";
 import { ApiError, classifyStatus, redact } from "./errors.ts";
 import type { Logger } from "./logger.ts";
 import { USER_AGENT } from "../version.ts";
@@ -68,7 +69,17 @@ export class HttpClient {
         this.#opts.logger.debug(
           `retrying ${url} after ${backoff}ms (attempt ${attempt + 1}/${retries}, ${apiErr.code})`,
         );
-        await delay(backoff);
+        // Node's own timer, which a caller's cancel interrupts at once instead
+        // of sitting out a backoff of up to MAX_BACKOFF_MS.
+        try {
+          await sleep(backoff, undefined, { signal: options.signal });
+        } catch (abort) {
+          throw new ApiError({
+            code: "cancelled",
+            message: "Request aborted by caller",
+            cause: abort,
+          });
+        }
         attempt += 1;
       }
     }
@@ -224,8 +235,4 @@ function parseRetryAfter(header: string | null): number | undefined {
 
 function ensureTrailingSlash(s: string): string {
   return s.endsWith("/") ? s : s + "/";
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
