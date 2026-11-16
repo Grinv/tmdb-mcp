@@ -85,6 +85,6 @@ function baseMessage(err: ApiError, status: string): string {
     case "bad_request":
       return `The request was rejected as invalid${status}${err.detail ? "." : `: ${err.message}`}`;
     default:
-      return `Unexpected error talking to the upstream service${err.detail ? "." : `: ${err.message}`}`;
+      return `Unexpected error talking to the upstream service${status}${err.detail ? "." : `: ${err.message}`}`;
   }
 }

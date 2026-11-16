@@ -61,6 +61,7 @@ describe("apiErrorToResult", () => {
         new ApiError({ code, status: 422, message: "HTTP 422 Unprocessable: X", detail: "X" }),
       ).content[0]!.text;
       assert.equal(text.split("X").length - 1, 1, text);
+      assert.match(text, /\(422\)/, "the status stays when err.message is dropped");
     }
     // Without a detail, err.message is still the only explanation and stays.
     const bare = apiErrorToResult(
