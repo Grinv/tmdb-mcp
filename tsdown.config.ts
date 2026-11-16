@@ -20,9 +20,12 @@ export default defineConfig({
   // No .d.ts: this is an executable MCP server, not a consumed library. Set
   // explicitly because tsdown infers it from package.json/tsconfig.
   dts: false,
-  // Minify to shrink the shipped bundle (npm + .mcpb). We log err.message, not
-  // raw stack traces, so readability of our diagnostics is unaffected.
+  // Minify to shrink the shipped bundle (npm + .mcpb), but keep class and
+  // function names: the logger prints stacks and error class names, and a
+  // bug report is unreadable with `i [ApiError]` and `at py (index.js:1:…)`.
+  // Costs ~10% (517 → 569 kB, +6 kB gzipped).
   minify: true,
+  outputOptions: { keepNames: true },
   banner: { js: "#!/usr/bin/env node" },
   // platform "node" defaults to .mjs; keep dist/index.js so manifest
   // entry_point and bin resolve.
