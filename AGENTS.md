@@ -32,8 +32,9 @@ src/
                   # ToolResult)
   __tests__/      # node:test (*.test.ts) + helpers.ts
 scripts/          # run-tests.ts (generic), check-api.ts (domain),
-                  # sync-version.ts (npm version hook), preversion-check.ts (npm version
-                  # gate — see .agents/skills/release/SKILL.md)
+                  # sync-version.ts (npm version hook), sync-manifest.ts (manifest.json
+                  # prompt text from the server's render; `npm run sync:manifest`),
+                  # preversion-check.ts (npm version gate — see .agents/skills/release/SKILL.md)
 .agents/skills/   # reusable agent workflows for this repo (e.g. live-audit/) — plain Markdown
                   # with a YAML frontmatter name/description, not tied to any one tool's
                   # orchestration features. Same skill name/layout as this project's sibling

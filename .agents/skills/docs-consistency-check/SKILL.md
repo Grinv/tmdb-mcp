@@ -17,6 +17,10 @@ Check every one of these, not just a sample:
   full `.describe()`/`description` text in `src/tools/*.ts` — don't "fix"
   them to match verbatim, that's not a bug. Do re-read them for accuracy if
   a tool's _behavior_ changed in a way the short summary now misrepresents.
+- `manifest.json`'s prompt `text` is generated from the server's own render
+  (`npm run sync:manifest`; `version.test.ts` fails when stale) — regenerate,
+  never hand-edit it. Optional arguments show their defaults there, since the
+  mcpb format only substitutes `${arguments.KEY}`.
 - Tool `description`/field `.describe()` text in `src/tools/*.ts` itself:
   does it still match the actual `inputSchema`/`outputSchema` and the
   client function's real behavior? Cross-check new/edited descriptions

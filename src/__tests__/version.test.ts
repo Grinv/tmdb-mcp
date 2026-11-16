@@ -10,6 +10,7 @@ import { connectServer, DEFAULT_ENV } from "./helpers.ts";
 // weakened, `npm test` would start writing to package.json/manifest.json/
 // server.json/CHANGELOG.md — keep that invariant in mind before touching it.
 import { renderChangelogRelease, unreleasedHasBullets } from "../../scripts/sync-version.ts";
+import { renderManifestPrompts } from "../../scripts/sync-manifest.ts";
 
 const root = join(import.meta.dirname, "..", "..");
 const readJson = (rel: string) => JSON.parse(readFileSync(join(root, rel), "utf8"));
@@ -19,7 +20,7 @@ const manifest = readJson("manifest.json") as {
   version: string;
   user_config: Record<string, unknown>;
   tools: { name: string }[];
-  prompts: { name: string; description: string; arguments: string[] }[];
+  prompts: { name: string; description: string; arguments: string[]; text: string }[];
 };
 const server = readJson("server.json") as {
   name: string;
@@ -214,6 +215,19 @@ describe("manifest.json/server.json stay in sync with the running server", () =>
         (registered.arguments ?? []).map((a) => a.name).sort(),
         manifestPrompt.arguments.slice().sort(),
         `${registered.name} arguments drifted from manifest.json`,
+      );
+    }
+  });
+
+  // manifest.json's prompt `text` is generated from the server's own render
+  // (scripts/sync-manifest.ts); this fails when someone edits src/prompts.ts
+  // without regenerating it.
+  test("manifest.json's prompt text is the server's own render", async () => {
+    for (const [name, text] of await renderManifestPrompts()) {
+      assert.equal(
+        manifest.prompts.find((p) => p.name === name)?.text,
+        text,
+        `${name} text in manifest.json is stale — run \`npm run sync:manifest\``,
       );
     }
   });
