@@ -19,7 +19,6 @@ import {
   languageCode,
   page,
   filteredPage,
-  watchRegion,
   country,
   yearFilter,
   type TmdbToolDeps,
@@ -189,7 +188,6 @@ const discoverShared = {
         "confirm which service offers which access model (it reports 'flatrate' as `streaming`).",
     )
     .optional(),
-  watch_region: watchRegion.describe(WATCH_REGION).optional(),
   // Applies to /discover/tv as well: a nonsense certification value returns
   // zero results there too.
   //
@@ -391,6 +389,7 @@ export const discoverParamsSchema = z.object({
   sort_by: z.union([z.enum(MOVIE_SORT_BY), z.enum(TV_SORT_BY)]).optional(),
   // Added per tool in registerDiscoverTools, with the server's defaults.
   language: languageCode.optional(),
+  watch_region: country.optional(),
 });
 export type DiscoverParams = z.infer<typeof discoverParamsSchema>;
 
@@ -515,7 +514,7 @@ export function registerDiscoverTools(
   // not a schema default, which would hide a watch_region sent alone. Its
   // value goes into the description so the caller knows which it is.
   const userCountry = region.parse(undefined);
-  const userWatchRegion = watchRegion
+  const userWatchRegion = country
     .describe(
       `${WATCH_REGION} Omitted with a watch filter set, it is '${userCountry}' (the server's ` +
         "TMDB_REGION).",

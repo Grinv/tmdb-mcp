@@ -596,7 +596,8 @@ describe("server / auth", () => {
         description?: string;
       };
       assert.equal(region.default, "RU", name);
-      assert.doesNotMatch(region.description ?? "", /default '/i, name); // not restated in prose
+      // The default isn't restated in prose ('(default ...)', 'defaults to ...').
+      assert.doesNotMatch(region.description ?? "", /\(default|default '|defaults? to /i, name);
     }
     // language too, on every tool that takes it.
     const fresh = await connectServer(t, { ...ENV, TMDB_LANGUAGE: "de-DE" });
@@ -2089,16 +2090,23 @@ describe("search_watch_providers", () => {
     assert.equal(s.total_results, 0);
   });
 
-  test("passes watch_region through as a query param (movie vs. tv use separate endpoints)", async (t) => {
+  test("searches in the user's country: TMDB_REGION unless watch_region is given", async (t) => {
     const mock = mockFetch(router);
     installFetch(t, mock);
-    const client = await connectServer(t, ENV);
+    const client = await connectServer(t, { ...ENV, TMDB_REGION: "DE" });
+    const sent = () =>
+      new URL(mock.calls.filter((c) => c.url.includes("/watch/providers/movie")).at(-1)!.url)
+        .searchParams;
     await client.callTool({
       name: "search_watch_providers",
-      arguments: { query: "Disney", media_type: "movie", watch_region: "US" },
+      arguments: { query: "Disney", media_type: "movie" },
     });
-    const call = mock.calls.find((c) => c.url.includes("/watch/providers/movie"))!;
-    assert.match(call.url, /watch_region=US/);
+    assert.equal(sent().get("watch_region"), "DE");
+    await client.callTool({
+      name: "search_watch_providers",
+      arguments: { query: "Disney", media_type: "movie", watch_region: "FR" },
+    });
+    assert.equal(sent().get("watch_region"), "FR");
   });
 
   test("requesting a page past the last one returns an empty page, not an error", async (t) => {

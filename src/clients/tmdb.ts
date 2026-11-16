@@ -715,7 +715,7 @@ export class TmdbClient {
   async searchWatchProviders(
     mediaType: "movie" | "tv",
     query: string,
-    watchRegion?: string,
+    watchRegion: string,
     page?: number,
   ): Promise<ReturnType<typeof summarizeWatchProviderMatches>> {
     const providers = await this.#cached(
@@ -726,7 +726,7 @@ export class TmdbClient {
           ...p,
           nameLower: (p.provider_name ?? "").toLowerCase(),
         })),
-      watchRegion ? { watch_region: watchRegion } : {},
+      { watch_region: watchRegion },
       undefined,
     );
     return summarizeWatchProviderMatches(providers, query, page);

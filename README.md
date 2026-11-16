@@ -137,8 +137,9 @@ works, and the `ratings` field reports that OMDb is unconfigured.
 **Localization.** `TMDB_LANGUAGE` (e.g. `ru-RU`) and `TMDB_REGION` (e.g. `RU`)
 are the user's default language and country: localized titles/overviews/genre
 names, and the country for age ratings, cinemas and where to watch (including
-`discover_*`'s watch filters). Tools publish them as their `language`/`region`
-defaults, and the agent can pass the user's own per call. `search_movies`/`search_tv`/`search_multi`/`search_people`/
+`discover_*`'s watch filters). Tools that need them publish them as their
+`language`/`region`/`watch_region` defaults (discover's `watch_region` names the
+value in its description), and the agent can pass the user's own per call. `search_movies`/`search_tv`/`search_multi`/`search_people`/
 `search_collections`, `get_movie`/`get_tv`/`get_movies`/`get_tv_shows`/`get_person`,
 `get_collection`, `get_movie_releases` and `discover_movies`/`discover_tv` take
 `language`.

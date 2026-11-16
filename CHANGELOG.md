@@ -8,7 +8,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- Search `search_watch_providers` in the server's `TMDB_REGION` when `watch_region` is omitted, as `discover_*` filters, instead of the global list ([0107cbb](https://github.com/Grinv/tmdb-mcp/commit/0107cbb)).
+- **Breaking:** search `search_watch_providers` in the user's country (`TMDB_REGION`) when `watch_region` is omitted, as `discover_*` filters, not the global list ([0107cbb](https://github.com/Grinv/tmdb-mcp/commit/0107cbb)).
 - Filter `discover_*` by watch provider or access model in the server's `TMDB_REGION` when `watch_region` is omitted, instead of rejecting the call ([25bd5d6](https://github.com/Grinv/tmdb-mcp/commit/25bd5d6)).
 - Publish `TMDB_REGION`/`TMDB_LANGUAGE` as the `region`/`language` fields' schema defaults ([25bd5d6](https://github.com/Grinv/tmdb-mcp/commit/25bd5d6)).
 - Correct and sharpen tool descriptions: batch `found:false` covers upstream errors too, `id` fields say what they identify, `expand_episodes`' caps up front ([7ff1282](https://github.com/Grinv/tmdb-mcp/commit/7ff1282)).

@@ -57,9 +57,6 @@ export const yearFilter = (what: string) => z.int().min(1870).max(2100).describe
 export const country = z
   .string()
   .regex(COUNTRY_REGEX, "Use a two-letter ISO-3166-1 country code, e.g. 'US'.");
-// Used by discover_*'s watch filters and search_watch_providers: availability,
-// and even a provider's id, is region-specific.
-export const watchRegion = country.describe("Two-letter ISO-3166-1 country code, e.g. 'US'.");
 // TMDB's fixed department list for crew jobs (from /configuration/jobs).
 // Used by get_person_credits' department filter.
 export const PERSON_DEPARTMENTS = [

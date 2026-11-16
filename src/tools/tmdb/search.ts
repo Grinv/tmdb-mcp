@@ -231,7 +231,8 @@ export function registerSearchTools(
         ),
         watch_region: region.describe(
           "The user's country (pass it when known), whose provider list to search; discover_* " +
-            "defaults its watch_region to the same country.",
+            "defaults its watch_region to the same country. A service not offered there comes " +
+            "back as no match, so retry with another country before concluding it doesn't exist.",
         ),
         page: page.optional(),
       }),

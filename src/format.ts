@@ -885,7 +885,7 @@ export function summarizeWatchProviders(
 const WATCH_PROVIDER_PAGE_SIZE = 20;
 
 // TMDB's /watch/providers/{movie,tv} endpoint has no query parameter: it always
-// returns every registered provider for that media type (and region, if given).
+// returns every registered provider for that media type and region.
 // So `search_watch_providers` fetches the full list once (cached, like
 // get_movie_genres/get_tv_genres) and matches `query` here on every call.
 // `providers` carries a precomputed lowercase name (see clients/tmdb.ts's
