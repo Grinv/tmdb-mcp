@@ -555,7 +555,7 @@ export function registerDiscoverTools(
         time_window: z
           .enum(["day", "week"])
           .default("week")
-          .describe("Trending period: today or this week."),
+          .describe("Trending period: 'day' or 'week'."),
         page: filteredPage.optional(),
       }),
       outputSchema: pageSchema(multiItemSchema),
