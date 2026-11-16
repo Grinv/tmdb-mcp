@@ -28,6 +28,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Retry at once on `Retry-After: 0` instead of waiting out the default backoff ([ebe6c32](https://github.com/Grinv/tmdb-mcp/commit/ebe6c32)).
+- Report an OMDb refusal sent in a 200 without a misleading "(200)" status, and an unrecognized OMDb error status as itself, not as a refusal ([c50d75e](https://github.com/Grinv/tmdb-mcp/commit/c50d75e)).
 - Stop hiding a bug, a 404 or a rejected key behind stale cached data ([f301a01](https://github.com/Grinv/tmdb-mcp/commit/f301a01), [f549dfe](https://github.com/Grinv/tmdb-mcp/commit/f549dfe)).
 - Measure cache age in real elapsed time, counting sleep and not shortened by the system clock stepping back while awake ([f301a01](https://github.com/Grinv/tmdb-mcp/commit/f301a01), [2af5931](https://github.com/Grinv/tmdb-mcp/commit/2af5931)).
 - Treat an HTTP 408 from a proxy as a timeout: retried, and a cached copy may stand in ([5281d94](https://github.com/Grinv/tmdb-mcp/commit/5281d94)).
