@@ -289,7 +289,7 @@ describe("Retry-After handling", () => {
       };
       const http = new HttpClient({ baseUrl: "https://example.test/api", logger, retries: 1 });
       await assert.rejects(() => http.getJson("thing", { signal: controller.signal }));
-      const delay = /after (\d+)ms/.exec(line)?.[1];
+      const delay = /after ([\d.]+)ms/.exec(line)?.[1];
       assert.ok(delay !== undefined, `no retry for Retry-After: ${retryAfter}`);
       return delay;
     };
@@ -310,6 +310,7 @@ describe("Retry-After handling", () => {
       "past: no hint",
     );
     assert.equal(await backoff("soon"), "500", "unparseable: no hint");
+    assert.equal(await backoff("-5"), "500", "negative: no hint");
   });
 
   test("a hinted 429 is retried and the retry's answer returned", async (t) => {

@@ -251,14 +251,13 @@ function loggable(url: string): string {
   return `${origin}${pathname}`;
 }
 
-// The retry delay, computed as undici's RetryHandler (the retry handler of
-// the HTTP client behind Node's fetch, used via its RetryAgent) does: a
-// Retry-After hint is waited out up to MAX_BACKOFF_MS, 0 meaning at once;
-// without one the exponential backoff applies, up to the same cap.
+// The retry delay, computed as undici's RetryHandler does (the retry handler
+// of the HTTP client behind Node's fetch, used via its RetryAgent; undici
+// 8.x, where nodejs/undici#5519 made "Retry-After: 0" mean "at once", per
+// RFC 9110, instead of the backoff): a hint is waited out, otherwise the
+// exponential backoff applies, both up to MAX_BACKOFF_MS.
 function backoffMs(attempt: number, err: ApiError): number {
-  const hinted = err.retryAfterMs;
-  if (hinted !== undefined) return Math.min(hinted, MAX_BACKOFF_MS);
-  return Math.min(MAX_BACKOFF_MS, 500 * 2 ** attempt);
+  return Math.min(err.retryAfterMs ?? 500 * 2 ** attempt, MAX_BACKOFF_MS);
 }
 
 // Retry-After in ms, as undici reads it: delay-seconds (any number, so
