@@ -23,7 +23,7 @@ test("an outage is logged once, after the last retry; an authoritative failure i
   installFetch(
     t,
     mockFetch(() =>
-      jsonResponse({ status_message: "down" }, { status, headers: { "Retry-After": "0.001" } }),
+      jsonResponse({ status_message: "down" }, { status, headers: { "Retry-After": "0" } }),
     ),
   );
   const http = new HttpClient({ baseUrl: "https://example.test/api", logger, retries: 1 });
@@ -276,9 +276,12 @@ describe("Retry-After handling", () => {
         : jsonResponse({ ok: true });
     });
     installFetch(t, mock);
+    const started = performance.now();
     const res = await client({ retries: 1 }).getJson<{ ok: boolean }>("limited");
     assert.equal(res.ok, true);
     assert.equal(mock.calls.length, 2);
+    // "0" means retry now, not "no hint" (the default backoff is 500 ms).
+    assert.ok(performance.now() - started < 250);
   });
 
   test("honors Retry-After as an HTTP-date, not just a plain seconds count", async (t) => {

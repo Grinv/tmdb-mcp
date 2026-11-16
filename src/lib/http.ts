@@ -27,8 +27,9 @@ export interface HttpClientOptions {
    *  (OMDb answers 200 with `Response: "False"`), classified by it; it then
    *  goes through the retry decision and the outage log like an error status. */
   refusedBody?: (body: object) => ApiError | undefined;
-  /** The upstream's own classification rule (e.g. OMDb naming its daily quota
-   *  in the body), applied to every failure before the retry decision. */
+  /** The upstream's own classification rule for a failed request (e.g. OMDb
+   *  naming its daily quota in an error status's body), applied before the
+   *  retry decision. refusedBody's errors are already the upstream's own. */
   refineError?: (err: ApiError) => ApiError;
 }
 
@@ -72,15 +73,16 @@ export class HttpClient {
     let attempt = 0;
     for (;;) {
       if (this.#opts.beforeRequest) await this.#opts.beforeRequest();
-      const { body, err: apiErr } = await this.#once(url, options, timeoutMs).then(
-        // The upstream's refusal rule runs outside the classification below
-        // (onRejected doesn't catch onFulfilled), so a bug in it stays a bug.
-        (body) => ({ body, err: this.#opts.refusedBody?.(body) }),
-        (err: unknown) => {
-          const classified = err instanceof ApiError ? err : toNetworkError(err);
-          return { body: undefined, err: this.#opts.refineError?.(classified) ?? classified };
-        },
-      );
+      let body: object | undefined;
+      let apiErr: ApiError | undefined;
+      try {
+        body = await this.#once(url, options, timeoutMs);
+      } catch (err) {
+        const classified = err instanceof ApiError ? err : toNetworkError(err);
+        apiErr = this.#opts.refineError?.(classified) ?? classified;
+      }
+      // After the catch, so a bug in the upstream's rule stays a bug.
+      apiErr ??= body && this.#opts.refusedBody?.(body);
       if (apiErr === undefined) return body as T;
       // Never retry a caller-cancelled request, even if its code is retryable
       // (e.g. it raced a timeout).
@@ -249,7 +251,8 @@ function loggable(url: string): string {
 
 function backoffMs(attempt: number, err: ApiError): number {
   const hinted = err.retryAfterMs;
-  if (typeof hinted === "number" && hinted > 0) return Math.min(hinted, MAX_BACKOFF_MS);
+  // 0 is a hint too: "retry now".
+  if (typeof hinted === "number" && hinted >= 0) return Math.min(hinted, MAX_BACKOFF_MS);
   return Math.min(MAX_BACKOFF_MS, 500 * 2 ** attempt);
 }
 
