@@ -46,7 +46,7 @@ scripts/          # run-tests.ts (generic), check-api.ts (domain),
 ## Commands
 
 ```sh
-npm run build          # tsc --noEmit + tsup → dist/index.js (single ESM bundle)
+npm run build          # tsc --noEmit + tsdown → dist/index.js (single ESM bundle)
 npm test               # run src/**/*.test.ts with node:test (native type stripping)
 npm run test:coverage  # same, with coverage (gate: ~80%)
 npm run lint           # eslint
@@ -60,7 +60,7 @@ npm run inspector      # run under the MCP Inspector
 - **Docs and in-code text are English** (README, docs, comments, tool
   descriptions, error messages).
 - Runtime floor is **Node ≥ 22.18** (`engines`, `manifest.json`'s
-  `compatibility.runtimes.node` and the CI floor job must agree); tsup targets
+  `compatibility.runtimes.node` and the CI floor job must agree); tsdown targets
   `node22`, `tsconfig` targets ES2024. 22.18 is where Node's built-in TS type
   stripping is on by default, which the tests rely on: they run as `.ts`
   directly, with no transpile step. So relative imports name the real `.ts`
@@ -125,7 +125,7 @@ npm run inspector      # run under the MCP Inspector
   (its `z.infer` source of truth, alongside the hand-authored discover input
   schemas) — a lower-layer file type-importing from a higher-layer one. This
   is intentional and fully erased at build (no runtime circular import,
-  verified via `tsc`/`tsup`); don't invert the import direction to "fix" it.
+  verified via `tsc`/`tsdown`); don't invert the import direction to "fix" it.
 - A fixed default for a tool field goes in its schema, `.default(x)` — the
   SDK publishes it as JSON Schema `default` (still optional for the caller)
   and the handler receives the resolved value. Don't restate it in the

@@ -40,7 +40,7 @@
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "npm run typecheck && tsup",
+    "build": "npm run typecheck && tsdown",
     "test": "node scripts/run-tests.ts",
     "test:coverage": "node scripts/run-tests.ts --coverage",
     "preversion": "node scripts/preversion-check.ts",
@@ -64,7 +64,7 @@
     "eslint": "10.15.0",
     "eslint-config-prettier": "10.1.8",
     "prettier": "3.10.1",
-    "tsup": "9.0.0",
+    "tsdown": "0.23.7",
     "typescript": "6.0.3",
     "typescript-eslint": "8.72.2"
   }

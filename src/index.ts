@@ -1,4 +1,4 @@
-// Bin entry point. tsup prepends the `#!/usr/bin/env node` shebang.
+// Bin entry point. tsdown prepends the `#!/usr/bin/env node` shebang.
 import { redact } from "./lib/errors.ts";
 import { start } from "./server.ts";
 
