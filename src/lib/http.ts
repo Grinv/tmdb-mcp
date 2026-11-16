@@ -21,7 +21,7 @@ export interface HttpClientOptions {
   retries?: number;
   /** Called before each request; lets callers throttle (rate limiting). */
   beforeRequest?: () => Promise<void> | void;
-  /** JSON.parse reviver for success bodies — the upstream's own normalization rule. */
+  /** JSON.parse reviver for success bodies: the upstream's own normalization rule. */
   reviver?: (this: unknown, key: string, value: unknown) => unknown;
   /** The upstream's own classification rule (e.g. OMDb naming its daily quota
    *  in the body), applied to every failure before the retry decision. */
@@ -30,10 +30,10 @@ export interface HttpClientOptions {
 
 /**
  * A reviver for upstreams whose `null` only ever means "no value" (TMDB,
- * OMDb): it drops the property, so a field typed `field?: T` really is either
- * a T or absent and `=== undefined` / `??` / `if (!x)` all agree. Not for APIs
- * where null carries meaning (e.g. GraphQL's `data.Media: null` = not found).
- * Nulls inside arrays are kept, so no array gets holes.
+ * OMDb): it drops the property, so a field typed `field?: T` is a T or absent
+ * and `=== undefined` / `??` / `if (!x)` agree. Not for APIs where null carries
+ * meaning (e.g. GraphQL's `data.Media: null` = not found). Nulls inside arrays
+ * are kept so arrays get no holes.
  */
 export function nullAsAbsent(this: unknown, _key: string, value: unknown): unknown {
   return value === null && !Array.isArray(this) ? undefined : value;
@@ -62,15 +62,15 @@ export class HttpClient {
       } catch (err) {
         const classified = err instanceof ApiError ? err : toNetworkError(err);
         const apiErr = this.#opts.refineError?.(classified) ?? classified;
-        // A caller-cancelled request must not be retried even if its code
-        // would otherwise be retryable (e.g. it raced a timeout).
+        // Never retry a caller-cancelled request, even if its code is retryable
+        // (e.g. it raced a timeout).
         if (!apiErr.retryable || attempt >= retries || options.signal?.aborted) throw apiErr;
         const backoff = backoffMs(attempt, apiErr);
         this.#opts.logger.debug(
           `retrying ${url} after ${backoff}ms (attempt ${attempt + 1}/${retries}, ${apiErr.code})`,
         );
-        // Node's own timer, which a caller's cancel interrupts at once instead
-        // of sitting out a backoff of up to MAX_BACKOFF_MS.
+        // Node's promisified timer, so a caller's cancel interrupts the wait
+        // instead of sitting out up to MAX_BACKOFF_MS.
         try {
           await sleep(backoff, undefined, { signal: options.signal });
         } catch (abort) {
@@ -86,25 +86,21 @@ export class HttpClient {
   }
 
   async #once<T>(url: string, options: RequestOptions, timeoutMs: number): Promise<T> {
-    // Not AbortSignal.timeout(): its internal timer is deliberately unref'd,
-    // so with a fully-mocked fetch (no real socket keeping the loop alive) the
-    // process can exit before it ever fires. A real setTimeout here always
-    // fires, mocked fetch or not.
+    // Not AbortSignal.timeout(): its timer is unref'd, so with a mocked fetch
+    // (no socket keeping the loop alive) the process can exit before it fires.
     const timeoutController = new AbortController();
     const timer = setTimeout(() => timeoutController.abort(), timeoutMs);
-    // AbortSignal.any() (Node >=20.3) composes the caller's cancellation with
-    // our own timeout into the one signal fetch() takes, including the
-    // already-aborted case (e.g. cancelled while awaiting the rate limiter) —
-    // no manual relay listener needed. The two inputs stay independently
-    // inspectable below via their own .aborted, so we can still tell "caller
-    // cancelled" from "we timed out".
+    // AbortSignal.any() (Node >=20.3) merges the caller's cancellation and our
+    // timeout into the one signal fetch() takes, including an already-aborted
+    // caller signal (cancelled while awaiting the rate limiter). The inputs
+    // keep their own .aborted, so the catch below can tell cancel from timeout.
     const signal = options.signal
       ? AbortSignal.any([options.signal, timeoutController.signal])
       : timeoutController.signal;
 
     // The timer stays armed until the body is read, not just the headers: an
-    // upstream that sends headers and then stalls mid-body would otherwise
-    // hang res.text() (and every cache waiter on the same key) with no timeout.
+    // upstream that stalls mid-body would otherwise hang res.text() (and every
+    // cache waiter on the key).
     try {
       const res = await fetch(url, {
         method: "GET",
@@ -117,9 +113,9 @@ export class HttpClient {
       });
       if (!res.ok) throw await toHttpError(res);
       const text = await res.text();
-      // Both upstreams always send JSON on success, so no body — a 204 or an
-      // empty 200 — is as unreadable as invalid JSON (a body cut off mid-read
-      // rejects res.text() instead — that is a transient network error).
+      // Both upstreams send JSON on success, so an empty body (a 204 or an
+      // empty 200) is as unreadable as invalid JSON. A body cut off mid-read
+      // rejects res.text() instead, which is a transient network error.
       if (text.length === 0) {
         throw new ApiError({ code: "bad_response", message: "Upstream returned an empty body" });
       }
@@ -135,8 +131,8 @@ export class HttpClient {
     } catch (err) {
       if (err instanceof ApiError) throw err;
       if (options.signal?.aborted) {
-        // Caller cancelled (e.g. the MCP client sent notifications/cancelled)
-        // — non-retryable, and distinct from our own timeout.
+        // Caller cancelled (e.g. the MCP client sent notifications/cancelled);
+        // not retryable, and distinct from our own timeout.
         throw new ApiError({ code: "cancelled", message: "Request aborted by caller", cause: err });
       }
       if (timeoutController.signal.aborted) {
@@ -172,10 +168,9 @@ async function toHttpError(res: Response): Promise<ApiError> {
     /* ignore body read errors */
   }
   // Prefer a structured `message`/`error` field; fall back to the raw body.
-  // Redacted here, not just at the logger boundary: the parsed reason becomes
-  // the `detail` the calling model sees (lib/result.ts's toProblem; `message`
-  // itself never reaches it), and some upstreams echo the request URL —
-  // apikey and all — back in an error body.
+  // Redacted here, not only in the logger: the reason becomes the `detail` the
+  // model sees (toProblem), and some upstreams echo the request URL, apikey
+  // included, in an error body.
   const reason = parseErrorMessage(raw);
   const detail = redact(reason ?? raw.slice(0, 500));
   const retryAfter = parseRetryAfter(res.headers.get("retry-after"));
@@ -196,9 +191,9 @@ function parseErrorMessage(raw: string): string | undefined {
     const obj: unknown = JSON.parse(raw);
     if (obj === null || typeof obj !== "object") return undefined;
     const rec = obj as Record<string, unknown>;
-    // TMDB puts its reason in `status_message`, OMDb in `Error`. Bounded the
-    // same way the raw-body fallback is sliced (toHttpError) — a verbose
-    // upstream reason otherwise becomes unbounded tool-facing error text.
+    // TMDB puts its reason in `status_message`, OMDb in `Error`. Capped like
+    // the raw-body fallback in toHttpError, so a verbose reason can't make the
+    // tool-facing text unbounded.
     for (const field of ["message", "error", "status_message", "Error"]) {
       if (typeof rec[field] === "string") return rec[field].slice(0, 500);
     }

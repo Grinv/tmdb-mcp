@@ -1,9 +1,6 @@
-// TMDB-backed tools, split by domain: search.ts (name → id resolvers),
-// details.ts (full/compact detail lookups, incl. OMDb ratings enrichment),
-// discover.ts (trending/genres/filtered discovery), lookups.ts (supplementary
-// per-title facts: watch providers, videos, external-id/season/episode
-// lookups). Descriptions and per-field .describe() text are written for the
-// calling model: when to use a tool and the meaning of every parameter.
+// TMDB tools by domain: search.ts (name → id resolvers), details.ts (detail
+// lookups, incl. OMDb ratings), discover.ts (trending/genres/filtered
+// discovery), lookups.ts (per-title extras).
 import type { McpServer } from "@modelcontextprotocol/server";
 import type { TmdbClient } from "../../clients/tmdb.ts";
 import type { OmdbClient } from "../../clients/omdb.ts";
@@ -21,9 +18,8 @@ export function registerTmdbTools(
   omdb: OmdbClient,
   config: Pick<Config, "tmdbRegion">,
 ): void {
-  // Every TMDB tool needs the token; short-circuit with one clear message
-  // instead of letting each call round-trip to a 401. Stale/partial notes need no
-  // wiring: requireConfigured reads it from the call's own context.
+  // Every TMDB tool needs the token; fail with one clear message instead of a
+  // round-trip to a 401.
   const requireTmdb: TmdbToolDeps["requireTmdb"] = (fn, signal) =>
     requireConfigured(tmdb, fn, undefined, signal);
   const region = regionSchema(config.tmdbRegion);

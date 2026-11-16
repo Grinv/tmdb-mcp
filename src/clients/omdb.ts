@@ -1,13 +1,13 @@
-// Read-only client for the OMDb API (omdbapi.com). OMDb is *enrichment only*:
-// it supplies IMDb/Rotten Tomatoes/Metacritic ratings keyed by the imdb_id that
-// TMDB already returns. It is intentionally thin — TMDB is the navigator. Needs
-// a free API key (https://www.omdbapi.com/apikey.aspx) passed as `?apikey=`.
+// Read-only client for the OMDb API (omdbapi.com), used only to enrich TMDB
+// results with IMDb/Rotten Tomatoes/Metacritic ratings, keyed by the imdb_id
+// TMDB returns. Needs a free API key (https://www.omdbapi.com/apikey.aspx),
+// sent as `?apikey=`.
 //
-// OMDb quirk: it reports failures in the body as { Response: "False", Error }
-// — "not found" with a 200 OK, a bad key with a 401. #get() keeps only a miss
-// as data (summarizeRatings turns it into a soft { found: false }); any other
-// body error is the service refusing, so it throws like an HTTP failure would
-// and is never cached as "no ratings".
+// OMDb reports failures in the body as { Response: "False", Error }: "not
+// found" comes with a 200, a bad key with a 401. #get() keeps only a miss as
+// data (summarizeRatings turns it into { found: false }). Any other body error
+// is a refusal: it throws like an HTTP failure and is never cached as "no
+// ratings".
 import { HttpClient, nullAsAbsent } from "../lib/http.ts";
 import { ApiError, redact } from "../lib/errors.ts";
 import { TtlCache, cacheKey } from "../lib/cache.ts";
@@ -42,8 +42,8 @@ export class OmdbClient {
       cacheTtlMs: config.cacheTtlMs,
       cacheMaxStaleMs: config.cacheMaxStaleMs,
       reviver: nullAsAbsent,
-      // OMDb names an exhausted quota in the body whatever the status (an auth
-      // or 429 one): classify it here, before HttpClient decides to retry.
+      // OMDb names an exhausted quota in the body whatever the status; classify
+      // it here, before HttpClient decides to retry.
       refineError: (err) =>
         err.detail && OMDB_LIMIT.test(err.detail) ? refusal(err.detail, err.status, err) : err,
     });
@@ -90,8 +90,8 @@ function refusal(error: string, status?: number, cause?: ApiError): ApiError {
         ? "unauthorized"
         : "unknown",
     status,
-    // OMDb's quota is daily: unlike a 429 it won't clear within this session,
-    // so it is not transient — retrying would only burn calls.
+    // The quota is daily, so unlike a 429 it won't clear in this session;
+    // retrying would only burn calls.
     ...(OMDB_LIMIT.test(error) ? { retryable: false } : {}),
     message: `OMDb refused the request: ${redact(error)}`,
     detail: redact(error),
@@ -99,7 +99,6 @@ function refusal(error: string, status?: number, cause?: ApiError): ApiError {
   });
 }
 
-// OMDb's "no such title" answers, verified live ("Incorrect IMDb ID.") or
-// documented; anything else in `Error` (an exhausted quota, a bad key) is a
-// refusal, not an empty result.
+// OMDb's "no such title" answers (verified live, e.g. "Incorrect IMDb ID.", or
+// documented). Any other `Error` (exhausted quota, bad key) is a refusal.
 const OMDB_MISS = /not found|incorrect imdb id|error getting data|too many results/i;

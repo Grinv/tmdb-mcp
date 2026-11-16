@@ -1,17 +1,15 @@
-// MCP Prompts: reusable prompt templates that hand the calling model a
-// multi-step plan instead of a single structured result. A prompt returns
-// instructions the model then carries out using the tools registered in
-// tools/tmdb/ (search/get_similar/discover/...) — it doesn't call any
-// upstream itself.
+// MCP Prompts: reusable templates that hand the calling model a multi-step
+// plan instead of a structured result. The model carries it out with the tools
+// in tools/tmdb/; a prompt calls no upstream itself.
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { MAX_BATCH_IDS } from "./tools/tmdb/fields.ts";
 
-// Prompt arguments always arrive as strings over MCP (there's no argument
-// JSON-Schema, only name/description/required) — z.string()/z.enum() only.
+// Prompt arguments always arrive as strings over MCP (only
+// name/description/required, no JSON Schema), so use z.string()/z.enum() only.
 const COUNT_DEFAULT = "5";
 
-// One wording for the batch tools' id cap, from the same constant their
+// One wording for the batch tools' id cap, taken from the constant their
 // schemas enforce, so a prompt can't promise "one call" for a longer list.
 const batchSplit = (tool: string): string =>
   `${tool} takes at most ${MAX_BATCH_IDS} ids per call, so split a longer list into several calls`;
@@ -44,8 +42,8 @@ export function registerPrompts(server: McpServer): void {
     ({ title, media_type, count }) => {
       const n = count ?? COUNT_DEFAULT;
       const kindHint = media_type ? ` (a ${media_type === "tv" ? "TV show" : "movie"})` : "";
-      // Name only the given media type's tools, so a TV request isn't told to
-      // weigh get_movie_recommendations.
+      // Name only the given media type's tools (a TV request shouldn't mention
+      // get_movie_recommendations).
       const t =
         media_type === "tv"
           ? {
@@ -152,9 +150,8 @@ export function registerPrompts(server: McpServer): void {
       const includeMovies = media_type !== "tv";
       const includeTv = media_type !== "movie";
 
-      // entity_type, when given, is the caller's answer to "person or company?"
-      // — resolve straight to the matching search tool and drop the other
-      // branch's disambiguation advice, rather than restating the guess.
+      // When the caller gave entity_type, resolve straight to the matching search
+      // tool and drop the other branch's disambiguation advice.
       const resolveStep =
         entity_type === "person"
           ? `Resolve "${name}" to a TMDB person id with search_people. Names aren't always unique — ` +
@@ -192,9 +189,8 @@ export function registerPrompts(server: McpServer): void {
         );
       }
       if (includeTv) {
-        // discover_tv can filter by company but not by person, so this step
-        // splits entirely on entity_type — state only the applicable branch
-        // when the caller already told us which one it is.
+        // discover_tv filters by company but not by person, so this step depends
+        // entirely on entity_type: state only the applicable branch when it is known.
         const companyTv =
           `discover_tv's with_companies works the same way as discover_movies' with_companies ` +
           `filter${genre ? ` (also add with_genres from step ${genreStepNum})` : ""}.`;
@@ -212,9 +208,9 @@ export function registerPrompts(server: McpServer): void {
               : `For TV: if this is a COMPANY, ${companyTv} If this is a PERSON, ${personTv}`,
         );
       }
-      // "rating" alone would be ambiguous here: the discover step above sorted
-      // on TMDB's vote_average, while the get_tv_shows fallback can also carry
-      // IMDb/RT/Metacritic values — different scales, not interchangeable.
+      // "rating" alone is ambiguous: the discover step above sorted on TMDB's
+      // vote_average, while the get_tv_shows fallback can also carry
+      // IMDb/RT/Metacritic values (different scales).
       const sortTail =
         `sort by TMDB vote_average and return the top ${n}: title/name, year, media type, and that ` +
         `vote_average. If you also pulled IMDb/RT/Metacritic values (include_ratings), report them ` +

@@ -1,15 +1,13 @@
-// Trims verbose TMDB/OMDb payloads down to the fields an agent actually needs,
-// keeping tool responses token-efficient. List endpoints get compact summaries;
-// the get_* detail shapers keep the longer fields (overview, credits, etc.).
-// Clients fetch + cache; all raw→agent-facing shaping lives here.
+// Trims verbose TMDB/OMDb payloads to the fields an agent needs, keeping tool
+// responses token-efficient. List endpoints get compact summaries; the get_*
+// detail shapers keep the longer fields (overview, credits, etc.). Clients
+// fetch and cache; all raw→agent-facing shaping lives here.
 //
-// Schema-first: each shaper below builds its result then runs it through the
-// matching Zod schema of the same name (+ `Schema`) from ./format.schemas.ts
-// via `.parse()` — the same schema used as the tool's `outputSchema` (MCP
-// structured content, SEP-2106). A shaper that starts returning a field its
-// schema doesn't know about (or drops one it promised) throws immediately,
-// right here, instead of only surfacing as silent drift between two
-// independently-maintained files.
+// Schema-first: each shaper builds its result and runs it through the matching
+// Zod schema (same name + `Schema`) from ./format.schemas.ts via `.parse()`.
+// That schema is also the tool's `outputSchema` (MCP structured content,
+// SEP-2106), so a shaper that returns a field the schema doesn't know, or drops
+// one it promised, throws right here.
 import type { z } from "zod";
 import {
   cardNotFoundSchema,
@@ -43,8 +41,8 @@ import {
   watchProvidersSchema,
 } from "./format.schemas.ts";
 
-// TMDB returns image fields as bare paths ("/abc.jpg"); the CDN base + a size
-// segment make them usable URLs. w500 is a good poster/profile default.
+// TMDB returns image fields as bare paths ("/abc.jpg"); the CDN base plus a
+// size segment make them URLs. w500 is a good poster/profile default.
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
 
 function imageUrl(path: string | undefined): string | null {
@@ -59,8 +57,8 @@ function year(date: string | null | undefined): number | null {
   return Number.isFinite(y) && y > 0 ? y : null;
 }
 
-// TMDB reports vote_average 0 alongside vote_count 0 for titles nobody has
-// rated yet (e.g. every unreleased movie) — that's "no score", not 0/10.
+// TMDB reports vote_average 0 with vote_count 0 for titles nobody has rated
+// (e.g. every unreleased movie). That means "no score", not 0/10.
 function score(avg: number | undefined, count: number | undefined): number | null {
   return count === 0 ? null : (avg ?? null);
 }
@@ -94,10 +92,10 @@ function clip(text: string | undefined, max: number): string | null {
   return text.length <= max ? text : text.slice(0, max).trimEnd() + "…";
 }
 
-// Compact form of a TV show's next_/last_episode_to_air — the handful of fields
-// worth surfacing ("when does the next episode air", which one was last). Built
-// through episodeBriefSchema.parse() like every other shaper, so a schema/shaper
-// drift throws here rather than only inside the enclosing tvDetailSchema.parse().
+// Compact form of a TV show's next_/last_episode_to_air: the few fields worth
+// surfacing (when the next episode airs, which was last). Parsed through
+// episodeBriefSchema like every shaper, so drift throws here rather than inside
+// tvDetailSchema.parse().
 function episodeBrief(e: TmdbEpisodeBrief | undefined): z.infer<typeof episodeBriefSchema> | null {
   if (!e) return null;
   return episodeBriefSchema.parse({
@@ -108,10 +106,10 @@ function episodeBrief(e: TmdbEpisodeBrief | undefined): z.infer<typeof episodeBr
   });
 }
 
-// Build a { country → certification } map from a movie's release_dates. A country
-// can list several release types (theatrical, digital, …), each with its own
-// (often blank) certification; we keep the first non-empty one per country.
-// Trimmed: verified live, TMDB pads some values (The Matrix's GR "K-8 ").
+// Build a { country → certification } map from a movie's release_dates. A
+// country can list several release types (theatrical, digital, …), each with
+// its own (often blank) certification; keep the first non-empty one per
+// country. Trimmed because TMDB pads some values (The Matrix's GR "K-8 ").
 function movieCertifications(m: TmdbMovie): Record<string, string> {
   const out: Record<string, string> = {};
   for (const r of m.release_dates?.results ?? []) {
@@ -133,10 +131,9 @@ function tvCertifications(t: TmdbTv): Record<string, string> {
   return out;
 }
 
-// Most countries have no TMDB certification data at all; falling back to the
-// US rating (present for nearly everything) beats returning null whenever the
-// requested region has none. `certification_region` reflects whichever region
-// the value actually came from, so callers can tell a fallback from a match.
+// Most countries have no TMDB certification data; falling back to the US rating
+// (present for nearly everything) beats null. `certification_region` says which
+// region the value came from, so callers can tell a fallback from a match.
 function resolveCertification(
   certifications: Record<string, string>,
   region: string,
@@ -144,9 +141,8 @@ function resolveCertification(
   if (certifications[region])
     return { certification: certifications[region], certification_region: region };
   if (certifications.US) return { certification: certifications.US, certification_region: "US" };
-  // Object.entries keeps the value paired with its key, so the fallback needs
-  // no `certifications[key]!` index-then-assert (safe, but the non-null relies
-  // on a non-local invariant). Sort mirrors the previous `Object.keys().sort()`.
+  // Object.entries keeps each value paired with its key, so the fallback needs
+  // no `certifications[key]!` assertion.
   const [fallback] = Object.entries(certifications).sort(([a], [b]) =>
     a < b ? -1 : a > b ? 1 : 0,
   );
@@ -163,12 +159,12 @@ interface NamedRef {
 }
 
 // TMDB hides adult and softcore titles only where the request takes
-// include_adult (search/*, discover/*). Every other list — trending,
-// recommendations, similar, theatrical lists, a collection's parts, a
-// person's credits and known_for — returns them as-is, and ignores
-// include_adult/include_softcore there (verified live). So this one rule is
-// applied to all of those lists, including one looked-up person's known_for;
-// only the title a detail/find lookup was asked for by id is left alone.
+// include_adult (search/*, discover/*). Every other list (trending,
+// recommendations, similar, theatrical lists, a collection's parts, a person's
+// credits and known_for) returns them as-is and ignores
+// include_adult/include_softcore. So this rule is applied to all of those
+// lists, including a looked-up person's known_for; only the title a detail/find
+// lookup asked for by id is left alone.
 interface ExplicitFlags {
   adult?: boolean;
   softcore?: boolean;
@@ -378,7 +374,7 @@ export function detailMovie(m: TmdbMovie, region: string): z.infer<typeof movieD
     revenue_usd: m.revenue || null,
     homepage: m.homepage || null,
     poster_url: imageUrl(m.poster_path),
-    // tmdb_url is handy for users who want the canonical web page.
+    // Canonical TMDB web page.
     tmdb_url: `https://www.themoviedb.org/movie/${m.id}`,
     imdb_url: m.imdb_id ? `https://www.imdb.com/title/${m.imdb_id}/` : null,
   });
@@ -452,9 +448,8 @@ export function detailTv(t: TmdbTv, region: string): z.infer<typeof tvDetailSche
   });
 }
 
-// Trims a full ratingsSchema result (get_movie/get_tv's shape) down to just
-// the three headline numbers for get_movies/get_tv_shows' cards — see
-// cardRatingsSchema for which fields that drops.
+// Trims a full ratingsSchema result (get_movie/get_tv's shape) to the three
+// headline numbers for get_movies/get_tv_shows cards; see cardRatingsSchema.
 function compactRatings(
   r: z.infer<typeof ratingsSchema> | undefined,
 ): z.infer<typeof cardRatingsSchema> | undefined {
@@ -471,8 +466,8 @@ function compactRatings(
   );
 }
 
-// get_movies/get_tv_shows' per-id shapers: take an already-shaped detail (plus
-// whatever ratings getEnrichedDetail folded in) and trim it to a batch card.
+// get_movies/get_tv_shows per-id shapers: trim an already-shaped detail (plus
+// any ratings getEnrichedDetail folded in) to a batch card.
 export function movieCard(
   m: z.infer<typeof movieDetailSchema> & { ratings?: z.infer<typeof ratingsSchema> },
 ): z.infer<typeof movieCardSchema> {
@@ -505,9 +500,9 @@ export function tvCard(
   });
 }
 
-// Shared "couldn't fetch this id" card for a batch entry whose individual
-// fetch rejected — Promise.allSettled per id, not Promise.all, so one bad id
-// never fails get_movies/get_tv_shows' whole call.
+// Shared "couldn't fetch this id" card for a batch entry whose fetch rejected.
+// Promise.allSettled per id, so one bad id never fails the whole
+// get_movies/get_tv_shows call.
 export function notFoundCard(id: number, reason: string): z.infer<typeof cardNotFoundSchema> {
   return cardNotFoundSchema.parse({ found: false, id, reason });
 }
@@ -539,11 +534,12 @@ export function summarizeCredits(c: TmdbCredits, castLimit = 20): z.infer<typeof
     .sort((a, b) => (a.order ?? 999) - (b.order ?? 999))
     .slice(0, castLimit)
     .map((x) => ({ id: x.id, name: x.name, character: x.character || null }));
-  // Keep only the headline crew roles; full crew lists are mostly noise. Movie-only:
-  // get_tv_credits uses summarizeTvCredits over /tv/{id}/aggregate_credits instead, because
-  // TMDB's /tv/{id}/credits never tags Director/Writer/Creator (verified live on Breaking Bad,
-  // Stranger Things, Chernobyl, The Queen's Gambit — each show's creator/writer/director
-  // appears only as "Executive Producer"), while the aggregate endpoint does.
+  // Keep only the headline crew roles; full crew lists are mostly noise.
+  // Movie-only: TMDB's /tv/{id}/credits never tags Director/Writer/Creator
+  // (verified live on Breaking Bad, Stranger Things, Chernobyl, The Queen's
+  // Gambit: the creator/writer/director appears only as "Executive Producer"),
+  // so get_tv_credits uses summarizeTvCredits over /tv/{id}/aggregate_credits,
+  // which does.
   const KEY_JOBS = new Set([
     "Director",
     "Writer",
@@ -561,11 +557,11 @@ export function summarizeCredits(c: TmdbCredits, castLimit = 20): z.infer<typeof
 }
 
 // /tv/{id}/aggregate_credits: one row per person (crew: per person AND
-// department), each listing every role/job they held across the whole run
-// with its own episode count — unlike /tv/{id}/credits, which never tags
-// Director/Writer (see summarizeCredits) and whose cast is exactly the latest
-// season's regulars: verified live, Game of Thrones' equals season 8's 14
-// (no Sean Bean) and The Office's season 9's 4 (no Steve Carell).
+// department), each listing every role/job across the whole run with its own
+// episode count. Unlike /tv/{id}/credits, which never tags Director/Writer (see
+// summarizeCredits) and whose cast is only the latest season's regulars:
+// verified live, Game of Thrones' equals season 8's 14 (no Sean Bean), The
+// Office's season 9's 4 (no Steve Carell).
 export interface TmdbAggregateCredits {
   cast?: {
     id?: number;
@@ -583,11 +579,11 @@ export interface TmdbAggregateCredits {
 }
 
 // The TV crew jobs worth surfacing, in output order. Teleplay/Story are TV
-// writing credits /movie credits rarely use; capped per job because a long
+// writing credits that movie credits rarely use. Capped per job because a long
 // show credits dozens of directors (Game of Thrones: 19), most for 1-2
-// episodes — the top few by episode count answer "who directed/wrote it".
-// No "Creator": verified live, the aggregate endpoint doesn't use that job
-// either (get_tv's created_by carries it).
+// episodes; the top few by episode count answer "who directed/wrote it". No
+// "Creator": the aggregate endpoint doesn't use that job (verified live);
+// get_tv's created_by carries it.
 const TV_KEY_JOBS = [
   "Director",
   "Writer",
@@ -606,7 +602,7 @@ export function summarizeTvCredits(
 ): z.infer<typeof tvCreditsSchema> {
   // Ranked by episodes across the run (billing `order` only breaks ties): the
   // aggregate list mixes series regulars with hundreds of one-episode guests
-  // (Breaking Bad: 348 people), and episode count is what separates them.
+  // (Breaking Bad: 348 people), and episode count separates them.
   const cast = (c.cast ?? [])
     .slice()
     .sort(
@@ -667,9 +663,9 @@ export function summarizePerson(
   });
 }
 
-// Trending / multi-search dispatch by media_type; people carry known_for titles.
-// Each branch delegates to a shaper that already validates its own output, so
-// there's no separate schema for the dispatcher itself.
+// Trending / multi-search dispatch by media_type; people carry known_for
+// titles. Each branch's shaper already validates its output, so the dispatcher
+// has no schema of its own.
 export function summarizeMultiItem(
   item: TmdbMultiItem,
   includeExplicit = false,
@@ -686,11 +682,10 @@ export function summarizeMultiItem(
   }
 }
 
-// A type alias (not an interface): TS only synthesizes an index signature for
-// assignability against `Record<string, unknown>` — the shape tools/*.ts's
-// jsonResult() wire-serialization boundary expects — on anonymous object
-// types, not named interfaces. Confirmed empirically; see the fix that
-// replaced this interface with the identical-shape alias below.
+// A type alias, not an interface: TS only synthesizes an index signature
+// (needed for assignability to `Record<string, unknown>`, which tools/*.ts's
+// jsonResult() boundary expects) on anonymous object types, not named
+// interfaces.
 // The highest page number TMDB serves on any paginated endpoint.
 export const TMDB_MAX_PAGE = 500;
 
@@ -701,16 +696,13 @@ export type Page<S> = {
   total_results: number;
 };
 
-// Generic page wrapper reused by every list endpoint; not tied to one shaper,
-// so not schema-validated here — `summarize` already validates each item, and
-// the wrapper's own shape (results/page/total_pages/total_results) is simple
-// enough that the tool-registration-site `pageSchema(itemSchema)` plus the
-// real MCP client-side outputSchema check are sufficient coverage for it.
+// Generic page wrapper reused by every list endpoint, not tied to one shaper,
+// so not schema-validated here: `summarize` already validates each item, and
+// the wrapper's own shape is simple enough for the tool-registration-site
+// `pageSchema(itemSchema)` plus the client-side outputSchema check.
 //
 // total_pages is clamped to TMDB_MAX_PAGE: verified live, /discover/movie and
-// /movie/{id}/similar report total_pages 1001 while rejecting any page above
-// 500, so passing it through tells the caller pages exist that it can never
-// fetch.
+// /movie/{id}/similar report total_pages 1001 but reject any page above 500.
 export function page<T, S>(res: TmdbPage<T>, summarize: (item: T) => S): Page<S> {
   return {
     results: (res.results ?? []).map(summarize),
@@ -747,7 +739,7 @@ export interface TmdbReview {
   url?: string;
 }
 
-// A user review — author, their 0–10 rating (if any), date, and the body
+// A user review: author, their 0–10 rating (if any), date, and the body
 // (clipped; full reviews can run very long).
 export function summarizeReview(r: TmdbReview): z.infer<typeof reviewSchema> {
   return reviewSchema.parse({
@@ -862,8 +854,9 @@ function providerNames(list: ProviderEntry[] | undefined): string[] {
   return (list ?? []).map((p) => p.provider_name?.trim()).filter((n): n is string => Boolean(n));
 }
 
-// Watch availability is region-specific (JustWatch data). We surface one region
-// (the caller's) plus the list of regions that have data, so the agent can retry.
+// Watch availability is region-specific (JustWatch data). We surface the
+// caller's region plus the list of regions that have data, so the agent can
+// retry.
 export function summarizeWatchProviders(
   r: WatchProvidersResponse,
   region: string,
@@ -887,20 +880,18 @@ export function summarizeWatchProviders(
   });
 }
 
-// TMDB has ~800 movie / ~730 TV providers globally (269+ for the US alone) —
-// paginate the match results the same way every other search_* tool does
-// (20 per page), rather than returning every match uncapped.
+// TMDB has ~800 movie / ~730 TV providers globally (269+ for the US alone), so
+// match results are paginated (20 per page) like every other search_* tool.
 const WATCH_PROVIDER_PAGE_SIZE = 20;
 
-// TMDB's own /watch/providers/{movie,tv} endpoint has no query parameter — it
-// always returns every registered provider for that media type (+ region, if
-// given), so `search_watch_providers` fetches the full list once (cached,
-// like get_movie_genres/get_tv_genres cache their own reference list) and
-// matches it against `query` here on every call. `providers` already carries
-// a precomputed lowercase name (see clients/tmdb.ts's searchWatchProviders) so
-// repeated calls against the same warm cache entry don't re-lowercase every
-// entry from scratch. Feeds discover_*'s `with_watch_providers` filter, the
-// same way search_keywords/search_companies feed with_keywords/with_companies.
+// TMDB's /watch/providers/{movie,tv} endpoint has no query parameter: it always
+// returns every registered provider for that media type (and region, if given).
+// So `search_watch_providers` fetches the full list once (cached, like
+// get_movie_genres/get_tv_genres) and matches `query` here on every call.
+// `providers` carries a precomputed lowercase name (see clients/tmdb.ts's
+// searchWatchProviders) so repeated calls don't re-lowercase every entry. Feeds
+// discover_*'s `with_watch_providers`, like search_keywords/search_companies
+// feed with_keywords/with_companies.
 export function summarizeWatchProviderMatches(
   providers: (ProviderEntry & { nameLower: string })[],
   query: string,
@@ -955,8 +946,8 @@ export interface CombinedCredits {
 
 // Keeps only the CombinedCreditEntry fields summarizePersonCredits reads, so
 // the raw response can be cached (and reshaped per department/limit) without
-// holding the full payload — a prolific person's is ~900 KB (Mel Blanc).
-// Must list the same keys as CombinedCreditEntry above.
+// holding the full payload; a prolific person's is ~900 KB (Mel Blanc). Must
+// list the same keys as CombinedCreditEntry above.
 const CREDIT_KEYS = [
   "id",
   "media_type",
@@ -981,8 +972,8 @@ export function trimCombinedCredits(c: CombinedCredits): CombinedCredits {
   return { cast: c.cast?.filter(keep).map(trim), crew: c.crew?.filter(keep).map(trim) };
 }
 
-// Movie and TV ids are separate TMDB namespaces — a person can have movie 1487
-// AND tv 1487 (Ron Perlman: Hellboy / Static Shock) — so dedupe keys need both.
+// Movie and TV ids are separate TMDB namespaces (a person can have movie 1487
+// AND tv 1487: Ron Perlman's Hellboy / Static Shock), so dedupe keys need both.
 function creditKey(e: CombinedCreditEntry): string | undefined {
   return e.id === undefined ? undefined : `${e.media_type}:${e.id}`;
 }
@@ -994,23 +985,22 @@ function creditYear(e: CombinedCreditEntry): number | null {
   return year(e.release_date ?? e.first_air_date);
 }
 
-// TMDB's per-credit `popularity` is the linked title's own entity-level score,
-// not a measure of the role — a long-running talk show accumulates a far
-// higher popularity than any single film, so unfiltered "Self" guest spots
-// (Letterman, Kimmel, awards-show cameos, …) crowd out an actor's actual,
-// much more relevant film/TV roles. Excluded so the ranked list is about roles.
-// The character text alone misses many of them: verified live, TMDB leaves
-// `character` empty on a lot of talk/news-show guest spots (Samuel L.
-// Jackson's The Colbert Report, LIVE with Kelly and Mark), and every one of
-// those carries TV genre Talk (10767) or News (10763) — so a TV credit in
-// either genre counts as a self-appearance too, whatever its character says.
+// TMDB's per-credit `popularity` is the linked title's own score, not a measure
+// of the role: a long-running talk show out-scores any single film, so
+// unfiltered "Self" guest spots (Letterman, Kimmel, awards-show cameos, …)
+// crowd out an actor's real roles. Excluded so the ranked list is about roles.
+// The character text alone misses many: TMDB leaves `character` empty on a lot
+// of talk/news-show guest spots (Samuel L. Jackson's The Colbert Report, LIVE
+// with Kelly and Mark; verified live), and every one carries TV genre Talk
+// (10767) or News (10763), so a TV credit in either genre counts as a
+// self-appearance whatever its character says.
 const SELF_APPEARANCE_TV_GENRES = new Set([10763, 10767]);
 const isSelfAppearance = (e: CombinedCreditEntry): boolean =>
   /^(self|himself|herself)\b/i.test(e.character ?? "") ||
   (e.media_type === "tv" && (e.genre_ids ?? []).some((g) => SELF_APPEARANCE_TV_GENRES.has(g)));
 
-// Repeat guest spots (or a title credited under more than one character/job)
-// otherwise waste multiple of the capped slots on the same title.
+// Repeat guest spots (or a title credited under several characters/jobs) would
+// otherwise waste several of the capped slots on one title.
 function dedupeByKey<T>(entries: T[], key: (e: T) => string | undefined): T[] {
   const seen = new Set<string>();
   return entries.filter((e) => {
@@ -1023,12 +1013,11 @@ function dedupeByKey<T>(entries: T[], key: (e: T) => string | undefined): T[] {
 }
 
 // Caps a popularity-sorted list to at most `limit` DISTINCT titles (by id),
-// keeping every already-included title's remaining rows regardless of
-// position — a multi-hyphenate crew credit (writer AND director AND
-// producer on one film) would otherwise burn several of the capped slots on
-// a single title, pushing other, single-job-credit titles out entirely. cast
-// doesn't need this: dedupeByKey(id) already leaves at most one row per
-// title there, so a plain slice is already title-accurate.
+// keeping every already-included title's remaining rows regardless of position:
+// a multi-hyphenate crew credit (writer AND director AND producer on one film)
+// would otherwise burn several capped slots on a single title. cast doesn't
+// need this: dedupeByKey(id) already leaves one row per title, so a plain slice
+// is title-accurate.
 function capByUniqueTitle<T>(entries: T[], limit: number, idOf: (e: T) => string | undefined): T[] {
   const seenTitles = new Set<string>();
   const result: T[] = [];
@@ -1042,12 +1031,12 @@ function capByUniqueTitle<T>(entries: T[], limit: number, idOf: (e: T) => string
   return result;
 }
 
-// A prolific person can have hundreds of credits; cap to the most popular so the
-// result stays useful and token-bounded. `department` restricts crew to just
-// one of TMDB's fixed department values (e.g. "Directing" — the tool-facing
-// PERSON_DEPARTMENTS enum in tools/tmdb/fields.ts lists all of them) before capping —
-// the precise way to get a complete filmography for one role when a person's
-// other departments would otherwise crowd it out of the cap.
+// A prolific person can have hundreds of credits; cap to the most popular so
+// the result stays useful and token-bounded. `department` restricts crew to one
+// of TMDB's fixed department values (e.g. "Directing"; the tool-facing
+// PERSON_DEPARTMENTS enum in tools/tmdb/fields.ts lists them all) before
+// capping, which is how to get a complete filmography for one role when other
+// departments would crowd it out.
 export function summarizePersonCredits(
   c: CombinedCredits,
   department?: string,
@@ -1161,10 +1150,9 @@ interface RawEpisode {
   still_path?: string;
   guest_stars?: { id?: number; name?: string; character?: string }[];
   crew?: { id?: number; name?: string; job?: string }[];
-  // Only present on the single-episode endpoint, via
-  // append_to_response=external_ids (see clients/tmdb.ts's getTvEpisode); the
-  // season endpoint's episode rows never carry it, so summarizeSeason's
-  // episodes stay id-less.
+  // Only on the single-episode endpoint, via append_to_response=external_ids
+  // (see clients/tmdb.ts's getTvEpisode); the season endpoint's episode rows
+  // never carry it, so summarizeSeason's episodes stay id-less.
   external_ids?: { imdb_id?: string };
 }
 export interface TmdbSeason {
@@ -1177,14 +1165,14 @@ export interface TmdbSeason {
   episodes?: RawEpisode[];
 }
 
-// `episodeLimit` caps "Specials" seasons that accumulate hundreds of bonus/promo
-// clips over a long-running show's lifetime (e.g. 300+ for some long-running
-// series) and would otherwise blow well past a reasonable response size.
-// `episode_count` still reports the true total; `episodes` is the capped list.
-// `includeEpisodeOverview` is false for getTvSeasonsBulk's multi-season aggregate
-// (get_tv's expand_episodes): a per-episode overview repeated across up to 250
-// episodes dwarfs every other field combined, so the aggregate path drops it —
-// call get_tv_season for one season's full detail including overview.
+// `episodeLimit` caps "Specials" seasons that accumulate hundreds of
+// bonus/promo clips over a long-running show's lifetime (300+ for some) and
+// would otherwise blow past a reasonable response size. `episode_count` still
+// reports the true total; `episodes` is the capped list.
+// `includeEpisodeOverview` is false for getTvSeasonsBulk's multi-season
+// aggregate (get_tv's expand_episodes): an overview per episode across up to
+// 250 episodes dwarfs every other field, so the aggregate drops it; call
+// get_tv_season for one season's full detail.
 export function summarizeSeason(
   s: TmdbSeason,
   episodeLimit = 50,
@@ -1209,11 +1197,11 @@ export function summarizeSeason(
   });
 }
 
-// Re-validate a seasons array assembled outside the direct summarizeSeason
-// path — the expand_episodes flow in clients/tmdb.ts fetches, caps, and merges
-// in hand-built "skipped" season objects, none of which re-run seasonSchema on
-// the final array. Running it here gives that aggregate the same drift/degrade
-// guarantee the per-season shaper has.
+// Re-validate a seasons array assembled outside summarizeSeason: the
+// expand_episodes flow in clients/tmdb.ts fetches, caps and merges hand-built
+// "skipped" season objects, none of which re-run seasonSchema on the final
+// array. This gives the aggregate the same drift guarantee as the per-season
+// shaper.
 export function parseSeasons(seasons: unknown): z.infer<typeof seasonSchema>[] {
   return seasonSchema.array().parse(seasons);
 }
@@ -1278,10 +1266,10 @@ function na(s: string | undefined): string | null {
 // instead of throwing, so enrichment never fails a TMDB lookup.
 export function summarizeRatings(r: OmdbResponse): z.infer<typeof ratingsSchema> {
   if (r.Response === "False") {
-    // OMDb returns a clear "Movie not found!" for a title miss, but the generic
-    // "Error getting data." for an unrecognized imdb_id — which reads as an
-    // upstream failure rather than "no such id". Map it to a clearer reason so a
-    // caller can tell the two apart.
+    // OMDb returns a clear "Movie not found!" for a title miss but the generic
+    // "Error getting data." for an unrecognized imdb_id, which reads as an
+    // upstream failure. Map it to a clearer reason so a caller can tell the two
+    // apart.
     const reason =
       r.Error === "Error getting data." ? "No OMDb match for this imdb_id/title" : r.Error;
     return ratingsSchema.parse({ found: false, reason: reason || "No OMDb match" });
@@ -1304,21 +1292,21 @@ export function summarizeRatings(r: OmdbResponse): z.infer<typeof ratingsSchema>
   });
 }
 
-// A validated { found: false } ratings object. Enrichment builds several of
-// these "couldn't enrich" outcomes by hand (key not configured, no imdb_id,
-// lookup failed, title mismatch); routing them through here keeps them inside
-// the same ratingsSchema.parse guarantee as the success path.
+// A validated { found: false } ratings object. Enrichment builds several
+// "couldn't enrich" outcomes by hand (key not configured, no imdb_id, lookup
+// failed, title mismatch); routing them through here keeps them under the same
+// ratingsSchema.parse guarantee as success.
 export function ratingsNotFound(reason: string): z.infer<typeof ratingsSchema> {
   return ratingsSchema.parse({ found: false, reason });
 }
 
 // Does an OMDb-by-imdb_id hit look like a *different* work than the TMDB entry
-// it is enriching? TMDB's imdb_id is occasionally stale/wrong, and an id lookup
+// it enriches? TMDB's imdb_id is occasionally stale or wrong, and an id lookup
 // then silently returns an unrelated title's ratings/awards. Titles can't be
 // compared reliably (TMDB localizes them), but release years are
-// language-independent: a gap wider than a couple of years is a strong
-// "wrong id" signal. Returns false whenever either year is unknown, so a
-// legitimate hit is never dropped over missing data.
+// language-independent: a gap wider than a couple of years is a strong "wrong
+// id" signal. Returns false when either year is unknown, so a legitimate hit is
+// never dropped over missing data.
 export function ratingsYearConflict(
   tmdbDate: string | null | undefined,
   omdbYear: string | null | undefined,

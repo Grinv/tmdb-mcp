@@ -1,8 +1,6 @@
-// Full/compact detail lookups for a known TMDB id: get_movie/get_tv (full,
-// OMDb-enriched), get_movies/get_tv_shows (compact batch), get_person +
-// get_person_credits, cast/crew, recommendations/similar, reviews, and
-// collections. get_movie/get_tv's OMDb-ratings enrichment (getEnrichedDetail/
-// maybeEnrich below) is the one place this server's two upstreams meet.
+// Detail lookups for a known TMDB id: movies, TV, people, credits,
+// recommendations, reviews, collections. The OMDb enrichment in
+// getEnrichedDetail/maybeEnrich is the one place the two upstreams meet.
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/server";
 import type { TmdbClient } from "../../clients/tmdb.ts";
@@ -409,11 +407,8 @@ export function registerDetailsTools(
 }
 
 /** get_movie/get_tv's shared shape: fetch the TMDB detail, then fold in OMDb ratings. */
-// Overloads narrow the return type by the mediaType literal — movieCard/tvCard
-// (get_movies/get_tv_shows) each call this with a fixed "movie"/"tv" and need
-// the matching single-shape result, not the movie|tv union the plain
-// signature would otherwise give every caller regardless of which literal
-// they passed.
+// Overloads narrow the return type by the mediaType literal, so movieCard/tvCard
+// get the single-shape result rather than the movie|tv union.
 async function getEnrichedDetail(
   mediaType: "movie",
   id: number,
@@ -468,8 +463,7 @@ async function getCards<D, C>(
     results: settled.map((result, i) =>
       result.status === "fulfilled"
         ? toCard(result.value)
-        : // The same tool-facing text as any other failure (lib/result.ts's
-          // toProblem), never the error's raw message.
+        : // Same tool-facing text as any other failure, never the raw message.
           notFoundCard(ids[i]!, toProblem(result.reason, logger).detail),
     ),
   };
@@ -492,11 +486,9 @@ export async function maybeEnrich<T extends Record<string, unknown>>(
   // OMDb failures must not sink the TMDB result; degrade to found:false.
   try {
     const ratings = await omdb.ratingsByImdbId(imdbId);
-    // TMDB's imdb_id is occasionally stale/wrong; an id lookup then silently
-    // returns an unrelated title's ratings. Guard against attaching those:
-    // if the OMDb release year is far from TMDB's, treat it as no match rather
-    // than reporting another work's ratings as this title's (year is
-    // language-independent, unlike the localized titles we can't compare).
+    // TMDB's imdb_id is occasionally stale or wrong, and OMDb then returns an
+    // unrelated title's ratings. If the release years are far apart, report no
+    // match. Year is language-independent, unlike localized titles.
     if (
       ratings.found &&
       ratingsYearConflict(
@@ -513,9 +505,8 @@ export async function maybeEnrich<T extends Record<string, unknown>>(
     }
     return { ...shaped, ratings };
   } catch (err) {
-    // Name the cause (e.g. a rejected OMDB_API_KEY → "unauthorized"), so the
-    // caller can tell a fixable config problem from a transient outage; an
-    // internal error is logged rather than swallowed.
+    // Name the cause (e.g. a rejected OMDB_API_KEY → "unauthorized") so the
+    // caller can tell a config problem from a transient outage.
     return {
       ...shaped,
       ratings: ratingsNotFound(`OMDb lookup failed: ${toProblem(err, omdb.logger).detail}`),

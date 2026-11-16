@@ -1,6 +1,5 @@
-// OMDb-backed tool. get_movie / get_tv already fold OMDb ratings into their
-// result; this standalone tool is for the cases where you only have an IMDb id
-// (e.g. from an external source) or want to look up ratings by raw title.
+// get_movie / get_tv already include OMDb ratings; this tool covers an IMDb id
+// from an external source or a raw title lookup.
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/server";
 import type { OmdbClient } from "../clients/omdb.ts";

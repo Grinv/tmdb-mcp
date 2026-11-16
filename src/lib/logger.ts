@@ -1,5 +1,5 @@
-// Minimal leveled logger. Always writes to stderr (stdout is reserved for the
-// MCP stdio protocol). Messages are redacted of credentials before logging.
+// Minimal leveled logger. Writes to stderr only (stdout is the MCP stdio
+// protocol) and redacts credentials.
 import { redact } from "./errors.ts";
 
 export type LogLevel = "debug" | "info" | "warn" | "error" | "silent";
@@ -41,10 +41,9 @@ export function createLogger(level: LogLevel): Logger {
 // b.cause = a) from recursing until the logger itself throws.
 function safeString(value: unknown, seen = new Set<unknown>()): string {
   if (typeof value === "string") return value;
-  // An error's stack (it opens with "Name: message") and its cause chain are
-  // the diagnostics: internal errors are logged rather than shown to the agent
-  // (lib/result.ts's toProblem), so the log is the only place they surface.
-  // The joined text is still redacted by emit().
+  // The stack (it opens with "Name: message") and cause chain are the only
+  // diagnostics: internal errors are logged, not shown to the agent
+  // (toProblem in lib/result.ts). emit() redacts the joined text.
   if (value instanceof Error) {
     seen.add(value);
     const cause =

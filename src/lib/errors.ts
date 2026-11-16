@@ -1,19 +1,18 @@
 // Typed errors for upstream API failures. Clients throw `ApiError`; tool
-// handlers convert it into an MCP tool result (see lib/result.ts) so the
-// agent gets an actionable, non-protocol error. Every known situation has its
-// own code: the tool-facing text is built from code/status/detail only, and
-// `message` is diagnostics for logs (it may hold a raw response body).
+// handlers turn it into an MCP tool result (lib/result.ts). Every known
+// failure has its own code. Tool-facing text is built from code/status/detail
+// only; `message` is for logs and may hold a raw response body.
 
 export type ApiErrorCode =
-  | "unauthorized" // 401 — token missing/expired/invalid
-  | "forbidden" // 403 — insufficient permissions/scope
-  | "not_found" // 404 — no such resource
-  | "rate_limited" // 429 — slow down
-  | "server_error" // 5xx — upstream broke
+  | "unauthorized" // 401, token missing/expired/invalid
+  | "forbidden" // 403, insufficient permissions/scope
+  | "not_found" // 404, no such resource
+  | "rate_limited" // 429
+  | "server_error" // 5xx
   | "network" // connection failed
   | "timeout" // request aborted by our timeout
   | "cancelled" // request aborted by the caller (e.g. MCP notifications/cancelled)
-  | "bad_request" // 400/405/422 — malformed or unsupported request
+  | "bad_request" // 400/405/422, malformed or unsupported request
   | "bad_response" // a success status with a body we can't read (invalid JSON, empty)
   | "unknown"; // any other upstream status or refusal
 
@@ -51,11 +50,10 @@ export class ApiError extends Error {
 }
 
 /**
- * Whether a failure of this kind is transient — the one place that decides
- * it, so it is never left to a forgotten flag's default. Both consumers read
- * the result: HttpClient retries a transient failure itself, and the tool's
- * problem tells the caller that trying again later can help. A Record, so the
- * compiler rejects a code without an entry.
+ * Whether a failure of this kind is transient. This is the only place that
+ * decides it: HttpClient retries transient failures, and the tool's problem
+ * tells the caller a later retry can help. A Record, so the compiler rejects a
+ * code without an entry.
  */
 const TRANSIENT: Record<ApiErrorCode, boolean> = {
   unauthorized: false,
@@ -67,8 +65,8 @@ const TRANSIENT: Record<ApiErrorCode, boolean> = {
   timeout: true,
   cancelled: false, // the caller's own decision
   bad_request: false,
-  // A complete body that isn't JSON (a proxy's HTML page): retrying won't fix
-  // it. A truncated body never gets here — undici rejects the read itself.
+  // A complete body that isn't JSON (a proxy's HTML page) won't change on
+  // retry. A truncated body never gets here: undici rejects the read itself.
   bad_response: false,
   unknown: false,
 };
@@ -96,8 +94,7 @@ export function redact(input: string): string {
 
 /**
  * For optional data a caller can do without: resolves to undefined when the
- * upstream fails (any ApiError), but lets anything else — a bug — propagate,
- * so tolerating an outage never hides one.
+ * upstream fails (any ApiError). Anything else is a bug and propagates.
  */
 export async function unlessUpstreamFails<T>(promise: Promise<T>): Promise<T | undefined> {
   try {

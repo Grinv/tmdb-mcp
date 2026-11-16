@@ -1,6 +1,5 @@
-// Wires the generic pieces every upstream API client needs (rate limiter,
-// HTTP client, TTL cache) from Config-shaped values, so each client only
-// declares its own endpoints and response shaping.
+// Builds the rate limiter, HTTP client and TTL cache every upstream client
+// needs, so a client only declares its endpoints and response shaping.
 import { HttpClient, type HttpClientOptions } from "./http.ts";
 import { RateLimiter } from "./rateLimit.ts";
 import { TtlCache } from "./cache.ts";

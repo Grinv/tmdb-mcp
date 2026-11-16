@@ -1,6 +1,6 @@
-// Helpers that build MCP tool results. Tool handlers return these objects;
-// failures become { isError: true } results (never thrown) so the agent
-// receives an actionable message instead of a protocol error.
+// Builders for MCP tool results. Failures become { isError: true } results,
+// never thrown, so the agent gets an actionable message instead of a protocol
+// error.
 import { ApiError, type ApiErrorCode } from "./errors.ts";
 import type { Logger } from "./logger.ts";
 import { META_PREFIX, REPO_URL } from "../version.ts";
@@ -13,16 +13,14 @@ export interface ToolResult {
   [key: string]: unknown;
 }
 
-/** Success result carrying both a text mirror and structured data.
+/** Success result carrying a text mirror and structured data.
  *
- * The text is compact (no indentation): MCP clients that don't read
- * `structuredContent` fall back to this string and feed it to the model, so
- * pretty-print whitespace would be pure token overhead.
+ * The text is compact JSON: clients that ignore `structuredContent` feed this
+ * string to the model, so indentation would only cost tokens.
  *
- * `meta`, when given, is attached as the result's `_meta` — a sibling of
- * `structuredContent`, never merged into it, so it stays out of the tool's
- * `outputSchema`-validated payload (e.g. a stale-cache flag is metadata about
- * the response, not part of the movie/show shape itself). */
+ * `meta` becomes the result's `_meta`, a sibling of `structuredContent`, so it
+ * stays out of the payload validated against the tool's `outputSchema` (a
+ * stale-cache flag describes the response, not the movie/show). */
 export function jsonResult(
   structured: Record<string, unknown>,
   meta?: Record<string, unknown>,
@@ -36,12 +34,11 @@ export function jsonResult(
 
 /**
  * A tool failure as an RFC 9457 problem details object. MCP has no HTTP
- * response, so RFC 9457's `status` (the status of *this* HTTP response) is
- * not used; the upstream's status is the `upstream_status` extension, and
- * `retryable` tells the caller whether trying again can help. The model reads
- * `detail` as the result text; the whole object rides in `_meta`, never in
- * `structuredContent`, which MCP reserves for data matching the tool's
- * outputSchema.
+ * response, so RFC 9457's `status` is unused; the upstream's status goes in
+ * the `upstream_status` extension, and `retryable` says whether trying again
+ * can help. The model reads `detail` as the result text; the whole object
+ * rides in `_meta`, since `structuredContent` is reserved for data matching
+ * the tool's outputSchema.
  */
 export interface Problem {
   type: string;
@@ -59,12 +56,12 @@ const TYPE_BASE = `${REPO_URL}/blob/main/docs/errors.md#`;
 
 type ProblemCode = ApiErrorCode | "internal" | "not_configured" | "invalid_arguments";
 
-// One entry per problem type — a Record, so the compiler rejects a code
-// without one. `title` is fixed per type (as RFC 9457 requires); toProblem
-// alone composes each occurrence's `detail` from typed fields, never from an
-// error's free-text message. No `advice` says "retry": that is derived from
-// the occurrence's `retryable`, so the text and the flag can't disagree (an
-// OMDb quota refusal is rate_limited yet not retryable).
+// One entry per problem type (a Record, so the compiler rejects a code
+// without one). `title` is fixed per type, as RFC 9457 requires; toProblem
+// builds each occurrence's `detail` from typed fields, never from an error's
+// message. No `advice` says "retry": that comes from the occurrence's
+// `retryable`, so text and flag can't disagree (an OMDb quota refusal is
+// rate_limited yet not retryable).
 const PROBLEMS: Record<ProblemCode, { title: string; advice?: string }> = {
   unauthorized: {
     title: "The upstream service rejected the credentials",
@@ -101,17 +98,17 @@ export const PROBLEM_CODES = Object.keys(PROBLEMS) as ProblemCode[];
 
 /**
  * The one place a failure becomes tool-facing text. An ApiError is described
- * by its code, status and the upstream's own reason (`detail`) — never by its
- * `message`, which is diagnostics and may hold a raw response body. Anything
- * else is a bug in this server: it is logged in full (stack and cause chain)
- * and the caller gets a stable "internal error" instead of its internals.
+ * by its code, status and the upstream's own reason (`detail`), never by its
+ * `message`, which may hold a raw response body. Anything else is a bug in this
+ * server: it is logged in full (stack and cause chain) and the caller gets a
+ * stable "internal error".
  */
 export function toProblem(err: unknown, logger: Logger): Problem {
   if (err instanceof ApiError) {
     const { title, advice } = PROBLEMS[err.code];
     const status = err.status ? ` (${err.status})` : "";
-    // One status can mean several things (OMDb reports both a bad key and an
-    // exhausted quota as refusals), so the upstream's own reason always shows.
+    // One status can mean several things (OMDb refuses both a bad key and an
+    // exhausted quota), so the upstream's reason is always shown.
     const reason = err.detail ? `The upstream said: "${err.detail}"` : undefined;
     return {
       type: TYPE_BASE + err.code,
@@ -123,9 +120,9 @@ export function toProblem(err: unknown, logger: Logger): Problem {
       ...(err.status ? { upstream_status: err.status } : {}),
     };
   }
-  // Reported as a tool error, not a JSON-RPC one: it originates while the
-  // tool runs, so the model must see the call failed (MCP's isError rule) —
-  // the reference SDK's reading too. See docs/errors.md#internal.
+  // A tool error, not a JSON-RPC one: it arises while the tool runs, so the
+  // model must see the call failed (MCP's isError rule, as in the reference
+  // SDK). See docs/errors.md#internal.
   logger.error("internal error in a tool call:", err);
   return ownProblem("internal");
 }

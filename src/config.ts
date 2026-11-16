@@ -1,28 +1,24 @@
-// Loads and validates configuration from environment variables. Two upstreams:
-// TMDB (the backbone — search, metadata, people, trending) needs a v4 Read
-// Access Token; OMDb (optional enrichment — IMDb/Rotten Tomatoes/Metacritic
-// ratings) needs a free API key. Both credentials are optional so the server
-// always starts and can list tools; each tool reports a clear error at call
-// time when its credential is missing. Empty strings AND unsubstituted .mcpb
-// placeholders (e.g. "${user_config.tmdb_api_token}") are treated as unset, so
-// .mcpb passing a blank/unfilled user_config field does not crash startup or
-// send garbage upstream.
+// Loads and validates configuration from environment variables. TMDB (search,
+// metadata, people, trending) needs a v4 Read Access Token; OMDb (optional
+// IMDb/Rotten Tomatoes/Metacritic ratings) needs a free API key. Both are
+// optional so the server always starts and lists tools; each tool reports a
+// clear error at call time when its credential is missing. Empty strings and
+// unfilled .mcpb placeholders count as unset (see below).
 import { z } from "zod";
 import type { LogLevel } from "./lib/logger.ts";
 
-// Shared with tools/tmdb/fields.ts's per-call `language` param — both accept
-// the same ISO-639-1[-ISO-3166-1] shape, so the regex is defined once here.
+// Shared with tools/tmdb/fields.ts's per-call `language` param: same
+// ISO-639-1[-ISO-3166-1] shape, so the regex lives once, here.
 export const LANGUAGE_REGEX = /^[a-z]{2}(-[A-Z]{2})?$/;
 
 const EnvSchema = z.object({
-  // --- TMDB: the primary read backbone. v4 "Read Access Token" (a long JWT),
-  //     sent as `Authorization: Bearer <token>`. Get one at
+  // --- TMDB: v4 "Read Access Token" (a long JWT), sent as
+  //     `Authorization: Bearer <token>`. Get one at
   //     https://www.themoviedb.org/settings/api ---
   TMDB_API_TOKEN: z.string().min(1).optional(),
   TMDB_BASE_URL: z.url().default("https://api.themoviedb.org/3"),
-  // Default response language (ISO-639-1, optionally with a region: "ru-RU",
-  // "en-US", "ja"). Applied to every TMDB request so titles/overviews/genre
-  // names come back localized; tools can override it per call.
+  // Default response language (ISO-639-1, optional region: "ru-RU", "en-US",
+  // "ja"), applied to every TMDB request. Tools can override it per call.
   TMDB_LANGUAGE: z
     .string()
     .regex(
@@ -31,14 +27,14 @@ const EnvSchema = z.object({
     )
     .default("en-US"),
   // Default ISO-3166-1 country for region-specific results (release dates,
-  // watch providers). Optional; tools that need a region also accept one.
+  // watch providers). Tools that need a region also accept one.
   TMDB_REGION: z
     .string()
     .regex(/^[A-Z]{2}$/, "TMDB_REGION must be a two-letter ISO-3166-1 code, e.g. US")
     .default("US"),
 
-  // --- OMDb: optional enrichment for IMDb/RT/Metacritic ratings, keyed by the
-  //     imdb_id TMDB returns. Free key at https://www.omdbapi.com/apikey.aspx ---
+  // --- OMDb: optional IMDb/RT/Metacritic ratings, keyed by the imdb_id TMDB
+  //     returns. Free key at https://www.omdbapi.com/apikey.aspx ---
   OMDB_API_KEY: z.string().min(1).optional(),
   OMDB_BASE_URL: z.url().default("https://www.omdbapi.com"),
 
@@ -46,13 +42,13 @@ const EnvSchema = z.object({
   HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
   HTTP_RETRIES: z.coerce.number().int().nonnegative().default(2),
   // Minimum spacing between calls to each upstream. TMDB tolerates ~50 req/s;
-  // OMDb's free tier is a daily quota with no tight burst limit. Set to 0 to
-  // disable client-side throttling (used in tests).
+  // OMDb's free tier has a daily quota and no tight burst limit. 0 disables
+  // client-side throttling (used in tests).
   TMDB_MIN_INTERVAL_MS: z.coerce.number().int().nonnegative().default(60),
   OMDB_MIN_INTERVAL_MS: z.coerce.number().int().nonnegative().default(0),
   CACHE_TTL_MS: z.coerce.number().int().nonnegative().default(300_000),
   // How long past expiry an entry may still stand in for an unreachable
-  // upstream (RFC 5861's stale-if-error window). A day by default.
+  // upstream (RFC 5861 stale-if-error). Default one day.
   CACHE_MAX_STALE_MS: z.coerce.number().int().nonnegative().default(86_400_000),
 
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error", "silent"]).default("info"),
@@ -74,15 +70,15 @@ export interface Config {
   logLevel: LogLevel;
 }
 
-// .mcpb leaves an UNFILLED optional user_config field as the literal,
-// unsubstituted placeholder (e.g. "${user_config.tmdb_api_token}") rather than
-// "". Such a value is non-empty, so without this it would be taken as a real
-// token/key — making a client "configured" and sending garbage upstream (→ 401).
+// .mcpb leaves an unfilled optional user_config field as the literal
+// placeholder (e.g. "${user_config.tmdb_api_token}"), not "". It is non-empty,
+// so without this a client would count as configured and send garbage
+// upstream (401).
 const UNSUBSTITUTED_PLACEHOLDER = /^\$\{[^}]*\}$/;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
-  // Drop empty strings and unsubstituted ${...} placeholders so defaults apply
-  // and optional secrets (TMDB_API_TOKEN, OMDB_API_KEY) stay genuinely unset.
+  // Drop empty strings and placeholders so defaults apply and optional secrets
+  // stay unset.
   const cleaned = Object.fromEntries(
     Object.entries(env).filter(
       ([, v]) => v !== undefined && v !== "" && !UNSUBSTITUTED_PLACEHOLDER.test(v),

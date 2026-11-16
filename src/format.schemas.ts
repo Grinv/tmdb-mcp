@@ -1,22 +1,16 @@
-// Zod schemas describing the exact return shape of each shaper in ./format.ts,
-// used two ways: as a tool's `outputSchema` (MCP structured content,
-// SEP-2106), and — schema-first — by the paired shaper itself, which builds
-// its result and runs it through `<name>Schema.parse()` before returning. A
-// shaper that drifts from its schema throws immediately at the source instead
-// of silently disagreeing with two independently-maintained files. Kept in
-// the same order as the shapers they mirror so the two files are still easy
-// to eyeball side by side.
+// Zod schemas for the exact return shape of each shaper in ./format.ts. Each
+// is a tool's `outputSchema` (MCP structured content, SEP-2106) and is also run
+// by the paired shaper itself (`<name>Schema.parse()`) before it returns, so a
+// shaper that drifts from its schema throws at the source. Kept in the same
+// order as the shapers for side-by-side reading.
 //
-// Every object rejects unknown keys via `z.strictObject(...)`: a shaper that
-// starts returning a field this file doesn't know about must fail validation
-// (both here and in the real client-side outputSchema check) instead of
-// silently dropping the extra key, which is Zod's — and JSON Schema's —
-// default behavior otherwise.
+// Every object is `z.strictObject(...)`: a field the schema doesn't know must
+// fail validation (here and in the client-side outputSchema check) instead of
+// being dropped, which is Zod's and JSON Schema's default.
 //
-// `.nullable()` marks a field the shaper always sets to a value-or-null;
-// `.optional()` marks one that can be a genuinely absent key (an `undefined`
-// passed through from a raw optional TMDB/OMDb field, dropped by JSON
-// serialization) rather than an explicit null.
+// `.nullable()`: the shaper always sets a value or null. `.optional()`: the key
+// can be genuinely absent (an `undefined` from a raw optional TMDB/OMDb field,
+// dropped by JSON serialization).
 import { z } from "zod";
 
 // A `{id, name}` reference pair (a genre, a keyword, …).
@@ -29,22 +23,18 @@ const castMemberSchema = z.strictObject({
   character: z.string().nullable(),
 });
 
-// The two score families this server carries: TMDB's own `vote_average` and
-// OMDb's three third-party scores. Described — unlike most fields here, which
-// need no prose — because get_movie/get_tv/get_movies/get_tv_shows return both
-// families side by side in ONE response, on four different scales with four
-// different voter populations (TMDB 0-10 users, IMDb 0-10 users, Metacritic
-// 0-100 critics, RT percentage of positive critics). Without this the output
-// contract gives a calling model nothing to tell them apart, and a near-miss
-// pair invites conflation: Halloween (2018) returns vote_average 6.563 next to
-// imdb_rating "6.5", which reads as one number rounded twice rather than two
-// unrelated measurements. Shared consts rather than repeated inline literals so
-// every schema carrying the field states the same thing (and `.pick()`ing one
-// into a card schema carries the text along). One shared const covers all
-// seven uses, so it must stay true of the leanest one: the episode objects in
-// seasonSchema/episodeSchema carry neither a `vote_count` nor a sibling
-// `ratings` field, so the text names get_movie/get_tv as where the other
-// family lives instead of pointing at a field that isn't always there.
+// The two score families: TMDB's `vote_average` and OMDb's three third-party
+// scores. Described (unlike most fields here) because
+// get_movie/get_tv/get_movies/get_tv_shows return both side by side in one
+// response, on four scales with four voter populations (TMDB 0-10 users, IMDb
+// 0-10 users, Metacritic 0-100 critics, RT percentage of positive critics).
+// Without prose a calling model can't tell them apart: Halloween (2018)
+// returns vote_average 6.563 next to imdb_rating "6.5", which reads as one
+// number rounded twice. Shared consts keep every schema saying the same thing,
+// and `.pick()` carries the text into card schemas. One const serves all seven
+// uses, so it must hold for the leanest: the episode objects in
+// seasonSchema/episodeSchema have no `vote_count` or sibling `ratings`, so the
+// text names get_movie/get_tv as where the other family lives.
 // A keyword on a movie/show detail; its id feeds discover_*'s with_keywords.
 const keywordRefSchema = z.strictObject({ id: z.number(), name: z.string() });
 
@@ -295,9 +285,9 @@ export function pageSchema<T extends z.ZodTypeAny>(item: T) {
 
 // ---- summarizeMovieReleases ------------------------------------------------------
 
-// get_movie_releases: a normal movie page plus TMDB's own release-date window
-// for the list (/movie/now_playing, /movie/upcoming). Plain strings, not
-// z.iso.date(): the window is TMDB's to define and is passed through as-is.
+// get_movie_releases: a movie page plus TMDB's own release-date window for the
+// list (/movie/now_playing, /movie/upcoming). Plain strings, not z.iso.date():
+// the window is TMDB's to define, passed through as-is.
 export const movieReleasesSchema = pageSchema(movieSummarySchema).extend({
   dates: z.strictObject({
     minimum: z.string().nullable(),
@@ -333,8 +323,8 @@ export const collectionSchema = z.strictObject({
 
 // ---- summarizeCollectionMatch ----------------------------------------------------
 
-// One /search/collection row: enough to pick the right franchise and pass its
-// id to get_collection (which returns the parts).
+// One /search/collection row: enough to pick the franchise and pass its id to
+// get_collection (which returns the parts).
 export const collectionMatchSchema = z.strictObject({
   id: z.number(),
   name: z.string().optional(),
@@ -349,9 +339,8 @@ export const keywordsSchema = pageSchema(idNameSchema);
 
 // ---- summarizeCompany -------------------------------------------------------------
 
-// Company names aren't unique (TMDB has multiple unrelated companies sharing
-// the same name) — origin_country/logo_url are kept so a caller can tell them
-// apart, not dropped the way a "just resolve name → id" shaper normally would.
+// Company names aren't unique (unrelated companies share one), so
+// origin_country/logo_url stay to let a caller tell them apart.
 export const companySchema = z.strictObject({
   id: z.number(),
   name: z.string().optional(),
@@ -438,9 +427,9 @@ export const videosSchema = z.strictObject({
 
 // ---- summarizeFind -----------------------------------------------------------------
 
-// An IMDb episode id resolves to its show plus season/episode numbers — the
-// three arguments get_tv_episode takes.
-// All three numbers are required: a row missing one couldn't be passed on.
+// An IMDb episode id resolves to its show plus season/episode numbers, the
+// three arguments get_tv_episode takes. All three are required: a row missing
+// one couldn't be passed on.
 const findEpisodeSchema = episodeBriefSchema
   .extend({ show_id: z.number(), season_number: z.number(), episode_number: z.number() })
   .strict();
@@ -524,12 +513,9 @@ export const ratingsSchema = z.discriminatedUnion("found", [
 
 // ---- get_movie / get_tv: TMDB detail + optional OMDb enrichment ------------------------
 
-// get_movie/get_tv's real outputSchema — the base detail plus what
-// getEnrichedDetail (tools/tmdb/details.ts) may fold in — named here next to
-// movieDetailSchema/tvDetailSchema instead of assembled via `.extend()` at
-// the tool-registration call site, so the full contract for each tool is
-// visible in one place instead of split across the registration, the client,
-// and this file.
+// get_movie/get_tv's real outputSchema: the base detail plus what
+// getEnrichedDetail (tools/tmdb/details.ts) may fold in. Named here next to
+// movieDetailSchema/tvDetailSchema so the full contract is in one place.
 export const movieDetailEnrichedSchema = movieDetailSchema.extend({
   ratings: ratingsSchema.optional(),
 });
@@ -541,12 +527,10 @@ export const tvDetailEnrichedSchema = tvDetailSchema.extend({
 
 // ---- get_movies / get_tv_shows: compact batch cards ------------------------------------
 
-// Deliberately smaller than ratingsSchema — a batch of up to 20 cards is the
-// whole point of get_movies/get_tv_shows, so this drops the fields a card
-// doesn't need (imdb_id/title/year/rated/runtime/imdb_votes/awards, and the
-// source/value array duplicating imdb_rating/rotten_tomatoes/metascore) to
-// keep each card's ratings genuinely compact rather than reusing ratingsSchema
-// as-is.
+// Smaller than ratingsSchema: a batch of up to 20 cards is the point of
+// get_movies/get_tv_shows, so this drops imdb_id/title/year/rated/runtime/
+// imdb_votes/awards and the source/value array duplicating
+// imdb_rating/rotten_tomatoes/metascore.
 export const cardRatingsSchema = z.discriminatedUnion("found", [
   z.strictObject({ found: z.literal(false), reason: z.string() }),
   z.strictObject({
@@ -557,30 +541,28 @@ export const cardRatingsSchema = z.discriminatedUnion("found", [
   }),
 ]);
 
-// Shared by movieCardSchema/tvCardSchema's "couldn't fetch this one" branch —
-// the same shape either way, since the caller already knows which media_type
-// the whole batch call was for.
+// The "couldn't fetch this one" branch of movieCardSchema/tvCardSchema. Same
+// shape either way, since the caller knows the batch's media_type.
 export const cardNotFoundSchema = z.strictObject({
   found: z.literal(false),
   id: z.number(),
   reason: z.string(),
 });
 
-// Picked from movieDetailSchema rather than redeclared, so a card's id/title/
-// year/genres/vote_average/vote_count can never silently drift from the
-// detail schema's own definition of those same fields.
+// Picked from movieDetailSchema so a card's id/title/year/genres/vote_average/
+// vote_count can't drift from the detail schema.
 export const movieCardSchema = z.discriminatedUnion("found", [
   movieDetailSchema
     .pick({ id: true, title: true, year: true, genres: true, vote_average: true, vote_count: true })
     .extend({ found: z.literal(true), ratings: cardRatingsSchema.optional() })
     // Defensive: pick/extend already preserve strictObject's unknown-key
-    // rejection on Zod 4.4.3 (see AGENTS.md), so this only guards a future
-    // Zod that might change that.
+    // rejection on Zod 4.4.3 (see AGENTS.md); this guards a future Zod that might
+    // change that.
     .strict(),
   cardNotFoundSchema,
 ]);
 
-// Picked from tvDetailSchema for the same no-drift reason as movieCardSchema.
+// Picked from tvDetailSchema, same no-drift reason as movieCardSchema.
 export const tvCardSchema = z.discriminatedUnion("found", [
   tvDetailSchema
     .pick({

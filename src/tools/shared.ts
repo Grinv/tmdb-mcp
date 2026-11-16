@@ -1,6 +1,5 @@
-// Small pieces shared by every tool-registration module: the read-only
-// annotation, and the "does this client have credentials" short-circuit that
-// every TMDB/OMDb tool needs before it can call its client.
+// Shared by every tool module: the read-only annotation and the
+// "does this client have credentials" short-circuit.
 import { ApiError } from "../lib/errors.ts";
 import {
   jsonResult,
@@ -16,16 +15,15 @@ import { callNotes, type CallNotes } from "../lib/cache.ts";
 export const READ_ONLY = { readOnlyHint: true, openWorldHint: true } as const;
 
 // Under this server's reverse-DNS _meta prefix (version.ts), so it can't
-// collide with another server's or an MCP-reserved key.
+// collide with another server's or a reserved MCP key.
 export const STALE_META_KEY = `${META_PREFIX}stale`;
-// Set when part of the result is missing because an upstream part failed
+// Set when part of the result is missing because an upstream call failed
 // (e.g. a season's episodes, or native-language trailers).
 export const PARTIAL_META_KEY = `${META_PREFIX}partial`;
 
-/** A client that can report whether it has credentials, and what to tell the
- *  caller when it doesn't — the pairing lives on the client so a tool file
- *  can't accidentally match one client's `configured` flag with another's
- *  message. */
+/** A client that reports whether it has credentials and what to tell the caller
+ *  when it doesn't. Both live on the client so a tool can't pair one client's
+ *  flag with another's message. */
 export interface ConfigurableClient {
   configured: boolean;
   notConfiguredMessage: string;
@@ -33,16 +31,13 @@ export interface ConfigurableClient {
   logger: Logger;
 }
 
-/** Short-circuits with `client.notConfiguredMessage` when `client.configured`
- *  is false; otherwise, if `validate` returns a message, short-circuits with
- *  that (checked in this order — after configured, before calling `fn` — so a
- *  handler needing both checks doesn't have to repeat the configured check
- *  itself just to get the ordering right); otherwise runs `fn`, wraps its
- *  result via jsonResult, and converts any thrown error into a tool result
- *  instead of letting it propagate — the common shape of every tool handler
- *  here. `fn` runs inside a fresh CallNotes record (lib/cache.ts): if the
- *  data below it was stale or partial, the result's `_meta` says so, with
- *  nothing for the handler or client to wire. */
+/** The common shape of every tool handler. Returns `client.notConfiguredMessage`
+ *  when the client has no credentials; then a `validate` message if it returns
+ *  one (so a handler needing both checks gets them in that order); otherwise
+ *  runs `fn`, wraps the result via jsonResult and turns a thrown error into a
+ *  tool result. `fn` runs inside a fresh CallNotes record (lib/cache.ts), so
+ *  stale or partial data below it shows up in the result's `_meta` without
+ *  any wiring in the handler. */
 export async function requireConfigured(
   client: ConfigurableClient,
   fn: () => Promise<Record<string, unknown>>,
@@ -69,17 +64,15 @@ export async function requireConfigured(
   }
 }
 
-/** Resolves/rejects as soon as either `promise` settles or `signal` aborts, so
- *  a cancelled MCP tool call stops waiting promptly instead of hanging until
- *  a cache-shared upstream fetch (which may still be serving other concurrent
- *  callers) finishes. Deliberately does NOT abort the underlying fetch itself:
- *  TtlCache dedupes concurrent callers for the same key onto one shared
- *  in-flight request (see lib/cache.ts's #dedupe), so cancelling it here would
- *  also cancel it for every other caller currently waiting on that same key. */
+/** Settles as soon as `promise` settles or `signal` aborts, so a cancelled tool
+ *  call stops waiting instead of hanging on a shared upstream fetch. It does
+ *  not abort that fetch: TtlCache dedupes concurrent callers for a key onto one
+ *  in-flight request (lib/cache.ts's #dedupe), so aborting it would cancel it
+ *  for every other caller waiting on the same key. */
 function raceAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
   if (!signal) return promise;
-  // The same classified failure the transport raises for a cancelled fetch,
-  // so toProblem reports both one way.
+  // Same failure the transport raises for a cancelled fetch, so toProblem
+  // reports both alike.
   const cancelled = () =>
     new ApiError({ code: "cancelled", message: "Request cancelled by the caller" });
   if (signal.aborted) return Promise.reject(cancelled());

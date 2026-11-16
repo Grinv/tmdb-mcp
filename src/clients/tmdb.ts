@@ -1,11 +1,11 @@
 // Read-only client for The Movie Database (TMDB) v3 REST API. Auth is a v4
 // "Read Access Token" sent as `Authorization: Bearer <token>`. Wraps the generic
-// HttpClient with a polite rate limiter and a TTL cache; all raw→agent-facing
-// shaping lives in ../format.js. This is the backbone source (search, metadata,
-// people, trending); OMDb (see ./omdb.js) only enriches it with ratings.
+// HttpClient with a rate limiter and a TTL cache; all raw→agent-facing shaping
+// lives in ../format.ts. TMDB is the backbone source (search, metadata, people,
+// trending); OMDb (./omdb.ts) only adds ratings.
 //
-// Localization: a default `language` (e.g. "ru-RU") and `region` come from
-// config and are applied to every request; callers may override per call.
+// A default `language` (e.g. "ru-RU") and `region` come from config and apply
+// to every request; callers may override per call.
 import { HttpClient, nullAsAbsent } from "../lib/http.ts";
 import { TtlCache, cacheKey, degraded } from "../lib/cache.ts";
 import { unlessUpstreamFails } from "../lib/errors.ts";
@@ -57,12 +57,10 @@ import {
 } from "../format.ts";
 import type { Logger } from "../lib/logger.ts";
 import type { Config } from "../config.ts";
-// Type-only: DiscoverParams' source of truth is the input zod schema in
-// tools/tmdb/discover.ts (per-field descriptions/validation belong there),
-// z.infer'd and re-exported for client code — see discoverParamsSchema there.
-// `import type` is fully erased at build, so this doesn't create a runtime
-// circular import even though tools/tmdb/discover.ts also imports TmdbClient
-// from here.
+// Type-only: DiscoverParams is z.infer'd from the input schema in
+// tools/tmdb/discover.ts (discoverParamsSchema). `import type` is erased at
+// build, so there is no runtime cycle even though discover.ts imports
+// TmdbClient from here.
 import type {
   DiscoverParams,
   RELEASE_TYPES,
@@ -75,33 +73,25 @@ type Query = Record<string, string | number | boolean | undefined>;
 // TMDB's hard cap on remote calls per append_to_response request.
 const MAX_APPEND_TO_RESPONSE = 20;
 
-// A show can have 30+ seasons, each already under its own 50-episode cap
-// (see summarizeSeason) — but the SUM across every season in an
-// expand_episodes bulk fetch can still reach into the hundreds and blow past
-// a usable response size. This is the cheap, pre-fetch budget: getTvSeasonsBulk
-// uses each season's already-known episode_count (from the show's own season
-// list — no extra request needed) to skip fetching seasons that fall entirely
-// beyond it, and capTotalEpisodes applies it again to the fetched data as a
-// fallback in case that metadata undercounts a season's real episodes.
-// episode_count on each season still reports that season's true total even
-// once its episodes are truncated to fit.
+// A show can have 30+ seasons, each under its own 50-episode cap (see
+// summarizeSeason), but the sum across an expand_episodes bulk fetch can reach
+// the hundreds. This is the cheap pre-fetch budget: getTvSeasonsBulk uses each
+// season's known episode_count (from the show's season list) to skip seasons
+// entirely beyond it, and capTotalEpisodes applies it again to the fetched data
+// in case that count undercounts. Each season's episode_count still reports its
+// true total after truncation.
 export const MAX_EXPANDED_EPISODES = 250;
 
-// Per-season cap applied by summarizeSeason to each season's episode list.
-// Named here because getTvSeasonsBulk's pre-fetch budget must charge a season
-// what it will actually RETURN (min(episode_count, this)), not its true
-// episode_count: season 0 "Specials" routinely reports 80+ episodes but can
-// only ever contribute 50, and charging the full 80+ used to evict later
-// seasons that would have fit.
+// Per-season cap applied by summarizeSeason. getTvSeasonsBulk's budget must
+// charge a season what it will return (min(episode_count, this)), not its true
+// episode_count: season 0 "Specials" often reports 80+ episodes but contributes
+// at most 50, and charging 80+ would evict later seasons that fit.
 export const MAX_SEASON_EPISODES = 50;
 
-// The actual constraint MAX_EXPANDED_EPISODES approximates is serialized
-// response SIZE, not episode count — an episode count alone doesn't bound
-// size if `name` runs unusually long. 500 (then 250) episodes were tried as a
-// count-only cap, but a real 500-episode seasons_detail (The Simpsons, 802
-// episodes) still ran ~75-80K characters. This is the authoritative backstop:
-// capTotalEpisodesBySize measures the actual serialized bytes and trims
-// further if needed, regardless of how verbose episode names turn out to be.
+// The real constraint is serialized response size, which an episode count only
+// approximates: 500 episodes of The Simpsons (802 in total) still came to
+// ~75-80K characters. capTotalEpisodesBySize measures the serialized size and
+// trims further when needed.
 export const MAX_EXPANDED_EPISODES_CHARS = 40_000;
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -127,11 +117,9 @@ function capTotalEpisodes(
   });
 }
 
-// Authoritative backstop on serialized size (see MAX_EXPANDED_EPISODES_CHARS)
-// — walks episodes in order, measuring each one's actual serialized bytes,
-// and stops adding episodes (for this and every later season) once the
-// running total would exceed maxChars. A single pass, no repeated
-// full-array JSON.stringify.
+// Size backstop (see MAX_EXPANDED_EPISODES_CHARS): walks episodes in order and
+// stops adding them (for this and every later season) once the serialized
+// total would exceed maxChars. One pass, no repeated full-array JSON.stringify.
 function capTotalEpisodesBySize(
   seasons: ReturnType<typeof summarizeSeason>[],
   maxChars: number,
@@ -149,9 +137,8 @@ function capTotalEpisodesBySize(
   });
 }
 
-// "de-DE" + original "ja" → "de,en,ja,null": the configured language,
-// English, the title's original language (its native trailers), and videos
-// with no language tag.
+// "de-DE" + original "ja" → "de,en,ja,null": the configured language, English,
+// the title's original language (its native trailers), and untagged videos.
 function videoLanguages(language: string, originalLanguage?: string): string {
   const langs = [language.split("-")[0], "en", originalLanguage, "null"];
   return [...new Set(langs.filter(Boolean))].join(",");
@@ -171,19 +158,16 @@ type TrendingWindow = "day" | "week";
 
 export type { DiscoverParams };
 
-// TMDB's /find endpoint supports all three, but only "imdb_id" is currently
-// plumbed to a tool (find_by_imdb_id); "tvdb_id"/"wikidata_id" are latent
-// capability for a future find-by-tvdb/wikidata tool.
+// TMDB's /find supports all three, but only "imdb_id" is wired to a tool
+// (find_by_imdb_id).
 type ExternalSource = "imdb_id" | "tvdb_id" | "wikidata_id";
 
-// Shared by every method that dispatches on a runtime "movie" | "tv" media
-// kind and returns a page of the corresponding summary — the return type is
-// a real union (which branch you get depends on the `mediaType` argument,
-// not on anything visible in the static type), not a cop-out to `unknown`.
+// Return type of methods that dispatch on a runtime "movie" | "tv" media kind.
+// Which branch you get depends on the `mediaType` argument.
 type MovieOrTvPage = Page<ReturnType<typeof summarizeMovie>> | Page<ReturnType<typeof summarizeTv>>;
 
-// getTv's return shape: detailTv's fields, plus the optional per-season
-// episode expansion (only populated when a caller passes expandEpisodes).
+// getTv's return shape: detailTv plus the per-season episode expansion, which
+// is only present when a caller passes expandEpisodes.
 type TvDetail = ReturnType<typeof detailTv> & {
   seasons_detail?: ReturnType<typeof summarizeSeason>[];
 };
@@ -217,7 +201,7 @@ export class TmdbClient {
       cacheTtlMs: config.cacheTtlMs,
       cacheMaxStaleMs: config.cacheMaxStaleMs,
       defaultHeaders: config.tmdbApiToken ? { Authorization: `Bearer ${config.tmdbApiToken}` } : {},
-      // TMDB's null only means "no value" (verified: no field reads it otherwise).
+      // TMDB's null only means "no value" (no field reads it otherwise).
       reviver: nullAsAbsent,
     });
     this.#http = http;
@@ -239,9 +223,9 @@ export class TmdbClient {
 
   // ---- search ---------------------------------------------------------------
 
-  // These search/discover/similar-family methods are NOT cached (unlike the
-  // detail getters below), so they accept the caller's AbortSignal and can be
-  // genuinely cancelled mid-flight when the MCP client cancels the tool call.
+  // The search/discover/similar methods are not cached (unlike the detail
+  // getters below), so they take the caller's AbortSignal and can be cancelled
+  // mid-flight when the MCP client cancels the tool call.
 
   async searchMovies(
     p: SearchParams,
@@ -257,8 +241,8 @@ export class TmdbClient {
         page: p.page,
         include_adult: p.include_adult,
         // No `region`: on /search/movie it only swaps release_date (and so
-        // `year`) for that country's date — verified live, it neither filters
-        // nor reorders — which made Oldboy (2003) read as 2005 under US.
+        // `year`) for that country's date, without filtering or reordering
+        // (verified live). Oldboy (2003) read as 2005 under US.
       },
       p.language,
       signal,
@@ -307,12 +291,12 @@ export class TmdbClient {
       p.language,
       signal,
     );
-    // /search/person never carries media_type, unlike /search/multi, so
-    // dispatch-by-media_type (summarizeMultiItem) would misclassify every row.
+    // /search/person rows carry no media_type (unlike /search/multi), so
+    // summarizeMultiItem would misclassify every one.
     return page(res, (item) => summarizePerson(item, p.include_adult));
   }
 
-  // Keyword ids feed discover_*'s with_keywords; this resolves names → ids.
+  // Keyword ids feed discover_*'s with_keywords; this resolves names to ids.
   async searchKeywords(
     query: string,
     pg?: number,
@@ -327,9 +311,9 @@ export class TmdbClient {
     return summarizeKeywords(res);
   }
 
-  // Company ids feed discover_*'s with_companies; this resolves names → ids.
-  // Names aren't unique (e.g. TMDB has two unrelated "A24"s) — origin_country
-  // is kept in the shaped result so a caller can tell rows apart.
+  // Company ids feed discover_*'s with_companies; this resolves names to ids.
+  // Names aren't unique (TMDB has two unrelated "A24"s), so origin_country
+  // stays in the shaped result to tell rows apart.
   async searchCompanies(
     query: string,
     pg?: number,
@@ -345,8 +329,8 @@ export class TmdbClient {
   }
 
   // Collection ids feed get_collection. Only query/page/language are sent:
-  // verified live, include_adult and region don't change /search/collection's
-  // results ("bond" and "collection" return the same rows either way).
+  // include_adult and region don't change /search/collection's results
+  // (verified live).
   async searchCollections(
     query: string,
     pg?: number,
@@ -373,16 +357,16 @@ export class TmdbClient {
   }
 
   // The raw detail is cached, not the shaped one: `region` only picks which
-  // country's certification detailMovie/detailTv headline — release_dates /
-  // content_ratings carry every country — so a region-keyed cache would
-  // refetch the same response once per region.
+  // country's certification detailMovie/detailTv headline (release_dates and
+  // content_ratings carry every country), so keying on region would refetch
+  // the same response per region.
   #movieRaw(id: number, language?: string): Promise<TmdbMovie> {
     return this.#cached(
       cacheKey(`movie:${id}`, { language: this.#lang(language) }),
       `movie/${id}`,
       (res: TmdbMovie) => res,
-      // release_dates appended so the detail carries age/content certifications;
-      // keywords so the agent can feed their ids straight into discover_*.
+      // release_dates for age/content certifications; keywords so the agent can
+      // feed their ids into discover_*.
       { append_to_response: "release_dates,keywords" },
       language,
     );
@@ -393,9 +377,8 @@ export class TmdbClient {
       cacheKey(`tv:${id}`, { language: this.#lang(language) }),
       `tv/${id}`,
       (res: TmdbTv) => res,
-      // external_ids appended so the TV detail carries an imdb_id (the base
-      // /tv/{id} response, unlike /movie/{id}, does not include one);
-      // content_ratings appended for age/content certifications; keywords as for movies.
+      // external_ids because base /tv/{id}, unlike /movie/{id}, has no imdb_id;
+      // content_ratings for age/content certifications; keywords as for movies.
       { append_to_response: "external_ids,content_ratings,keywords" },
       language,
     );
@@ -419,13 +402,11 @@ export class TmdbClient {
     };
   }
 
-  // Fetch every season's full episode list via append_to_response=season/1,
-  // season/2,..., instead of one getTvSeason call per season. TMDB caps
-  // append_to_response at 20 remote calls per request, so shows with more
-  // seasons (e.g. long-running sitcoms/soaps) are split into multiple
-  // append_to_response requests of at most that many seasons each. Cached
-  // separately from getTv (and keyed by the season list) since it's only
-  // fetched when a caller opts in via expandEpisodes.
+  // Fetch every season's episode list via append_to_response=season/1,season/2,...
+  // instead of one request per season. TMDB caps append_to_response at 20
+  // remote calls, so shows with more seasons are split into chunks of at most
+  // that many. Cached separately from getTv (keyed by the season list), since
+  // it's only fetched when a caller sets expandEpisodes.
   async #getTvSeasonsBulk(
     id: number,
     seasons: {
@@ -440,34 +421,26 @@ export class TmdbClient {
       seasons: seasons.map((s) => s.season_number).join(","),
       language: this.#lang(language),
     });
-    // A result with a failed chunk's seasons emptied is degraded(): returned
-    // to this one caller but never cached, and a complete stale copy within
-    // the stale window wins over it (flagged stale).
+    // A result with a failed chunk's seasons emptied is degraded(): not cached,
+    // and a complete stale copy within the stale window wins over it.
     const bulk = await this.#cache.wrapStaleOnError(key, async () => {
-      // A season whose true episode_count (already known from getTv's own
-      // season list — no extra request needed) is guaranteed to fall
-      // entirely beyond the aggregate budget doesn't need fetching at all:
-      // pulling its full episode list over the wire just to discard it in
-      // capTotalEpisodes is wasted work. Only fetch up through the season
-      // that actually crosses the budget boundary (to get its partial
-      // truncation). An unknown count (null) is fetched while budget
-      // remains (charged 0, since there's nothing to charge) and skipped
-      // once it's spent, like any other season.
+      // Skip seasons whose known episode_count puts them entirely beyond the
+      // budget; fetch only up through the season that crosses it (for its
+      // partial truncation). An unknown count (null) is charged 0, so it is
+      // fetched while budget remains and skipped once it's spent.
       let remaining = MAX_EXPANDED_EPISODES;
       const toFetch: number[] = []; // indices into `seasons`
       seasons.forEach((s, i) => {
         if (remaining <= 0) return;
         toFetch.push(i);
-        // Charge what this season can actually contribute, not its raw
-        // episode_count — summarizeSeason below trims it to
-        // MAX_SEASON_EPISODES, so charging more evicts later seasons that
-        // would have fit (season 0's 80+ specials being the usual culprit).
+        // Charge what the season can contribute (summarizeSeason trims it to
+        // MAX_SEASON_EPISODES), not its raw episode_count; see that constant.
         remaining -= Math.min(s.episode_count ?? 0, MAX_SEASON_EPISODES);
       });
 
-      // A season that wasn't fetched (beyond the budget, in a failed chunk,
-      // or missing from its chunk's response) is reported from the show's
-      // own season metadata, with no episodes.
+      // A season that wasn't fetched (over budget, in a failed chunk, or
+      // missing from its chunk's response) comes from the show's own season
+      // metadata, with no episodes.
       const skippedEntry = (s: (typeof seasons)[number]): ReturnType<typeof summarizeSeason> => ({
         season_number: s.season_number,
         name: s.name,
@@ -478,11 +451,10 @@ export class TmdbClient {
         episodes: [],
       });
 
-      // allSettled, not all: a long-running show needs 2+ chunked requests
-      // (e.g. General Hospital, Top Gear), and one failed chunk shouldn't
-      // sink the seasons the other chunks did return. Only when every chunk
-      // fails is it a real upstream failure — rethrow so wrapStaleOnError
-      // can still fall back to a stale cached value.
+      // allSettled, not all: a long-running show needs 2+ chunks (General
+      // Hospital, Top Gear), and one failed chunk shouldn't sink the others.
+      // Only when every chunk fails is it an upstream failure; rethrow so
+      // wrapStaleOnError can fall back to a stale value.
       const chunks = chunk(toFetch, MAX_APPEND_TO_RESPONSE);
       const settled = await Promise.allSettled(
         chunks.map((indices) =>
@@ -510,10 +482,8 @@ export class TmdbClient {
           if (raw) out[i] = summarizeSeason(raw, MAX_SEASON_EPISODES, false);
         }
       });
-      // parseSeasons re-validates the fetched/capped/skipped merge through
-      // seasonSchema, so this aggregate path gets the same drift/degrade
-      // guarantee the direct shapers have (the skipped entries above are
-      // hand-built and would otherwise skip validation entirely).
+      // parseSeasons validates the merged result through seasonSchema, which
+      // also covers the hand-built skipped entries above.
       const result = {
         seasons: parseSeasons(
           capTotalEpisodesBySize(
@@ -564,10 +534,10 @@ export class TmdbClient {
   }
 
   // Paged movie/tv title list under a per-title sub-resource. `recommendations`
-  // (co-viewing data) and `similar` (genre/keyword match) share this shape; the endpoint
-  // segment differs and the summarizer follows the media type. Both keep
-  // TMDB's order and paging; only explicit rows are dropped (withoutExplicit),
-  // so a page can be shorter than TMDB's 20 while its totals stay TMDB's.
+  // (co-viewing data) and `similar` (genre/keyword match) share this shape; only
+  // the endpoint segment differs. Both keep TMDB's order and paging and drop
+  // only explicit rows (withoutExplicit), so a page can be shorter than TMDB's
+  // 20 while its totals stay TMDB's.
   async #pagedTitles(
     mediaType: "movie" | "tv",
     id: number,
@@ -682,7 +652,7 @@ export class TmdbClient {
     return summarizeMovieReleases(withoutExplicit(res));
   }
 
-  // Genre lists drive the readable names in search results; very static → cache.
+  // Genre lists drive the readable names in search results; very static, so cached.
   // Cached per language so localized names are not mixed.
   async getGenres(
     mediaType: "movie" | "tv",
@@ -738,12 +708,11 @@ export class TmdbClient {
   }
 
   // Provider ids feed discover_*'s with_watch_providers; this resolves a
-  // provider name (e.g. "Netflix") → id. TMDB's own endpoint has no query
-  // parameter — it always returns every provider for the given media type
-  // (+ region, if given), so the full list is cached (like getGenres caches
-  // its own reference list) and matched against `query` in the shaper.
-  // Precomputes each entry's lowercase name once here, at cache-population
-  // time, rather than in the shaper on every call against a warm cache entry.
+  // provider name (e.g. "Netflix") to an id. TMDB's endpoint has no query
+  // parameter and always returns every provider for the media type (and
+  // region, if given), so the full list is cached and matched against `query`
+  // in the shaper. Each entry's lowercase name is precomputed here, once per
+  // cache fill, not on every call.
   async searchWatchProviders(
     mediaType: "movie" | "tv",
     query: string,
@@ -772,9 +741,8 @@ export class TmdbClient {
     limit?: number,
     language?: string,
   ): Promise<ReturnType<typeof summarizePersonCredits>> {
-    // Cache the raw response, not the shaped one: department/limit only
-    // change the shaping, never the upstream request, so keying the cache on
-    // them would refetch the same combined_credits once per combination.
+    // Cache the raw response: department/limit only change the shaping, so
+    // keying on them would refetch the same combined_credits per combination.
     const raw = await this.#cached(
       cacheKey(`person-credits:${id}`, { language: this.#lang(language) }),
       `person/${id}/combined_credits`,
@@ -797,14 +765,14 @@ export class TmdbClient {
       async () => {
         // The original language comes from the cached raw detail (shared with
         // get_movie/get_tv); without it a non-English film's native trailers
-        // are dropped (Spirited Away: no ja trailer under en). Optional: an
-        // upstream failure there degrades the list (not cached) instead of
-        // failing the call; a bug still propagates.
+        // are dropped (Spirited Away: no ja trailer under en). It's optional:
+        // an upstream failure there degrades the list (not cached) instead of
+        // failing the call.
         const detail = await unlessUpstreamFails(
           mediaType === "tv" ? this.#tvRaw(id, language) : this.#movieRaw(id, language),
         );
-        // `language` alone filters videos down to that one language (29 → 2
-        // for a title under de-DE); also include English and untagged ones.
+        // `language` alone keeps only that language's videos (29 → 2 for a
+        // title under de-DE), so English and untagged ones are requested too.
         const res = await this.#get<VideosResponse>(
           `${mediaType}/${id}/videos`,
           {
@@ -861,22 +829,20 @@ export class TmdbClient {
       // Inject season_number in case the episode payload omits it.
       (res: Parameters<typeof summarizeEpisode>[0]) =>
         summarizeEpisode({ ...res, season_number: res.season_number ?? season }),
-      // external_ids carries the episode's own imdb_id — the only route to a
-      // per-episode IMDb rating (via get_ratings), since OMDb keys on that id
-      // and TMDB puts it nowhere else. Appended to this same request, so it
-      // costs no extra round trip. Deliberately NOT done for the season/bulk
-      // paths: verified live, /tv/{id}/season/{n}'s own external_ids is
-      // season-level (tvdb/wikidata, no imdb_id at all) and its episode rows
-      // carry none, so per-episode ids there would mean one request per
-      // episode — up to 250 for expand_episodes.
+      // external_ids carries the episode's own imdb_id, the only route to a
+      // per-episode IMDb rating (get_ratings; OMDb keys on that id and TMDB has
+      // it nowhere else). It rides on this request at no extra cost. The
+      // season/bulk paths can't do this: /tv/{id}/season/{n}'s external_ids is
+      // season-level (tvdb/wikidata, no imdb_id) and its episode rows carry
+      // none (verified live), so per-episode ids would take one request per
+      // episode, up to 250 for expand_episodes.
       { append_to_response: "external_ids" },
       language,
     );
   }
 
   // Cache by `key`, GET `path` (with language injected), then shape the body.
-  // R is inferred from `shape`'s own return type at each call site, so every
-  // caller above gets back its real shape instead of a common denominator.
+  // R is inferred from `shape`'s return type, so each caller gets its real shape.
   async #cached<T, R>(
     key: string,
     path: string,
@@ -891,19 +857,15 @@ export class TmdbClient {
   }
 }
 
-// Maps each DiscoverParams field to the TMDB query key(s) it becomes for
-// movie and/or tv (some use a dotted range syntax like "vote_average.gte";
-// some differ per kind; some — with_cast = movie-only, with_networks =
-// tv-only — are exclusive to one). certification/certification_country work
-// for both (verified live against /discover/tv, not just /discover/movie,
-// despite TMDB's own docs only mentioning it for movies). The Record type
-// requires every DiscoverParams field
-// (other than `language`, applied separately) to have a row here, so adding a
-// field to either tool-facing discover schema in tools/tmdb/discover.ts without
-// adding its mapping here is a compile error instead of a filter that silently
-// never reaches TMDB — DiscoverParams itself is z.infer'd from that schema
-// (see discoverParamsSchema in tools/tmdb/discover.ts), so there's no third
-// hand-kept copy left to drift.
+// Maps each DiscoverParams field to the TMDB query key(s) it becomes for movie
+// and/or tv. Some use a dotted range syntax like "vote_average.gte", some
+// differ per kind, and some are exclusive to one (with_cast: movie only,
+// with_networks: tv only). certification/certification_country work for both
+// (verified live against /discover/tv, though TMDB's docs mention only movies).
+// The Record type requires a row for every DiscoverParams field except
+// `language` (applied separately), so a field added to the discover schemas in
+// tools/tmdb/discover.ts without a mapping here is a compile error, not a
+// filter that silently never reaches TMDB.
 const DISCOVER_FIELD_MAP: Record<
   Exclude<keyof DiscoverParams, "language">,
   Partial<Record<"movie" | "tv", string>>
@@ -950,11 +912,10 @@ const DISCOVER_FIELD_MAP: Record<
   page: { movie: "page", tv: "page" },
 };
 
-// TMDB's actual with_type/with_status query values are numeric codes, not the
-// human-readable names tools/tmdb/discover.ts's schema asks callers for
-// (TV_TYPES/TV_STATUSES there) — verified live against /discover/tv.
-// Translated here, after DISCOVER_FIELD_MAP's generic pass-through copies the
-// raw string in.
+// TMDB's with_type/with_status take numeric codes (verified live against
+// /discover/tv), while the schema in tools/tmdb/discover.ts (TV_TYPES/
+// TV_STATUSES) asks callers for names. Translated here, after
+// DISCOVER_FIELD_MAP's generic pass-through copies the raw string in.
 const TV_TYPE_IDS: Record<(typeof TV_TYPES)[number], number> = {
   Documentary: 0,
   News: 1,
@@ -989,8 +950,8 @@ export function discoverQuery(p: DiscoverParams, kind: "movie" | "tv"): Query {
     const tmdbKey = DISCOVER_FIELD_MAP[field][kind];
     const value = p[field];
     // Array fields (with_watch_monetization_types, with_origin_country,
-    // with_release_type): TMDB reads "|" as OR (verified live; "," would AND
-    // them, or for with_release_type do neither).
+    // with_release_type): TMDB reads "|" as OR. "," would AND them (verified
+    // live), or for with_release_type do neither.
     if (tmdbKey) query[tmdbKey] = Array.isArray(value) ? value.join("|") : value;
   }
   if (kind === "movie" && p.with_release_type !== undefined) {

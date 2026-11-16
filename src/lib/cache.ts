@@ -1,25 +1,18 @@
-// Tiny in-memory TTL cache for read endpoints. Caching cuts latency and eases
-// pressure on rate-limited upstreams. Expired entries are retained (bounded by
-// max size) so they can be served as a stale fallback when the upstream is down
-// — for at most `maxStaleMs` past expiry, like RFC 5861's stale-if-error.
+// Tiny in-memory TTL cache for read endpoints. Expired entries are kept
+// (bounded by max size) as a stale fallback for when the upstream is down, for
+// at most `maxStaleMs` past expiry (RFC 5861's stale-if-error).
 //
-// One instance is shared across a client's many endpoints, each storing its
-// own shape under its own key (a movie detail, a credits list, a genre map,
-// …) — genuinely heterogeneous storage, not one fixed type. So the type
-// parameter lives on each method call, not on the class: callers get back
-// whatever type their own `compute()`/`value` actually is, instead of every
-// caller being forced down to one class-wide type (previously
-// `Record<string, unknown>`, which every method had to individually re-widen
-// to and callers had to cast back out of).
+// One instance serves all of a client's endpoints, each storing its own shape
+// under its own key (movie detail, credits, genre map, ...). So the type
+// parameter is on each method, not on the class: callers get back the type
+// their own `compute()`/`value` has.
 
 /**
  * Build a deterministic cache key from a stable resource path (e.g.
  * `movie:${id}`) plus the params that vary the *shaped* response (region,
- * language, ...). Named fields instead of hand-interpolated template literals
- * make each cached accessor's variance dimensions visible at the call site
- * and sort-order-independent, closing the bug class where a dimension (e.g.
- * region) was silently left out of a key and one request's response leaked
- * into another's cache slot.
+ * language, ...). Named fields make those dimensions visible at the call site
+ * and independent of order. A dimension left out of a key would leak one
+ * request's response into another's cache slot.
  */
 import { AsyncLocalStorage } from "node:async_hooks";
 import { ApiError } from "./errors.ts";
@@ -40,18 +33,18 @@ interface Entry {
   storedAt: number;
 }
 
-/** What one tool call learned about the data it returned, for the result's
- *  `_meta`: the age (ms since fetched) of the oldest stale value it used, and
- *  whether any part of it is incomplete. */
+/** What one tool call learned about its data, for the result's `_meta`: the
+ *  age (ms since fetched) of the oldest stale value it used, and whether any
+ *  part is incomplete. */
 export interface CallNotes {
   staleAgeMs?: number;
   partial?: boolean;
 }
 
 /**
- * Carries a CallNotes record through one tool call's async work
- * (tools/shared.ts runs each call inside one), so the cache reports a stale or
- * partial result without any client method threading a callback.
+ * Carries a CallNotes record through one tool call's async work (tools/shared.ts
+ * runs each call inside one), so the cache can report stale or partial data
+ * without client methods passing anything along.
  */
 export const callNotes = new AsyncLocalStorage<CallNotes>();
 
@@ -71,9 +64,9 @@ class Degraded<T> {
   }
 }
 
-/** Marks a compute() result as usable but incomplete (some upstream part
- *  failed): it is never cached, a complete stale copy wins over it, and
- *  otherwise the caller gets it noted as partial. */
+/** Marks a compute() result as usable but incomplete (part of the upstream
+ *  failed). It is never cached; a complete stale copy wins over it, otherwise
+ *  the caller gets it noted as partial. */
 export function degraded<T>(value: T): Degraded<T> {
   return new Degraded(value);
 }
@@ -92,14 +85,13 @@ export class TtlCache {
   constructor(opts: {
     ttlMs: number;
     max?: number;
-    /** How long past expiry a value may still stand in for an upstream
-     *  outage (RFC 5861's stale-if-error window); unbounded by default. */
+    /** How long past expiry a value may stand in for an upstream outage
+     *  (RFC 5861's stale-if-error window); unbounded by default. */
     maxStaleMs?: number;
     logger?: Logger;
-    /** Clock (ms), injectable for tests. Wall-clock by default: an entry's
-     *  age is real elapsed time, including while the machine slept — a
-     *  monotonic clock stops during suspend and would keep yesterday's data
-     *  "fresh" after a laptop wakes up. */
+    /** Clock (ms), injectable for tests. Wall clock by default: an entry's age
+     *  must include time the machine slept, and a monotonic clock stops during
+     *  suspend, which would keep yesterday's data "fresh" after wake-up. */
     now?: () => number;
   }) {
     this.#ttlMs = opts.ttlMs;
@@ -127,8 +119,8 @@ export class TtlCache {
     this.#map.set(key, { value, storedAt: this.#now() });
   }
 
-  // Map iterates in insertion order, so re-inserting a key on every hit keeps
-  // the first key the least recently used one — the one set() evicts.
+  // Map iterates in insertion order, so re-inserting on every hit keeps the
+  // first key the least recently used, which is the one set() evicts.
   #touch(key: string, hit: Entry): void {
     this.#map.delete(key);
     this.#map.set(key, hit);
@@ -136,9 +128,9 @@ export class TtlCache {
 
   /**
    * Get-or-compute, caching the resolved value. When the upstream is down (a
-   * transient ApiError) and a value no older than the stale window exists,
-   * that is served instead and noted as stale. Anything else — a bug, a 404,
-   * a rejected key — propagates: stale data must not hide it.
+   * transient ApiError) and a value within the stale window exists, that is
+   * served and noted as stale. Anything else (a bug, a 404, a rejected key)
+   * propagates: stale data must not hide it.
    */
   async wrapStaleOnError<T>(key: string, compute: () => Promise<T | Degraded<T>>): Promise<T> {
     const fresh = this.get<T>(key);
@@ -153,8 +145,8 @@ export class TtlCache {
       this.#logger?.warn(`serving stale cached value for "${key}" — upstream refresh failed`, err);
       return stale;
     }
-    // What the shared compute itself used (a stale or partial input) applies
-    // to every caller it serves, not only the one whose context ran it.
+    // The shared compute's own notes apply to every caller it serves, not just
+    // the one whose context ran it.
     note(computed.notes);
     if (!(computed.value instanceof Degraded)) return computed.value;
     const stale = this.#usableStale<T>(key);
@@ -179,9 +171,9 @@ export class TtlCache {
   }
 
   // One in-flight compute per key, run in its own CallNotes record so what it
-  // used is known apart from any caller. A result built from stale or partial
+  // used is separate from any caller's. A result built from stale or partial
   // input, or degraded itself, is returned but not cached. A rejection reaches
-  // every waiter and frees the slot for the next call.
+  // every waiter and frees the slot.
   #dedupe<T>(key: string, compute: () => Promise<T>): Promise<Computed<T>> {
     const inFlight = this.#pending.get(key) as Promise<Computed<T>> | undefined;
     if (inFlight) return inFlight;

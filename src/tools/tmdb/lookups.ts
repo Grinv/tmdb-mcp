@@ -1,6 +1,5 @@
-// Supplementary per-title lookups fetched separately from the main
-// get_movie/get_tv detail payload: where to watch, videos/trailers, an
-// IMDb-id reverse lookup, and TV season/episode deep dives.
+// Per-title lookups kept out of the get_movie/get_tv payload: watch providers,
+// videos, IMDb-id reverse lookup, TV season/episode details.
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/server";
 import {

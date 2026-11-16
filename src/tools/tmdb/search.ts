@@ -1,7 +1,7 @@
-// Name/title → TMDB id resolvers: search_movies/search_tv/search_people/
-// search_multi for titles and people, search_collections for get_collection's
-// franchise id, plus search_keywords/search_companies/search_watch_providers for
-// the ids discover_movies/discover_tv's filters need.
+// Name/title → TMDB id resolvers: titles and people (search_movies, search_tv,
+// search_people, search_multi), get_collection's franchise id
+// (search_collections), and the ids discover_movies/discover_tv filters need
+// (search_keywords, search_companies, search_watch_providers).
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/server";
 import {
@@ -63,7 +63,7 @@ export function registerSearchTools(server: McpServer, { tmdb, requireTmdb }: Tm
           page: page.optional(),
         })
         .superRefine((v, ctx) => {
-          // Without `year`, exact_year would be silently ignored.
+          // TMDB silently ignores exact_year without `year`.
           if (v.exact_year && v.year === undefined) {
             ctx.addIssue({
               code: "custom",

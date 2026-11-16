@@ -20,21 +20,19 @@ const INSTRUCTIONS =
   "use the standalone get_ratings only when you have just an IMDb id or a raw title. " +
   "TMDB needs TMDB_API_TOKEN; rating enrichment needs OMDB_API_KEY (tools report clearly when unset).";
 
-// The tool/prompt list and server-identity metadata are fixed at build time —
-// registerTmdbTools/registerOmdbTools/registerPrompts below never register or
-// unregister anything at runtime — so a client on protocol revision
-// 2026-07-28 can safely cache tools/list, prompts/list and server/discover
-// for a while, and even let a shared proxy serve that cached response to
-// other clients ('public'): unlike a per-user resource, nothing here varies
-// by caller. Only these three of the six cacheable operations apply — this
-// server registers no MCP Resources. 2025-era connections are unaffected.
+// Tool/prompt lists and server identity are fixed at build time (nothing
+// registers or unregisters at runtime), so a client on protocol revision
+// 2026-07-28 can cache tools/list, prompts/list and server/discover, even in
+// a shared proxy ('public'): nothing varies by caller. Only three of the six
+// cacheable operations apply; there are no MCP Resources. 2025-era connections
+// are unaffected.
 const STATIC_CACHE_HINT: CacheHint = { ttlMs: 3_600_000, cacheScope: "public" };
 
-// Upper bound on array elements + object members in one tools/call
-// `arguments` payload, checked by the SDK before Zod runs. The largest
-// legitimate call (discover_movies with every filter set, or get_movies'
-// 20 ids) stays under ~30, so 100 leaves ample headroom while rejecting a
-// pathological payload cheaply, as an isError result.
+// Cap on array elements plus object members in one tools/call `arguments`
+// payload, checked by the SDK before Zod runs. The largest real call
+// (discover_movies with every filter, or get_movies' 20 ids) stays under ~30;
+// 100 leaves headroom and cheaply rejects a pathological payload as an isError
+// result.
 export const MAX_TOOL_INPUT_ELEMENTS = 100;
 
 /** Construct a fully-registered MCP server. Shared by start() and tests. */
@@ -62,9 +60,9 @@ export function buildServer(config: Config, logger: Logger): McpServer {
 }
 
 /** Load config, build the server, and serve over stdio until terminated.
- *  MCP protocol revision 2026-07-28 deprecated server→client log notifications
- *  in favor of stderr (SEP-2577) — the host process already reads a spawned
- *  stdio server's stderr, so this logger's stderr output is the only channel. */
+ *  Protocol revision 2026-07-28 deprecated server→client log notifications
+ *  in favor of stderr (SEP-2577): the host reads a spawned stdio server's
+ *  stderr, so the logger's stderr output is the only channel. */
 export async function start(): Promise<void> {
   const config = loadConfig();
   const logger = createLogger(config.logLevel);
