@@ -12,19 +12,22 @@ import { SourceMap } from "node:module";
 
 const mapPath = process.argv[2];
 if (!mapPath) {
-  process.exitCode = 2;
-  throw new TypeError("usage: node scripts/decode-stack.ts <dist/index.js.map> < log");
+  console.error("usage: node scripts/decode-stack.ts <dist/index.js.map> < log");
+  process.exit(2);
 }
 const map = new SourceMap(JSON.parse(readFileSync(mapPath, "utf8")));
 const log = readFileSync(0, "utf8");
 
-// Every bundle position (`file:///…/index.js:L:C`); Node's own frames
-// (`node:internal/…`) have no `.js:` and pass through.
+// Only the bundle's own positions (`…/index.js:L:C`); any other file's frames
+// pass through, and so does a position the map has no entry for on that line
+// (findEntry would otherwise answer with the nearest earlier line's mapping).
 const decoded = log.replace(
-  /(?:file:\/\/)?[^()\s]+\.js:(\d+):(\d+)/g,
+  /(?:file:\/\/)?[^()\s]*\/index\.js:(\d+):(\d+)/g,
   (position, line: string, column: string) => {
     const entry = map.findEntry(Number(line) - 1, Number(column) - 1);
-    if (!("originalSource" in entry)) return position;
+    if (!("originalSource" in entry) || entry.generatedLine !== Number(line) - 1) {
+      return position;
+    }
     const source = entry.originalSource.replace(/^.*?\/(src|node_modules)\//, "$1/");
     return `${source}:${entry.originalLine + 1}:${entry.originalColumn + 1}`;
   },
