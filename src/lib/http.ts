@@ -91,7 +91,6 @@ export class HttpClient {
       });
       if (!res.ok) throw await toHttpError(res);
       if (res.status === 204) return undefined as T;
-      assertBodyWithinCap(res);
       const text = await res.text();
       if (text.length === 0) return undefined as T;
       try {
@@ -135,29 +134,10 @@ export class HttpClient {
   }
 }
 
-// Defense-in-depth cap on how much of an upstream body we buffer into memory.
-// The two hosts are fixed, trusted APIs (see SECURITY.md), so this is not an
-// agent-reachable path — it only guards against a misconfigured/MITM'd/
-// operator-overridden base URL streaming a pathologically large body. The cap
-// is far above any real TMDB/OMDb response (expand_episodes is already byte-
-// capped upstream), so it never trips on legitimate traffic.
-const MAX_BODY_BYTES = 16 * 1024 * 1024;
-
-function assertBodyWithinCap(res: Response): void {
-  const len = Number(res.headers.get("content-length"));
-  if (Number.isFinite(len) && len > MAX_BODY_BYTES) {
-    throw new ApiError({
-      code: "unknown",
-      message: `Upstream response too large (${len} bytes > ${MAX_BODY_BYTES} cap)`,
-    });
-  }
-}
-
 async function toHttpError(res: Response): Promise<ApiError> {
   const { code, retryable } = classifyStatus(res.status);
   let raw = "";
   try {
-    assertBodyWithinCap(res);
     raw = await res.text();
   } catch {
     /* ignore body read errors */
