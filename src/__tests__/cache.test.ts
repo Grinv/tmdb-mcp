@@ -1,6 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { ApiError } from "../lib/errors.ts";
+import { silentLogger } from "./helpers.ts";
 import { TtlCache, cacheKey, degraded, callNotes, type CallNotes } from "../lib/cache.ts";
 
 const tick = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -250,12 +251,28 @@ describe("TtlCache", () => {
     }
   });
 
-  test("a clock stepped back makes an entry stale, not fresh for longer", async () => {
-    let now = 10_000;
-    const cache = new TtlCache({ ttlMs: 1_000, now: () => now });
+  test("a clock stepped back leaves an entry of unknown age: neither fresh nor a fallback", async () => {
+    let now = 10_000_000;
+    const cache = new TtlCache({ ttlMs: 1_000, maxStaleMs: 1_000, now: () => now });
     cache.set("k", 1);
     now -= 3_600_000;
     assert.equal(cache.get("k"), undefined);
+    await assert.rejects(() =>
+      cache.wrapStaleOnError("k", async () => {
+        throw new ApiError({ code: "network", message: "down" });
+      }),
+    );
+  });
+
+  test("serving a stale copy over a partial result is logged too", async () => {
+    let now = 0;
+    const warnings: string[] = [];
+    const logger = { ...silentLogger(), warn: (msg: string) => warnings.push(msg) };
+    const cache = new TtlCache({ ttlMs: 1, logger, now: () => now });
+    await cache.wrapStaleOnError("k", async () => "full");
+    now += 5;
+    assert.equal(await cache.wrapStaleOnError("k", async () => degraded("part")), "full");
+    assert.equal(warnings.length, 1);
   });
 
   test("a degraded compute's notes are dropped when a complete stale copy wins", async () => {

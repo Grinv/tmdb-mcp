@@ -143,9 +143,8 @@ export class TtlCache {
     try {
       computed = await this.#dedupe(key, compute);
     } catch (err) {
-      const stale = isOutage(err) ? this.#usableStale<T>(key) : undefined;
+      const stale = isOutage(err) ? this.#usableStale<T>(key, err) : undefined;
       if (stale === undefined) throw err;
-      this.#logger?.warn(`serving stale cached value for "${key}" — upstream refresh failed`, err);
       return stale;
     }
     // The shared compute's own notes apply to every caller it serves, not just
@@ -154,23 +153,25 @@ export class TtlCache {
       note(computed.notes);
       return computed.value;
     }
-    const stale = this.#usableStale<T>(key);
+    const stale = this.#usableStale<T>(key, "the fresh result was partial");
     if (stale !== undefined) return stale;
     note({ ...computed.notes, partial: true });
     return computed.value.value;
   }
 
-  // A cached value still inside the stale window, noted with its age; one
-  // past the window is dropped for good.
-  #usableStale<T>(key: string): T | undefined {
+  // A cached value still inside the stale window, noted with its age and
+  // logged with `why`. One past the window, or of unknown age (the clock
+  // stepped back), is dropped for good.
+  #usableStale<T>(key: string, why: unknown): T | undefined {
     const hit = this.#map.get(key);
     if (hit === undefined) return undefined;
-    const ageMs = Math.max(0, this.#now() - hit.storedAt);
-    if (ageMs > this.#ttlMs + this.#maxStaleMs) {
+    const ageMs = this.#now() - hit.storedAt;
+    if (ageMs < 0 || ageMs > this.#ttlMs + this.#maxStaleMs) {
       this.#map.delete(key);
       return undefined;
     }
     this.#touch(key, hit);
+    this.#logger?.warn(`serving stale cached value for "${key}"`, why);
     note({ staleAgeMs: ageMs });
     return hit.value as T;
   }
