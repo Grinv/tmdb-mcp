@@ -6,17 +6,27 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** remove `search_movies`' `region`; it only swapped in one country's release date, so `year` disagreed with every other tool ([15358f2](https://github.com/Grinv/tmdb-mcp/commit/15358f2)).
+- Drop adult/softcore titles from lists TMDB doesn't filter itself: trending, recommendations, similar, credits, collections, `known_for` ([400a8f0](https://github.com/Grinv/tmdb-mcp/commit/400a8f0)).
+- Suggest 2-3 distinctive keywords via `with_keywords` for similar titles in `recommend_similar` and `get_movie`/`get_tv` ([726f841](https://github.com/Grinv/tmdb-mcp/commit/726f841)).
+- Publish each tool field's default in its input schema ([fef168b](https://github.com/Grinv/tmdb-mcp/commit/fef168b)).
+- Update `@modelcontextprotocol/server` to 2.4.0 ([b9fd54c](https://github.com/Grinv/tmdb-mcp/commit/b9fd54c)).
+
 ### Added
 
 - Return keywords with their ids from `get_movie` and `get_tv`, ready for `discover_*`'s `with_keywords` ([8e8da62](https://github.com/Grinv/tmdb-mcp/commit/8e8da62)).
+- Resolve IMDb episode ids in `find_by_imdb_id` to show id plus season and episode numbers ([7fb25db](https://github.com/Grinv/tmdb-mcp/commit/7fb25db)).
 
 ### Fixed
 
+- Time out a response that stalls after its headers instead of hanging the call for minutes ([7098f20](https://github.com/Grinv/tmdb-mcp/commit/7098f20)).
+- Include the upstream's own reason in tool errors, e.g. OMDb's "Invalid API key!" ([e723377](https://github.com/Grinv/tmdb-mcp/commit/e723377)).
+- Report an OMDb refusal sent with HTTP 200 as an error, not a cached "no ratings" ([e723377](https://github.com/Grinv/tmdb-mcp/commit/e723377)).
+- Never tell the model to fetch more than 20 ids in one `get_tv_shows` call in `top_by_entity` ([3873d5d](https://github.com/Grinv/tmdb-mcp/commit/3873d5d)).
+- Evict the least recently used cache entry, so hot entries keep their outage fallback ([6eab9b7](https://github.com/Grinv/tmdb-mcp/commit/6eab9b7)).
 - Bump `zod` to 4.6.7 to fix a memory-exhaustion advisory when validating oversized inputs ([GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5)) ([b9fd54c](https://github.com/Grinv/tmdb-mcp/commit/b9fd54c)).
-
-### Changed
-
-- Update `@modelcontextprotocol/server` to 2.4.0 ([b9fd54c](https://github.com/Grinv/tmdb-mcp/commit/b9fd54c)).
 
 ## [0.14.0] - 2026-10-22
 
