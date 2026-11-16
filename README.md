@@ -14,8 +14,8 @@ in the same call.
 The server speaks standard MCP over stdio, so it works with any MCP client
 (Claude Desktop/Code, Cursor, VS Code, Cline, …).
 
-Once it's connected, just ask your agent in natural language (needs a free TMDB
-token; see [Getting your credentials](#getting-your-credentials)):
+Once connected, ask your agent in plain language. You need a free TMDB token;
+see [Getting your credentials](#getting-your-credentials):
 
 ```
 "Search for the movie Dune: Part Two and show its overview, genres and runtime."
@@ -74,9 +74,9 @@ Add it to your MCP client's config. The only required credential is a TMDB v4
 
 **As a `.mcpb` bundle (easiest for Claude Desktop):** download `tmdb-mcp.mcpb`
 from the [latest release](https://github.com/Grinv/tmdb-mcp/releases/latest),
-then open it / drag it into Claude Desktop's Extensions. It's a self-contained
-bundle (no Node or npm needed); enter the token and the optional fields in the
-install dialog. Re-download and reinstall to update.
+then open it or drag it into Claude Desktop's Extensions. The bundle is
+self-contained (no Node or npm needed); enter the token and the optional fields
+in the install dialog. To update, download and reinstall.
 
 **From source:** `git clone`, then `npm ci && npm run build`, and point the client
 at it with `"command": "node"`, `"args": ["/ABS/PATH/tmdb-mcp/dist/index.js"]` and
@@ -114,25 +114,25 @@ See [docs/clients.md](https://github.com/Grinv/tmdb-mcp/blob/main/docs/clients.m
 | `search_watch_providers`                               | Resolve a streaming/rental service name (e.g. 'Netflix') → id for `discover_*`'s `with_watch_providers`                                                            |
 | `get_ratings`                                          | IMDb/RT/Metacritic ratings by IMDb id or title (standalone)                                                                                                        |
 
-**Prompts.** Alongside the tools above, the server exposes two MCP prompts:
-`recommend_similar` (`title`, optional `media_type`, optional `count`) plans a
-search for titles similar to one the user liked, driving `get_similar` /
-`get_movie_recommendations` / `get_tv_recommendations` / `discover_movies` /
-`discover_tv` instead of relying on the model's own knowledge. `top_by_entity`
-(`name`, optional `entity_type`, `genre`, `media_type`, `count`) finds the
-best-regarded titles from a person or a production company/studio (e.g. "A24's
-top movies" or "Tarantino's best crime films") via `discover_movies`/
-`discover_tv`, and for a person's TV work specifically falls back to
-`get_person_credits` (TMDB's own `/discover/tv` can't filter by person at all).
+**Prompts.** The server also exposes two MCP prompts. `recommend_similar`
+(`title`, optional `media_type`, optional `count`) plans a search for titles
+similar to one the user liked, using `get_similar` / `get_movie_recommendations` /
+`get_tv_recommendations` / `discover_movies` / `discover_tv` instead of the
+model's own knowledge. `top_by_entity` (`name`, optional `entity_type`, `genre`,
+`media_type`, `count`) finds the best-regarded titles from a person or a
+production company/studio (e.g. "A24's top movies" or "Tarantino's best crime
+films") via `discover_movies`/`discover_tv`. For a person's TV work it falls
+back to `get_person_credits`, because TMDB's `/discover/tv` can't filter by
+person at all.
 
 **Backbone vs. enrichment.** TMDB is the primary source (search, metadata,
-people, trending). OMDb is optional enrichment: `get_movie`/`get_tv` chain the
-`imdb_id` TMDB returns into an OMDb lookup, so ratings come back in one call,
-along with a free-text awards summary (major-award wins/nominations, e.g. Oscars
-for a film or Emmys for a show, for the title as a whole, not attributed to any
-one person) and OMDb's own age rating (`ratings.rated`, separate from this
-server's own `certification`). Without an OMDb key the TMDB data still works;
-the `ratings` field just reports that it is unconfigured.
+people, trending). OMDb is optional enrichment: `get_movie`/`get_tv` pass the
+`imdb_id` TMDB returns to OMDb, so ratings come back in one call. The same call
+returns a free-text awards summary (major-award wins/nominations, e.g. Oscars
+for a film or Emmys for a show; it covers the title as a whole, with no
+attribution to individuals) and OMDb's own age rating (`ratings.rated`, separate
+from this server's `certification`). Without an OMDb key the TMDB data still
+works, and the `ratings` field reports that OMDb is unconfigured.
 
 **Localization.** Set `TMDB_LANGUAGE` (e.g. `ru-RU`) and `TMDB_REGION` (e.g.
 `RU`) to get localized titles/overviews/genre names and region-specific
@@ -143,18 +143,18 @@ accept a per-call `language` override.
 
 ## Getting your credentials
 
-One token is required (TMDB); the OMDb key is optional. Both are free.
+The TMDB token is required and the OMDb key is optional. Both are free.
 
 1. **TMDB token (required).** Create a free account at
    [themoviedb.org](https://www.themoviedb.org/signup), then open
    **[Settings → API](https://www.themoviedb.org/settings/api)** and request an API
-   key (personal use). Copy the **"API Read Access Token"** (the long v4 token, _not_
-   the short v3 key) into **`TMDB_API_TOKEN`**. It's sent as `Authorization: Bearer …`.
+   key (personal use). Copy the **"API Read Access Token"** (the long v4 token, not
+   the short v3 key) into **`TMDB_API_TOKEN`**. It is sent as `Authorization: Bearer …`.
 2. **OMDb key (optional).** Grab a free key at
    **[omdbapi.com/apikey.aspx](https://www.omdbapi.com/apikey.aspx)** (the free tier
-   is fine), click the activation link in the email, and set **`OMDB_API_KEY`**. This
-   unlocks `get_ratings` and the IMDb / Rotten Tomatoes / Metacritic scores in movie
-   and TV details. Without it, everything else still works.
+   is enough), click the activation link in the email, and set **`OMDB_API_KEY`**.
+   This unlocks `get_ratings` and the IMDb / Rotten Tomatoes / Metacritic scores in
+   movie and TV details. Everything else works without it.
 
 Put these in your MCP client config's `env` block (see
 [docs/clients.md](https://github.com/Grinv/tmdb-mcp/blob/main/docs/clients.md) for per-client snippets). Never commit them.
@@ -162,8 +162,9 @@ Put these in your MCP client config's `env` block (see
 
 ### Advanced tuning (env-only, no install-UI equivalent)
 
-Sensible defaults; only set these if you know you need to. Env var only, not
-exposed in Claude Desktop's install form, so CLI/Docker users set them directly.
+The defaults are sensible; change them only if you need to. These variables are
+not in Claude Desktop's install form, so CLI/Docker users set them in the
+environment.
 
 | Variable               | Default                        | Purpose                                                                       |
 | ---------------------- | ------------------------------ | ----------------------------------------------------------------------------- |
@@ -177,10 +178,10 @@ exposed in Claude Desktop's install form, so CLI/Docker users set them directly.
 | `CACHE_MAX_STALE_MS`   | `86400000`                     | How long past that a cached response may stand in for an unreachable upstream |
 | `LOG_LEVEL`            | `info`                         | `debug` \| `info` \| `warn` \| `error` \| `silent`                            |
 
-If TMDB/OMDb is briefly down and a tool falls back to a cached-but-expired
-response rather than failing, the result carries
-`_meta: {"io.github.Grinv.tmdb-mcp/stale": {"age_seconds": N}}` (how old the data is; `"io.github.Grinv.tmdb-mcp/partial": true` likewise flags a result with a part missing) alongside the normal data, so a client can
-tell a degraded answer from a fresh one.
+If TMDB/OMDb is briefly down and a tool serves a cached but expired response
+instead of failing, the result carries
+`_meta: {"io.github.Grinv.tmdb-mcp/stale": {"age_seconds": N}}` (how old the data is) alongside the normal data, so a client can
+tell a degraded answer from a fresh one. `"io.github.Grinv.tmdb-mcp/partial": true` likewise flags a result with a part missing.
 
 ## Develop
 

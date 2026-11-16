@@ -1,13 +1,13 @@
 # Client configuration
 
 This is a standard stdio MCP server, published on npm as `tmdb-mcp`. Point any
-MCP client at it via `npx -y tmdb-mcp` — no clone or local build needed.
+MCP client at it via `npx -y tmdb-mcp`; no clone or local build is needed.
 
 Credentials:
 
-- `TMDB_API_TOKEN` (required) — TMDB v4 "Read Access Token"
+- `TMDB_API_TOKEN` (required): TMDB v4 "Read Access Token"
   (<https://www.themoviedb.org/settings/api>).
-- `OMDB_API_KEY` (optional) — free OMDb key
+- `OMDB_API_KEY` (optional): free OMDb key
   (<https://www.omdbapi.com/apikey.aspx>); enables IMDb/RT/Metacritic ratings.
 
 ## Claude Desktop / Claude Code
@@ -39,7 +39,7 @@ Use the same stdio pattern:
 
 ## From source
 
-Prefer working against a local clone (e.g. to test an unreleased change):
+To work against a local clone (e.g. to test an unreleased change):
 `git clone`, then `npm ci && npm run build`, and point the client at
 `"command": "node"`, `"args": ["/ABS/PATH/tmdb-mcp/dist/index.js"]` (replace
 `/ABS/PATH/tmdb-mcp` with your clone's absolute path) with the same `env` as
@@ -49,10 +49,11 @@ above.
 
 If TMDB/OMDb is briefly unreachable and a cached (possibly expired) response
 is served instead of failing the call, the tool result carries
-`_meta: {"io.github.Grinv.tmdb-mcp/stale": {"age_seconds": N}}` (how old the data is; `"io.github.Grinv.tmdb-mcp/partial": true` likewise flags a result with a part missing) alongside the normal `structuredContent` —
-the data itself is unchanged, only `_meta` flags it as possibly outdated. A
-client that cares can check for this key; one that doesn't just sees the same
-result it always would.
+`_meta: {"io.github.Grinv.tmdb-mcp/stale": {"age_seconds": N}}` (how old the data is) alongside the normal `structuredContent`.
+`"io.github.Grinv.tmdb-mcp/partial": true` likewise flags a result with a part missing.
+The data itself is unchanged; only `_meta` marks it as possibly outdated. A
+client that cares can check for this key, and one that doesn't sees the same
+result as always.
 
 ## Tunables (optional env)
 
